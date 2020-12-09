@@ -1634,6 +1634,47 @@ class Runescape(commands.Cog):
         embed.set_thumbnail(url='attachment://pvm_boss.png')
 
         await ctx.send(file=image, embed=embed)
+    
+    @commands.command()
+    async def dry(self, ctx, droprate='', attempts=''):
+        '''
+        Calculates the probability of going dry.
+        Arguments: droprate, attempts
+        Droprate formatting options (1/1000 used for example):
+        - 1/1000
+        - 1000
+        - 0.001
+        Formula used: (1-p)^k * 100
+        '''
+        addCommand()
+
+        if not droprate:
+            raise commands.CommandError(message=f'Required argument missing: `droprate`')
+        if not attempts:
+            raise commands.CommandError(message=f'Required argument missing: `attempts`')
+        if not is_int(attempts):
+            raise commands.CommandError(message=f'Invalid argument: `{attempts}`. Must be an integer.')
+        attempts = int(attempts)
+        if attempts <= 0:
+            raise commands.CommandError(message=f'Invalid argument: `{attempts}`. Must be greater than 0.')
+        if '1/' in droprate:
+            droprate = droprate.replace('1/', '')
+        if is_int(droprate):
+            droprate = int(droprate)
+            if droprate <= 0:
+                raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be greater than 0 if integer.')
+            droprate = 1/droprate
+        elif is_float(droprate):
+            droprate = float(droprate)
+            if droprate <= 0 or droprate > 1:
+                raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be greater than 0 and less than or equal to 1 if float.')
+        else:
+            raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be int, float, or string of the form `1/x` where x is a positive integer.')
+
+        result = (1-droprate)**attempts
+        result *= 100
+
+        await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
 def setup(bot):
     bot.add_cog(Runescape(bot))

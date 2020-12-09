@@ -122,6 +122,20 @@ def portables_only():
         raise commands.CommandError(message='Insufficient permissions: `Portables server only`')
     return commands.check(predicate)
 
+def cozy_council():
+    async def predicate(ctx):
+        cozy = ctx.bot.get_guild(config['cozy_guild_id'])
+        if cozy:
+            member = await cozy.fetch_member(ctx.author.id)
+            if member:
+                council_role = cozy.get_role(config['cozy_council_role_id'])
+                if council_role in member.roles:
+                    return True
+        if ctx.author.id == config['owner']:
+            return True
+        raise commands.CommandError(message='Insufficient permissions: `Cozy Council`')
+    return commands.check(predicate)
+
 def get_gspread_creds():
     return ServiceAccountCredentials.from_json_keyfile_name('data/gspread.json',
       ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive',

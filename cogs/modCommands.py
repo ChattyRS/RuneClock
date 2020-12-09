@@ -302,7 +302,7 @@ class ModCommands(commands.Cog):
         '''
         addCommand()
 
-        if member.top_role >= ctx.author.top_role or member.id == config['owner']:
+        if member.top_role >= ctx.author.top_role and member.id != config['owner']:
             raise commands.CommandError(message=f'You have insufficient permissions to kick this user.')
         try:
             await member.kick()
@@ -320,7 +320,7 @@ class ModCommands(commands.Cog):
         '''
         addCommand()
 
-        if member.top_role >= ctx.author.top_role or member.id == config['owner']:
+        if member.top_role >= ctx.author.top_role and member.id != config['owner']:
             raise commands.CommandError(message=f'You have insufficient permissions to ban this user.')
         try:
             await member.ban()
@@ -368,9 +368,9 @@ class ModCommands(commands.Cog):
         '''
         addCommand()
 
-        if member.top_role >= ctx.author.top_role or member.id == config['owner']:
+        if member.top_role >= ctx.author.top_role and member.id != config['owner']:
             raise commands.CommandError(message=f'You have insufficient permissions to edit this user\'s roles.')
-        if role > ctx.author.top_role:
+        if role > ctx.author.top_role and member.id != config['owner']:
             raise commands.CommandError(message=f'You have insufficient permissions to assign or remove this role.')
 
         if not role in member.roles:
@@ -834,6 +834,21 @@ class ModCommands(commands.Cog):
             await ctx.send(f'Your nickname has been changed to **{input}**.')
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `manage_nicknames`.')
+    
+    @commands.command()
+    @is_admin()
+    async def edit_nick(self, ctx, member: discord.Member, *nickname):
+        '''
+        Edits the nickname of the given user.
+        '''
+        nickname = ' '.join(nickname)
+        if not nickname:
+            raise commands.CommandError(message=f'Required argument missing: `nickname`.')
+        try:
+            await member.edit(nick=nickname)
+            await ctx.send(f'`{member.name}`\'s nickname has been changed to `{nickname}`.')
+        except discord.Forbidden:
+            raise commands.CommandError(message=f'Missing permissions: `manage_nicknames`. Or insufficient permissions to change {member.display_name}\'s nickname.')
 
     @commands.command(aliases=['delall'])
     @is_admin()

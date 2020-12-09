@@ -263,6 +263,8 @@ class General(commands.Cog):
         if not member:
             raise commands.CommandError(message=f'Error: could not find member: `{name}`.')
 
+        member = await ctx.guild.fetch_member(member.id)
+
         colour = 0x00b2ff
         timestamp = datetime.utcnow()
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
