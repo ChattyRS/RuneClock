@@ -1684,13 +1684,13 @@ class Sheets(commands.Cog):
                         role_id = role_ids[i+1]
                         break
 
-            values[row] = rank
-            values[row] = rank_points
+            values[row][1] = rank
+            values[row][9] = rank_points
 
             msg += f'`{name}` was promoted to `{rank}`.\n'
 
-            if entry[3] == 'Yes':
-                disc_name = entry[4].strip()
+            if entry[4] == 'Yes':
+                disc_name = entry[5].strip()
                 disc_account = None
                 for member in ctx.guild.members:
                     if f'{member.name}#{member.discriminator}' == disc_name:
@@ -1830,13 +1830,13 @@ class Sheets(commands.Cog):
                     msg += f'You have insufficient permissions to demote `{name}`.'
                     continue
 
-            values[row] = rank
-            values[row] = rank_points
+            values[row][1] = rank
+            values[row][9] = rank_points
 
             msg += f'`{name}` was demoted to `{rank}`.\n'
 
-            if entry[3] == 'Yes':
-                disc_name = entry[4].strip()
+            if entry[4] == 'Yes':
+                disc_name = entry[5].strip()
                 disc_account = None
                 for member in ctx.guild.members:
                     if f'{member.name}#{member.discriminator}' == disc_name:
