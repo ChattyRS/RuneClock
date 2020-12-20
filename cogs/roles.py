@@ -283,7 +283,7 @@ class Roles(commands.Cog):
             raise commands.CommandError(message=f'Missing permissions: `delete_roles`.')
 
     @commands.command(pass_context=True)
-    async def members(self, ctx, roleName=''):
+    async def members(self, ctx, *roleName):
         '''
         List members in a role.
         '''
@@ -291,6 +291,7 @@ class Roles(commands.Cog):
 
         if not roleName:
             raise commands.CommandError(message=f'Required argument missing: `role`.')
+        roleName = ' '.join(roleName)
         
         role = discord.utils.find(lambda r: r.name.upper() == roleName.upper(), ctx.guild.roles)
         if not role:
