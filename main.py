@@ -119,7 +119,7 @@ async def purge_guild(guild):
         await i.delete()
     await guild.delete()
 
-class Bot(commands.Bot):
+class Bot(commands.AutoShardedBot):
     def __init__(self, **kwargs):
         intents = discord.Intents.default()
         intents.members = True
