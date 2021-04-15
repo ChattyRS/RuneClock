@@ -828,7 +828,10 @@ class Runescape(commands.Cog):
             data = await r.text()
 
         lines = data.split('\n')
-        lines = lines[:len(skills07)]
+        try:
+            lines = lines[:len(skills07)]
+        except:
+            raise commands.CommandError(message=f'Error accessing hiscores, please try again later.')
 
         levels = []
 
@@ -1409,7 +1412,7 @@ class Runescape(commands.Cog):
         week_whitespace = float((week_chars-len('This Week'))/2)
         if week_whitespace.is_integer():
             week_whitespace = int(week_whitespace)
-            msg += ' '*week_whitespace + 'This Week' + ' '*week_whitespace + '| '
+            msg += ' '*week_whitespace + 'This Week' + ' '*week_whitespace + '|\n'
         else:
             msg += ' '*(math.floor(week_whitespace)) + 'This Week' + ' '*(math.ceil(week_whitespace)) + '|\n'
 
