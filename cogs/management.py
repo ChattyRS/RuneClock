@@ -457,6 +457,14 @@ class Management(commands.Cog):
         addCommand()
         await ctx.send(f'`{int(self.bot.latency*1000)} ms`')
     
+    @commands.command(aliases=['donate'])
+    async def patreon(self, ctx):
+        '''
+        Provides a link to the RuneClock Patreon page where you can donate to help support ongoing development on RuneClock.
+        '''
+        addCommand()
+        await ctx.send(f'You can support the hosting and ongoing development of RuneClock on Patreon here:\n{config["patreon"]}')
+    
     @commands.command(aliases=['server'])
     async def support(self, ctx):
         '''
@@ -619,6 +627,7 @@ class Management(commands.Cog):
         colour = 0x00e400
         timestamp = datetime.utcnow()
         txt = f'**OK**. :white_check_mark:'
+        txt += f'\n**Shards:** {self.bot.shard_count}'
 
         try:
             agc = await self.bot.agcm.authorize()
