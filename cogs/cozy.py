@@ -4,7 +4,7 @@ from discord.ext import commands, tasks
 import sys
 sys.path.append('../')
 from main import config_load, addCommand
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 import re
 import validators
 import utils
@@ -14,8 +14,13 @@ import gspread
 from utils import is_owner, is_admin
 from utils import cozy_council
 from bs4 import BeautifulSoup
+from gcsa.google_calendar import GoogleCalendar
 
 config = config_load()
+
+cozy_events = []
+
+cozy_event_reminders_sent = []
 
 cozy_sotw_url = ''
 
@@ -23,9 +28,86 @@ class Cozy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.update_sotw_url.start()
+        self.get_updated_calendar_events.start()
+        self.cozy_event_reminders.start()
 
     def cog_unload(self):
         self.update_sotw_url.cancel()
+        self.get_updated_calendar_events.cancel()
+        self.cozy_event_reminders.cancel()
+    
+    @tasks.loop(seconds=60)
+    async def get_updated_calendar_events(self):
+        '''
+        updates the variable 'cozy_events' from the cozy calendar
+        '''
+        global cozy_events
+        calendar = GoogleCalendar(config['cozy_calendar'], credentials_path='data/calendar_credentials.json')
+
+        events = calendar.get_events(single_events=True)
+        date_events = []
+        datetime_events = []
+        for event in events:
+            try:
+                _ = event.start.date()
+                datetime_events.append(event)
+            except:
+                date_events.append(event)
+        date_events = sorted(date_events, key=lambda e: e.start)
+        datetime_events = sorted(datetime_events, key=lambda e: e.start)
+        events = []
+        if date_events and datetime_events:
+            d = min(date_events[0].start, datetime_events[0].start.date())
+            d_end = max(date_events[len(date_events)-1].start, datetime_events[len(datetime_events)-1].start.date())
+        elif date_events:
+            d = date_events[0].start
+            d_end = date_events[len(date_events)-1].start
+        elif datetime_events:
+            d = datetime_events[0].start.date()
+            d_end = datetime_events[len(datetime_events)-1].start.date()
+        else:
+            return
+        while d <= d_end:
+            for e in date_events:
+                if e.start == d:
+                    events.append(e)
+            for e in datetime_events:
+                if e.start.date() == d:
+                    events.append(e)
+            d += timedelta(days=1)
+        
+        if len(cozy_events) > 0:
+            if events != cozy_events:
+                channel = self.bot.get_channel(config['cozy_calendar_spam_channel'])
+                for event in events:
+                    if not event in cozy_events:
+                        try:
+                            _ = event.start.date()
+                            if event.start < datetime.now(tz=timezone.utc) + timedelta(days=360):
+                                await channel.send(f'A new event has been added to the Cozy Calendar!\n```Date: {event.start.date().strftime("%d %b %Y")}\nTime: {event.start.time().strftime("%I:%M %p UTC")}\nSummary: {event.summary}```')
+                        except:
+                            if event.start < (datetime.utcnow() + timedelta(days=360)).date():
+                                await channel.send(f'A new event has been added to the Cozy Calendar!\n```Date: {event.start.date().strftime("%d %b %Y")}\nTime: All day\nSummary: {event.summary}```')
+
+        cozy_events = events
+    
+    @tasks.loop(seconds=60)
+    async def cozy_event_reminders(self):
+        global cozy_events
+        global cozy_event_reminders_sent
+        if cozy_events:
+            now = datetime.now(tz=timezone.utc)
+            five_min_ago = now - timedelta(minutes=5)
+            for event in cozy_events:
+                try:
+                    half_hour_before_event = event.start - timedelta(minutes=30)
+                    if five_min_ago < half_hour_before_event < now:
+                        if not event.event_id in cozy_event_reminders_sent:
+                            channel = self.bot.get_channel(config['cozy_events_channel'])
+                            await channel.send(f'Reminder: The following event will start in 30 minutes! @here\n**{event.summary}**')
+                            cozy_event_reminders_sent.append(event.event_id)
+                except:
+                    continue
     
     @tasks.loop(seconds=300)
     async def update_sotw_url(self):
@@ -434,7 +516,7 @@ class Cozy(commands.Cog):
 
         await ctx.send(msg)
     
-    @commands.command(hidden=True)
+    @commands.command()
     async def cozy_sotw(self, ctx):
         '''
         Shows top-10 for the current SOTW
@@ -480,6 +562,64 @@ class Cozy(commands.Cog):
                 msg += row[2]
 
             await ctx.send(f'**{skill} SOTW**\n```{msg}```')
+    
+    @commands.command()
+    async def cozy_schedule(self, ctx):
+        '''
+        Shows this week's planned events for Cozy Corner CC.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if ctx.guild.id != config['cozy_guild_id'] and not ctx.author.id == config['owner']:
+            raise commands.CommandError(message=f'This command cannot be used in this server.')
+
+        calendar = GoogleCalendar(config['cozy_calendar'], credentials_path='data/calendar_credentials.json')
+
+        monday = datetime.utcnow().date() - timedelta(days=datetime.utcnow().date().weekday())
+        sunday = monday + timedelta(days=7)
+        events = calendar.get_events(monday, sunday, single_events=True)
+        date_events = []
+        datetime_events = []
+        for event in events:
+            try:
+                _ = event.start.date()
+                datetime_events.append(event)
+            except:
+                date_events.append(event)
+        date_events = sorted(date_events, key=lambda e: e.start)
+        datetime_events = sorted(datetime_events, key=lambda e: e.start)
+        events = []
+        d = monday
+        while d <= sunday:
+            for e in date_events:
+                if e.start == d:
+                    events.append(e)
+            for e in datetime_events:
+                if e.start.date() == d:
+                    events.append(e)
+            d += timedelta(days=1)
+
+        msg = ''
+
+        d = monday - timedelta(days=1)
+        for event in events:
+            try:
+                _ = event.start.date()
+                if event.start.date() != d:
+                    d = event.start.date()
+                    msg += f'\n\n**{d.strftime("%A")}**'
+                time = event.start.time().strftime("%I:%M %p UTC")
+            except:
+                if event.start != d:
+                    d = event.start
+                    msg += f'\n\n**{d.strftime("%A")}**'
+                time = "All day"
+            if time.startswith('0'):
+                time = time[1:]
+            msg += f'\n**{time}**: {event.summary}'
+        
+        await ctx.send(msg.strip())
 
 def setup(bot):
     bot.add_cog(Cozy(bot))
