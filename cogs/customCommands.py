@@ -228,7 +228,7 @@ class CustomCommands(commands.Cog):
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             string = command[begin+2:end]
             channelName = string.strip()
-            channel = discord.utils.find(lambda c: c.id == channelName, ctx.guild.channels)
+            channel = discord.utils.find(lambda c: str(c.id) == channelName, ctx.guild.channels)
             if not channel:
                 channel = discord.utils.find(lambda c: c.name == channelName, ctx.guild.channels)
             if not channel:
