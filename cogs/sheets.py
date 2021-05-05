@@ -18,7 +18,7 @@ from utils import cozy_council
 config = config_load()
 
 dxp_active = True
-locations = ["LM", "LC", "BA", "SP", "BU", "CW", "PRIF", "MG", "IMP", "GE", "MEI", "ITH", "POF", "BDR", "WG", "BE", "SF"]
+locations = ["LM", "LC", "BA", "SP", "BU", "CW", "PRIF", "MG", "IMP", "GE", "MEI", "ITH", "POF", "BDR", "WG", "BE"]
 portablesNames = ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']
 portablesNamesUpper = ['FLETCHERS', 'CRAFTERS', 'BRAZIERS', 'SAWMILLS', 'RANGES', 'WELLS', 'WORKBENCHES']
 busyLocs = [[84, "LM"], [99, "LM"], [100, "SP"]]
