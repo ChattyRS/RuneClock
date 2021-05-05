@@ -277,7 +277,7 @@ async def update_sheet_row(agcm, ports_row, timestamp, name, isRank):
     await sheet.update_cell(22, 3, timestamp, nowait=True) # update time cell
     if isRank:
         await sheet.update_cell(22, 5, name, nowait=True) # update editor name
-        await sheet.update_cell(38, 2, name, nowait=True) # update mobile editor name
+        await sheet.update_cell(39, 2, name, nowait=True) # update mobile editor name
 
 async def add_activity(agcm, name, date, sheet_activity=False):
     '''

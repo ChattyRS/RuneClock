@@ -115,15 +115,16 @@ class Cozy(commands.Cog):
         updates the variable 'cozy_sotw_url' from a discord channel
         '''
         channel = self.bot.get_channel(config['cozy_sotw_voting_channel_id'])
-        sotw_message = None
-        async for message in channel.history(limit=10):
-            if 'https://templeosrs.com/competitions/standings.php?id=' in message.content:
-                sotw_message = message
-                break
-        if sotw_message:
-            id = sotw_message.content.split('https://templeosrs.com/competitions/standings.php?id=')[1][:4]
-            global cozy_sotw_url
-            cozy_sotw_url = f'https://templeosrs.com/competitions/standings.php?id={id}'
+        if channel:
+            sotw_message = None
+            async for message in channel.history(limit=10):
+                if 'https://templeosrs.com/competitions/standings.php?id=' in message.content:
+                    sotw_message = message
+                    break
+            if sotw_message:
+                id = sotw_message.content.split('https://templeosrs.com/competitions/standings.php?id=')[1][:4]
+                global cozy_sotw_url
+                cozy_sotw_url = f'https://templeosrs.com/competitions/standings.php?id={id}'
 
 
     @commands.command(hidden=True)

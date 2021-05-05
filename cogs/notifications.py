@@ -195,7 +195,7 @@ class Notifications(commands.Cog):
             temp = parts[len(parts)-1]
             parts = parts[:len(parts)-1]
             for part in temp.split(' '):
-                parts.append(part)
+                parts.append(part.strip())
         if len(parts) == 1: # format: HH:MM
             parts = parts[0].split(':')
             if len(parts) != 2:
@@ -203,16 +203,16 @@ class Notifications(commands.Cog):
                 return
             hours, minutes = parts[0], parts[1]
             if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 17.')
             hours = int(hours)
             if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 18.')
 
             if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 19.')
             minutes = int(minutes)
             if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 20.')
             time = datetime.utcnow()
             time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours)
         elif len(parts) == 3: # format: DD-MM HH:MM
@@ -220,37 +220,37 @@ class Notifications(commands.Cog):
             month = parts[1]
             time_of_day = parts[2]
             if not is_int(month):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 21.')
             month = int(month)
             if month < 1 or month > 12:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 22.')
             if not is_int(day):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 23.')
             day = int(day)
             year = datetime.utcnow().year
             if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 24.')
             elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 25.')
             elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 26.')
             elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 27.')
             parts = time_of_day.split(':')
             if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 28.')
             hours, minutes = parts[0], parts[1]
             if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 29.')
             hours = int(hours)
             if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 30.')
 
             if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 31.')
             minutes = int(minutes)
             if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 32.')
             time = datetime.utcnow()
             time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month)
         elif len(parts) == 4:
@@ -259,47 +259,47 @@ class Notifications(commands.Cog):
             year = parts[2]
             time_of_day = parts[3]
             if not is_int(year):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 1.')
             year = int(year)
             if year < datetime.utcnow().year or year > datetime.utcnow().year+1:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 2.')
             if not is_int(month):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 3.')
             month = int(month)
             if month < 1 or month > 12:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 4.')
             if not is_int(day):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 5.')
             day = int(day)
             if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 6.')
             elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 7.')
             elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 8.')
             elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 9.')
             parts = time_of_day.split(':')
             if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 10.')
             hours, minutes = parts[0], parts[1]
             if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 11.')
             hours = int(hours)
             if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 12.')
 
             if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 13.')
             minutes = int(minutes)
             if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 14.')
             time = datetime.utcnow()
             time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month, year=year)
         else:
-            raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+            raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 15.')
         if time < datetime.utcnow():
-            raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+            raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 16.')
 
         # Handle input time interval
         if interval == '0':

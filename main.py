@@ -145,13 +145,14 @@ class Bot(commands.AutoShardedBot):
         Can be used to work out uptime.
         '''
         # await self.wait_until_ready()
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.utcnow().replace(microsecond=0)
 
     async def initialize(self):
         print(f'Initializing...')
         config = config_load()
         await database_setup()
         await asyncio.sleep(5) # Ensure database is up before we continue
+        self.loop.create_task(self.load_all_extensions())
         print(f'Loading Discord...')
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='@RuneClock help'))
         channel = self.get_channel(config['testChannel'])
@@ -164,11 +165,9 @@ class Bot(commands.AutoShardedBot):
         print('-' * 10)
         logging.critical(msg)
 
-        now = datetime.utcnow().replace(microsecond=0)
-        await Uptime.create(time=now, status='started')
+        await Uptime.create(time=self.start_time, status='started')
 
         self.loop.create_task(self.check_guilds())
-        self.loop.create_task(self.load_all_extensions())
         self.loop.create_task(self.role_setup())
         if self.start_time:
             if self.start_time > datetime.utcnow() - timedelta(minutes=5):
