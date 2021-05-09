@@ -114,17 +114,40 @@ class Cozy(commands.Cog):
         '''
         updates the variable 'cozy_sotw_url' from a discord channel
         '''
+        global cozy_sotw_url
         channel = self.bot.get_channel(config['cozy_sotw_voting_channel_id'])
         if channel:
             sotw_message = None
+            wom = True
             async for message in channel.history(limit=10):
                 if 'https://templeosrs.com/competitions/standings.php?id=' in message.content:
+                    wom = False
                     sotw_message = message
+                elif 'https://wiseoldman.net/competitions/' in message.content:
+                    sotw_message = message
+                if sotw_message:
+                    if wom:
+                        id = sotw_message.content.split('https://wiseoldman.net/competitions/')[1].split('/')[0]
+                        url = f'https://wiseoldman.net/competitions/{id}'
+                        if url != cozy_sotw_url:
+                            api_url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+                            r = await self.bot.aiohttp.get(api_url)
+                            async with r:
+                                if r.status != 200:
+                                    sotw_message = None
+                                    continue
+                                data = await r.json()
+                                start = datetime.strptime(data['startsAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                                end = datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                                if not (start < datetime.utcnow() < end):
+                                    sotw_message = None
+                                    continue
+                    else:
+                        id = sotw_message.content.split('https://templeosrs.com/competitions/standings.php?id=')[1][:4]
+                        url = f'https://templeosrs.com/competitions/standings.php?id={id}'
+                    
+                    cozy_sotw_url = url
                     break
-            if sotw_message:
-                id = sotw_message.content.split('https://templeosrs.com/competitions/standings.php?id=')[1][:4]
-                global cozy_sotw_url
-                cozy_sotw_url = f'https://templeosrs.com/competitions/standings.php?id={id}'
 
 
     @commands.command(hidden=True)
@@ -529,40 +552,61 @@ class Cozy(commands.Cog):
             raise commands.CommandError(message=f'This command cannot be used in this server.')
 
         global cozy_sotw_url
+        url = cozy_sotw_url
 
-        r = await self.bot.aiohttp.get(cozy_sotw_url)
+        if 'wiseoldman' in url:
+            url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+            
+        r = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
-                raise commands.CommandError(message=f'Error retrieving data from: `{cozy_sotw_url}`.')
-            data = await r.text()
+                raise commands.CommandError(message=f'Error retrieving data from: `{url}`.')
+            
+            if 'wiseoldman' in url:
+                data = await r.json()
 
-            bs = BeautifulSoup(data, "html.parser")
-            table_body = bs.find('table')
-            rows = table_body.find_all('tr')[1:]
-            player_url = ''
-            for i, row in enumerate(rows):
-                cols = row.find_all('td')
-                if i == 0:
-                    player_urls = cols[1].find_all('a', href=True)
-                    player_url = player_urls[0]['href']
-                cols = [x.text.strip() for x in cols]
-                rows[i] = cols
+                skill = data['metric']
+                skill = skill[0].upper() + skill[1:]
+                top10 = data['participants'][:11]
 
-            skill = player_url.split('&skill=')[1]
-            skill = skill.split('&')[0]
-            skill = skill[0].upper() + skill[1:]
+                msg = 'No.  Name          Gain'
+                for i, p in enumerate(top10):
+                    msg += f'\n{i}.' + (4 - len(str(i))) * ' '
+                    msg += p['displayName'] + (14 - len(p['displayName'])) * ' '
+                    msg += str(p['progress']['gained'])
+                
+                await ctx.send(f'**{skill} SOTW**\n```{msg}```')
 
-            for i, row in enumerate(rows):
-                row[1] = row[1].replace(f'{row[2]}{row[3]}{row[4]}', '')
-                rows[i] = row
+            elif 'templeosrs' in url:
+                data = await r.text()
 
-            msg = 'No.  Name          Gain'
-            for row in rows[:10]:
-                msg += '\n' + row[0] + (5 - len(row[0])) * ' '
-                msg += row[1] + (14 - len(row[1])) * ' '
-                msg += row[2]
+                bs = BeautifulSoup(data, "html.parser")
+                table_body = bs.find('table')
+                rows = table_body.find_all('tr')[1:]
+                player_url = ''
+                for i, row in enumerate(rows):
+                    cols = row.find_all('td')
+                    if i == 0:
+                        player_urls = cols[1].find_all('a', href=True)
+                        player_url = player_urls[0]['href']
+                    cols = [x.text.strip() for x in cols]
+                    rows[i] = cols
 
-            await ctx.send(f'**{skill} SOTW**\n```{msg}```')
+                skill = player_url.split('&skill=')[1]
+                skill = skill.split('&')[0]
+                skill = skill[0].upper() + skill[1:]
+
+                for i, row in enumerate(rows):
+                    row[1] = row[1].replace(f'{row[2]}{row[3]}{row[4]}', '')
+                    rows[i] = row
+
+                msg = 'No.  Name          Gain'
+                for row in rows[:10]:
+                    msg += '\n' + row[0] + (5 - len(row[0])) * ' '
+                    msg += row[1] + (14 - len(row[1])) * ' '
+                    msg += row[2]
+
+                await ctx.send(f'**{skill} SOTW**\n```{msg}```')
     
     @commands.command()
     async def cozy_schedule(self, ctx):
