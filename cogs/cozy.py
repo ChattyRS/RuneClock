@@ -12,7 +12,7 @@ import copy
 import gspread_asyncio
 import gspread
 from utils import is_owner, is_admin
-from utils import cozy_council
+from utils import cozy_council, cozy_only
 from bs4 import BeautifulSoup
 from gcsa.google_calendar import GoogleCalendar
 
@@ -30,11 +30,13 @@ class Cozy(commands.Cog):
         self.update_sotw_url.start()
         self.get_updated_calendar_events.start()
         self.cozy_event_reminders.start()
+        self.sotw_update_all.start()
 
     def cog_unload(self):
         self.update_sotw_url.cancel()
         self.get_updated_calendar_events.cancel()
         self.cozy_event_reminders.cancel()
+        self.sotw_update_all.cancel()
     
     @tasks.loop(seconds=60)
     async def get_updated_calendar_events(self):
@@ -148,6 +150,24 @@ class Cozy(commands.Cog):
                     
                     cozy_sotw_url = url
                     break
+    
+
+    @tasks.loop(seconds=300)
+    async def sotw_update_all(self):
+        '''
+        Updates all players in the Cozy Corner group on wiseoldman.net
+        '''
+        time = datetime.utcnow()
+        # Update every 2 hours
+        if time.hour % 2 == 0 and time.minute < 5:
+            url = 'https://api.wiseoldman.net/groups/423/update-all'
+            payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
+            async with self.bot.aiohttp.post(url, json=payload) as r:
+                if r.status != 200:
+                    print(f'Error updating wiseoldman group.\nStatus: {r.status}.')
+                    return
+                data = await r.json()
+                print(f'Wiseoldman group updated.\nResponse: {data["message"]}')
 
 
     @commands.command(hidden=True)
@@ -541,6 +561,7 @@ class Cozy(commands.Cog):
         await ctx.send(msg)
     
     @commands.command()
+    @cozy_only()
     async def cozy_sotw(self, ctx):
         '''
         Shows top-10 for the current SOTW
@@ -609,15 +630,13 @@ class Cozy(commands.Cog):
                 await ctx.send(f'**{skill} SOTW**\n```{msg}```')
     
     @commands.command()
+    @cozy_only()
     async def cozy_schedule(self, ctx):
         '''
         Shows this week's planned events for Cozy Corner CC.
         '''
         addCommand()
         await ctx.channel.trigger_typing()
-
-        if ctx.guild.id != config['cozy_guild_id'] and not ctx.author.id == config['owner']:
-            raise commands.CommandError(message=f'This command cannot be used in this server.')
 
         calendar = GoogleCalendar(config['cozy_calendar'], credentials_path='data/calendar_credentials.json')
 
@@ -665,6 +684,60 @@ class Cozy(commands.Cog):
             msg += f'\n**{time}**: {event.summary}'
         
         await ctx.send(msg.strip())
+
+    @commands.command()
+    @cozy_council()
+    async def wom_add(self, ctx, *name):
+        '''
+        Add a member to the Cozy Corner wiseoldman group.
+        '''
+
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `name`.')
+        name = ' '.join(name)
+
+        if len(name) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`. Character limit exceeded.')
+        if re.match('^[A-z0-9 -]+$', name) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`. Forbidden character.')
+
+        url = 'https://api.wiseoldman.net/groups/423/add-members'
+
+        payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
+        payload['members'] = [{'username': name, 'role': 'member'}]
+        async with self.bot.aiohttp.post(url, json=payload) as r:
+            if r.status != 200:
+                data = await r.json()
+                raise commands.CommandError(message=f'Error status: {r.status}\n{data}.')
+            data = await r.json()
+            await ctx.send(f'Added member: {name}')
+    
+    @commands.command()
+    @cozy_council()
+    async def wom_remove(self, ctx, *name):
+        '''
+        Remove a member from the Cozy Corner wiseoldman group.
+        '''
+
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `name`.')
+        name = ' '.join(name)
+
+        if len(name) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`. Character limit exceeded.')
+        if re.match('^[A-z0-9 -]+$', name) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`. Forbidden character.')
+        
+        url = 'https://api.wiseoldman.net/groups/423/remove-members'
+
+        payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
+        payload['members'] = [name]
+        async with self.bot.aiohttp.post(url, json=payload) as r:
+            if r.status != 200:
+                data = await r.json()
+                raise commands.CommandError(message=f'Error status: {r.status}\n{data}.')
+            data = await r.json()
+            await ctx.send(f'Removed member: {name}')
 
 def setup(bot):
     bot.add_cog(Cozy(bot))
