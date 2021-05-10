@@ -3,7 +3,7 @@ import asyncio
 from discord.ext import commands, tasks
 import sys
 sys.path.append('../')
-from main import config_load, addCommand
+from main import config_load, addCommand, Poll
 from datetime import datetime, timedelta, timezone, date
 import re
 import validators
@@ -15,6 +15,7 @@ from utils import is_owner, is_admin
 from utils import cozy_council, cozy_only
 from bs4 import BeautifulSoup
 from gcsa.google_calendar import GoogleCalendar
+import math
 
 config = config_load()
 
@@ -23,6 +24,9 @@ cozy_events = []
 cozy_event_reminders_sent = []
 
 cozy_sotw_url = ''
+
+num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
+reaction_numbers = ["\u0030\u20E3", "\u0031\u20E3", "\u0032\u20E3", "\u0033\u20E3", "\u0034\u20E3", "\u0035\u20E3", "\u0036\u20E3", "\u0037\u20E3", "\u0038\u20E3", "\u0039\u20E3"]
 
 class Cozy(commands.Cog):
     def __init__(self, bot):
@@ -172,6 +176,7 @@ class Cozy(commands.Cog):
 
     @commands.command(hidden=True)
     @cozy_council()
+    @cozy_only()
     async def cozy_promo(self, ctx, *names):
         '''
         Promotes a rank on the Cozy CC clan roster and on Discord if applicable.
@@ -179,9 +184,6 @@ class Cozy(commands.Cog):
         '''
         addCommand()
         await ctx.channel.trigger_typing()
-
-        if ctx.guild.id != config['cozy_guild_id'] and not ctx.author.id == config['owner']:
-            raise commands.CommandError(message=f'This command cannot be used in this server.')
 
         names = ' '.join(names).strip()
         names = names.split(',')
@@ -310,6 +312,7 @@ class Cozy(commands.Cog):
     
     @commands.command(hidden=True)
     @cozy_council()
+    @cozy_only()
     async def cozy_demo(self, ctx, *names):
         '''
         Demotes a rank on the Cozy CC clan roster and on Discord if applicable.
@@ -317,9 +320,6 @@ class Cozy(commands.Cog):
         '''
         addCommand()
         await ctx.channel.trigger_typing()
-
-        if ctx.guild.id != config['cozy_guild_id'] and not ctx.author.id == config['owner']:
-            raise commands.CommandError(message=f'This command cannot be used in this server.')
 
         admin_role = ctx.guild.get_role(config['cozy_admin_role_id'])
         is_cozy_admin = admin_role in ctx.author.roles or ctx.author.id == config['owner']
@@ -454,6 +454,7 @@ class Cozy(commands.Cog):
     
     @commands.command(hidden=True)
     @cozy_council()
+    @cozy_only()
     async def cozy_rename(self, ctx, *names):
         '''
         Update a Cozy Corner member's name after a name change.
@@ -462,9 +463,6 @@ class Cozy(commands.Cog):
         '''
         addCommand()
         await ctx.channel.trigger_typing()
-
-        if ctx.guild.id != config['cozy_guild_id'] and not ctx.author.id == config['owner']:
-            raise commands.CommandError(message=f'This command cannot be used in this server.')
 
         names = ' '.join(names).strip()
         names = names.split(',')
@@ -568,9 +566,6 @@ class Cozy(commands.Cog):
         '''
         addCommand()
         await ctx.channel.trigger_typing()
-
-        if ctx.guild.id != config['cozy_guild_id'] and not ctx.author.id == config['owner']:
-            raise commands.CommandError(message=f'This command cannot be used in this server.')
 
         global cozy_sotw_url
         url = cozy_sotw_url
@@ -691,6 +686,8 @@ class Cozy(commands.Cog):
         '''
         Add a member to the Cozy Corner wiseoldman group.
         '''
+        addCommand()
+        await ctx.channel.trigger_typing()
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -718,6 +715,8 @@ class Cozy(commands.Cog):
         '''
         Remove a member from the Cozy Corner wiseoldman group.
         '''
+        addCommand()
+        await ctx.channel.trigger_typing()
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -738,6 +737,60 @@ class Cozy(commands.Cog):
                 raise commands.CommandError(message=f'Error status: {r.status}\n{data}.')
             data = await r.json()
             await ctx.send(f'Removed member: {name}')
+    
+    @commands.command(hidden=True)
+    @cozy_council()
+    @cozy_only()
+    async def sotw_poll(self, ctx):
+        '''
+        Posts a poll for the next SOTW competition.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_sotw_logging_key'])
+        sotw_sheet = await ss.worksheet('SOTW')
+
+        row = await sotw_sheet.row_values(2)
+        if len(row) <= 2:
+            raise commands.CommandError(message=f'Please generate the skills for the next vote by clicking the `Generate` button on the SOTW logging sheet before using this command.')
+        skills = row[2:]
+
+        if "Wildcard" in skills:
+            raise commands.CommandError(message=f'Please have the previous winner choose a skill from the wildcards and replace the wildcard on the SOTW logging sheet before using this command.')
+
+        past_sotw_sheet = await ss.worksheet('Past_SOTWs')
+        col = await past_sotw_sheet.col_values(1)
+        next_num = int(col[len(col) - 1]) + 1
+
+        now = datetime.utcnow()
+        next_monday = now + timedelta(days=-now.weekday(), weeks=1)
+        next_monday = next_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+        dif = next_monday - now
+        hours = math.floor(dif.total_seconds() / 3600)
+
+        txt = ''
+        i = 0
+        for opt in skills:
+            txt += f'\n{num_emoji[i]} {opt}'
+            i += 1
+        txt += f'\n\nThis poll will be open for {hours} hours!'
+
+        embed = discord.Embed(title=f'**SOTW #{next_num}**', description=txt, timestamp=datetime.utcnow())
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+
+        channel = self.bot.get_channel(config['cozy_sotw_voting_channel_id'])
+
+        msg = await channel.send(embed=embed)
+        embed.set_footer(text=f'ID: {msg.id}')
+        await msg.edit(embed=embed)
+        for num in range(i):
+            await msg.add_reaction(reaction_numbers[num])
+        
+        await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
+
+        await ctx.send(f'Succes! Your poll has been created. {ctx.author.mention}')
 
 def setup(bot):
     bot.add_cog(Cozy(bot))
