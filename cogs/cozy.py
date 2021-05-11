@@ -25,8 +25,7 @@ cozy_event_reminders_sent = []
 
 cozy_sotw_url = ''
 
-num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
-reaction_numbers = ["\u0030\u20E3", "\u0031\u20E3", "\u0032\u20E3", "\u0033\u20E3", "\u0034\u20E3", "\u0035\u20E3", "\u0036\u20E3", "\u0037\u20E3", "\u0038\u20E3", "\u0039\u20E3"]
+num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯']
 
 wom_metrics = ["overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic", "cooking", "woodcutting", "fletching", "fishing", 
                "firemaking", "crafting", "smithing", "mining", "herblore", "agility", "thieving", "slayer", "farming", "runecrafting", "hunter", "construction",
@@ -796,7 +795,7 @@ class Cozy(commands.Cog):
         embed.set_footer(text=f'ID: {msg.id}')
         await msg.edit(embed=embed)
         for num in range(i):
-            await msg.add_reaction(reaction_numbers[num])
+            await msg.add_reaction(num_emoji[num])
         
         await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
 
@@ -846,6 +845,114 @@ class Cozy(commands.Cog):
                 raise commands.CommandError(message=f'Error status: {r.status}.')
             data = await r.json()
             await ctx.send(f'Competition created:\n```Title: {data["title"]}\nMetric: {data["metric"]}\nStart: {data["startsAt"]}\nEnd: {data["endsAt"]}```\nhttps://wiseoldman.net/competitions/{data["id"]}/participants')
+    
+    @commands.command(hidden=True)
+    @cozy_council()
+    @cozy_only()
+    async def cotw_poll(self, ctx):
+        '''
+        Creates polls for Cozy Of The Week
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_cotw_nominations_key'])
+        nomination_sheet = await ss.worksheet('Nominations')
+
+        nomination_values = await nomination_sheet.col_values(1)
+        cotw_num = [int(s) for s in nomination_values[0].split() if s.isdigit()][0]
+        nominees = nomination_values[2:]
+
+        ss = await agc.open_by_key(config['cozy_roster_key'])
+        roster = await ss.worksheet('Roster')
+
+        roster_values = await roster.get_all_values()
+        roster_values = roster_values[1:]
+
+        unique_nominees = []
+        for nominee in nominees:
+            found = False
+            for clannie in roster_values:
+                if nominee.lower() in clannie[0].lower():
+                    if not clannie[0] in unique_nominees:
+                        unique_nominees.append(clannie[0])
+                    found = True
+                    break
+            if not found:
+                raise commands.CommandError(message=f'Could not find nominee: `{nominee}`.')
+        
+        normal_nominees = []
+        ranked_nominees = []
+
+        for nominee in unique_nominees:
+            for clannie in roster_values:
+                if nominee == clannie[0]:
+                    if clannie[1] in ['Council', 'Champion', 'Hero']:
+                        ranked_nominees.append(nominee)
+                    else:
+                        normal_nominees.append(nominee)
+                    break
+
+        if not normal_nominees:
+            raise commands.CommandError(message=f'Error: could not find any non-ranked nominees.')
+        if not ranked_nominees:
+            raise commands.CommandError(message=f'Error: could not find any ranked nominees.')
+        if len(normal_nominees) < 2:
+            raise commands.CommandError(message=f'Not enough non-ranked nominees: `{len(normal_nominees)})`. At least 2 options are required to create a poll.')
+        if len(ranked_nominees) < 2:
+            raise commands.CommandError(message=f'Not enough ranked nominees: `{len(ranked_nominees)})`. At least 2 options are required to create a poll.')
+        if len(normal_nominees) > 20:
+            raise commands.CommandError(message=f'Too many non-ranked nominees: `{len(normal_nominees)})`. Polls only support up to 20 options.')
+        if len(ranked_nominees) > 20:
+            raise commands.CommandError(message=f'Too many ranked nominees: `{len(ranked_nominees)})`. Polls only support up to 20 options.')
+        
+        now = datetime.utcnow()
+        end = now + timedelta(days=-now.weekday(), weeks=1)
+        end = end.replace(hour=0, minute=0, second=0, microsecond=0)
+        dif = end - now
+        hours = math.floor(dif.total_seconds() / 3600) - 1
+
+        txt = ''
+        i = 0
+        for opt in normal_nominees:
+            txt += f'\n{num_emoji[i]} {opt}'
+            i += 1
+        txt += f'\n\nThis poll will be open for {hours} hours!'
+
+        embed = discord.Embed(title=f'**COTW #{cotw_num}**', description=txt, timestamp=datetime.utcnow())
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+
+        channel = self.bot.get_channel(config['cozy_cotw_voting_channel_id'])
+
+        msg = await channel.send(embed=embed)
+        embed.set_footer(text=f'ID: {msg.id}')
+        await msg.edit(embed=embed)
+        for num in range(i):
+            await msg.add_reaction(num_emoji[num])
+        
+        await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
+
+        txt = ''
+        i = 0
+        for opt in ranked_nominees:
+            txt += f'\n{num_emoji[i]} {opt}'
+            i += 1
+        txt += f'\n\nThis poll will be open for {hours} hours!'
+
+        embed = discord.Embed(title=f'**Ranked COTW #{cotw_num}**', description=txt, timestamp=datetime.utcnow())
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+
+        msg = await channel.send(embed=embed)
+        embed.set_footer(text=f'ID: {msg.id}')
+        await msg.edit(embed=embed)
+        for num in range(i):
+            await msg.add_reaction(num_emoji[num])
+        
+        await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
+
+        await ctx.send(f'Succes! The polls for COTW #{cotw_num} have been created.')
+
 
 def setup(bot):
     bot.add_cog(Cozy(bot))

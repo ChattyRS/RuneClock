@@ -25,8 +25,7 @@ months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 
 
 owm = pyowm.OWM(config['weatherAPI'])
 
-num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
-reaction_numbers = ["\u0030\u20E3", "\u0031\u20E3", "\u0032\u20E3", "\u0033\u20E3", "\u0034\u20E3", "\u0035\u20E3", "\u0036\u20E3", "\u0037\u20E3", "\u0038\u20E3", "\u0039\u20E3"]
+num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯']
 
 def perm_string(p):
     '''
@@ -568,8 +567,8 @@ class General(commands.Cog):
         
         if len(options) < 2:
             raise commands.CommandError(message='Error: insufficient options to create a poll. At least two options are required.')
-        elif len(options) > 10:
-            raise commands.CommandError(message='Error: too many options. This command only supports up to ten options.')
+        elif len(options) > 20:
+            raise commands.CommandError(message='Error: too many options. This command only supports up to twenty options.')
 
         txt = ''
         i = 0
@@ -584,7 +583,7 @@ class General(commands.Cog):
         embed.set_footer(text=f'ID: {msg.id}')
         await msg.edit(embed=embed)
         for num in range(i):
-            await msg.add_reaction(reaction_numbers[num])
+            await msg.add_reaction(num_emoji[num])
         
         await Poll.create(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
 
