@@ -78,6 +78,9 @@ class ModCommands(commands.Cog):
                     embed.set_author(name=f'{message.author.display_name}#{message.author.discriminator}', icon_url=message.author.avatar_url)
                     embed.set_footer(text=f'ID: {message.id}')
 
+                    txt = message.clean_content
+                    author = message.author
+
                     await message.delete()
 
                     private = message.guild.get_channel(guild.modmail_private)
@@ -85,6 +88,54 @@ class ModCommands(commands.Cog):
                         await private.send(embed=embed)
                     else:
                         await message.channel.send(f'Error: private modmail channel with ID `{guild.modmail_private}` not found.')
+                    
+                    '''
+                    Cozy COTW nomination logging
+                    '''
+                    if guild.id == config['cozy_guild_id']:
+                        agc = await self.bot.agcm.authorize()
+                        ss = await agc.open_by_key(config['cozy_roster_key'])
+                        roster = await ss.worksheet('Roster')
+
+                        values = await roster.get_all_values()
+                        values = values[1:]
+
+                        author_name = ""
+                        for value in values:
+                            if value[5] == f'{author.name}#{author.discriminator}':
+                                author_name = value[0]
+                                break
+                        if not author_name:
+                            await private.send(f'This nomination has **not** been logged:\n```Could not find discord user: {author.name}#{author.discriminator}.```')
+                            return
+                        
+                        nominees = []
+                        for value in values:
+                            if value[0].lower() in txt.lower():
+                                nominees.append(value[0])
+                        if not nominees:
+                            await private.send(f'This nomination has **not** been logged:\n```Could not find nominees.```')
+                            return
+
+                        ss = await agc.open_by_key(config['cozy_cotw_nominations_key'])
+                        nomination_sheet = await ss.worksheet('Nominations')
+
+                        first_row = 1
+                        col_values = await nomination_sheet.col_values(1)
+                        first_row += len(col_values)
+
+                        rows = []
+                        for nominee in nominees:
+                            rows.append([nominee, author_name, txt])
+                        
+                        await nomination_sheet.insert_rows(rows, first_row)
+
+                        msg = 'Logged nominations:\n```'
+                        msg += '\n'.join(nominees)
+                        msg += '```'
+
+                        await private.send(msg)
+
 
     @commands.command()
     @is_admin()
