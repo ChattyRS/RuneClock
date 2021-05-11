@@ -28,6 +28,16 @@ cozy_sotw_url = ''
 num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
 reaction_numbers = ["\u0030\u20E3", "\u0031\u20E3", "\u0032\u20E3", "\u0033\u20E3", "\u0034\u20E3", "\u0035\u20E3", "\u0036\u20E3", "\u0037\u20E3", "\u0038\u20E3", "\u0039\u20E3"]
 
+wom_metrics = ["overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic", "cooking", "woodcutting", "fletching", "fishing", 
+               "firemaking", "crafting", "smithing", "mining", "herblore", "agility", "thieving", "slayer", "farming", "runecrafting", "hunter", "construction",
+               "league_points", "bounty_hunter_hunter", "bounty_hunter_rogue", "clue_scrolls_all", "clue_scrolls_beginner", "clue_scrolls_easy",
+               "clue_scrolls_medium", "clue_scrolls_hard", "clue_scrolls_elite", "clue_scrolls_master", "last_man_standing", "soul_wars_zeal",
+               "abyssal_sire", "alchemical_hydra", "barrows_chests", "bryophyta", "callisto", "cerberus", "chambers_of_xeric", "chambers_of_xeric_challenge_mode",
+               "chaos_elemental", "chaos_fanatic", "commander_zilyana", "corporeal_beast", "crazy_archaeologist", "dagannoth_prime", "dagannoth_rex", "dagannoth_supreme",
+               "deranged_archaeologist", "general_graardor", "giant_mole", "grotesque_guardians", "hespori", "kalphite_queen", "king_black_dragon", "kraken", "kreearra", 
+               "kril_tsutsaroth", "mimic", "nightmare", "obor", "sarachnis", "scorpia", "skotizo", "tempoross", "the_gauntlet", "the_corrupted_gauntlet", "theatre_of_blood",
+               "thermonuclear_smoke_devil", "tzkal_zuk", "tztok_jad", "venenatis", "vetion", "vorkath", "wintertodt", "zalcano", "zulrah", "ehp", "ehb"]
+
 class Cozy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -738,7 +748,7 @@ class Cozy(commands.Cog):
             data = await r.json()
             await ctx.send(f'Removed member: {name}')
     
-    @commands.command(hidden=True)
+    @commands.command()
     @cozy_council()
     @cozy_only()
     async def sotw_poll(self, ctx):
@@ -768,7 +778,7 @@ class Cozy(commands.Cog):
         next_monday = now + timedelta(days=-now.weekday(), weeks=1)
         next_monday = next_monday.replace(hour=0, minute=0, second=0, microsecond=0)
         dif = next_monday - now
-        hours = math.floor(dif.total_seconds() / 3600)
+        hours = math.floor(dif.total_seconds() / 3600) - 1
 
         txt = ''
         i = 0
@@ -791,6 +801,51 @@ class Cozy(commands.Cog):
         await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
 
         await ctx.send(f'Succes! Your poll has been created. {ctx.author.mention}')
+    
+    @commands.command()
+    @cozy_council()
+    @cozy_only()
+    async def wom_sotw(self, ctx, num: int, *skill: str):
+        '''
+        Creates a SOTW competition on wiseoldman.net.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if not num:
+            raise commands.CommandError(message=f'Required argument missing: `num`.')
+        
+        if not skill:
+            raise commands.CommandError(message=f'Required argument missing: `skill`.')
+        skill = "_".join(skill).lower()
+
+        if not skill in wom_metrics:
+            raise commands.CommandError(message=f'Invalid argument: `{skill}`.')
+
+        title = f'Cozy Corner SOTW #{num}'
+        groupId = 423
+        groupVerificationCode = config['cozy_wiseoldman_verification_code']
+
+        now = datetime.utcnow()
+        start = now + timedelta(days=-now.weekday(), weeks=1)
+        start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        start -= timedelta(hours=1)
+        end = start + timedelta(weeks=1)
+
+        start = start.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        start = start[:len(start)-4] + "Z"
+
+        end = end.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        end = end[:len(end)-4] + "Z"
+
+        payload = {"title": title, "metric": skill, "startsAt": start, "endsAt": end, "groupId": groupId, "groupVerificationCode": groupVerificationCode}
+        url = 'https://api.wiseoldman.net/competitions'
+
+        async with self.bot.aiohttp.post(url, json=payload) as r:
+            if r.status != 201:
+                raise commands.CommandError(message=f'Error status: {r.status}.')
+            data = await r.json()
+            await ctx.send(f'Competition created:\n```Title: {data["title"]}\nMetric: {data["metric"]}\nStart: {data["startsAt"]}\nEnd: {data["endsAt"]}```\nhttps://wiseoldman.net/competitions/{data["id"]}/participants')
 
 def setup(bot):
     bot.add_cog(Cozy(bot))
