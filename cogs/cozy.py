@@ -800,7 +800,7 @@ class Cozy(commands.Cog):
         
         await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
 
-        await ctx.send(f'Succes! Your poll has been created. {ctx.author.mention}')
+        await ctx.send(f'Success! Your poll has been created. {ctx.author.mention}')
     
     @commands.command()
     @cozy_council()
@@ -952,7 +952,7 @@ class Cozy(commands.Cog):
         
         await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
 
-        await ctx.send(f'Succes! The polls for COTW #{cotw_num} have been created.')
+        await ctx.send(f'Success! The polls for COTW #{cotw_num} have been created.')
     
 
     @commands.command()
@@ -1031,7 +1031,7 @@ class Cozy(commands.Cog):
 
         await sotw_sheet.batch_update([data])
 
-        await ctx.send(f'Succes! The voting data for SOTW #{num} has been logged.')
+        await ctx.send(f'Success! The voting data for SOTW #{num} has been logged.')
 
 def setup(bot):
     bot.add_cog(Cozy(bot))
