@@ -1283,17 +1283,6 @@ class Bot(commands.AutoShardedBot):
                         else:
                             embed.add_field(name='Results', value=f'It\'s a tie! Options {winner} each have {percentage}% of the votes!')
                         await msg.edit(embed=embed)
-
-                        txt = ''
-                        for emoji, score in results.items():
-                            txt += f'{emoji}: {score}\n'
-                        if not tie:
-                            txt += f'\nOption {winner} won with {percentage}% of the votes!'
-                        else:
-                            txt += f'It\'s a tie! Options {winner} each have {percentage}% of the votes!'
-                        embed_2 = discord.Embed(title='**Poll Results**', description=txt, timestamp=datetime.utcnow())
-                        await channel.send(embed=embed_2)
-
                     except:
                         pass
                     await poll.delete()

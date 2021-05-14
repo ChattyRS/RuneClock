@@ -16,6 +16,7 @@ from utils import cozy_council, cozy_only
 from bs4 import BeautifulSoup
 from gcsa.google_calendar import GoogleCalendar
 import math
+from utils import is_int
 
 config = config_load()
 
@@ -846,7 +847,7 @@ class Cozy(commands.Cog):
             data = await r.json()
             await ctx.send(f'Competition created:\n```Title: {data["title"]}\nMetric: {data["metric"]}\nStart: {data["startsAt"]}\nEnd: {data["endsAt"]}```\nhttps://wiseoldman.net/competitions/{data["id"]}/participants')
     
-    @commands.command(hidden=True)
+    @commands.command()
     @cozy_council()
     @cozy_only()
     async def cotw_poll(self, ctx):
@@ -952,7 +953,85 @@ class Cozy(commands.Cog):
         await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
 
         await ctx.send(f'Succes! The polls for COTW #{cotw_num} have been created.')
+    
 
+    @commands.command()
+    @cozy_council()
+    @cozy_only()
+    async def sotw_votes(self, ctx, msg_id):
+        '''
+        Records votes on a SOTW poll and logs them to the SOTW sheet.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if not is_int(msg_id):
+            raise commands.CommandError(message=f'Invalid argument: `{msg_id}`. Must be an integer.')
+        msg_id = int(msg_id)
+
+        try: 
+            msg = await ctx.guild.get_channel(config['cozy_sotw_voting_channel_id']).fetch_message(msg_id)
+        except:
+            raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`. Was the poll deleted?')
+        
+        results_emoji = {}
+        for reaction in msg.reactions:
+            results_emoji[str(reaction.emoji)] = reaction.count - 1
+        
+        num = int(msg.embeds[0].title.replace("*", "").split("#")[1])
+
+        lines = msg.embeds[0].description.split('\n')
+        lines = lines[:len(lines)-2]
+        
+        results = {}
+        for r, v in results_emoji.items():
+            for line in lines:
+                split = line.split(' ')
+                while '' in split:
+                    split.remove('')
+                e, s = split
+                if e == r:
+                    results[s] = v
+                    lines.remove(line)
+                    break
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_sotw_logging_key'])
+        sotw_sheet = await ss.worksheet('SOTW_voting_data')
+
+        values = await sotw_sheet.get_all_values()
+
+        index = 0
+
+        for i, row in enumerate(values):
+            if i >= 2:
+                if int(row[0]) == num:
+                    if any(val != "" for val in row[2:]):
+                        raise commands.CommandError(message=f'Error: there is already data present in the row for SOTW: `{num}`.')
+                    index = i
+                    break
+        
+        if not index:
+            raise commands.CommandError(message=f'Error: could not find SOTW: `{num}`. Are you sure you entered the right number?')
+        
+        row = values[index]
+        for skill, votes in results.items():
+            found = False
+            for i, val in enumerate(values[0]):
+                if i >= 2:
+                    if skill.lower() == val.lower():
+                        row[i] = str(votes)
+                        found = True
+                        break
+            if not found:
+                raise commands.CommandError(message=f'Error: could not find skill: `{skill}`. Please check the sheet.')
+
+        vals = row[2:]
+        data = {'range': f'C{index+1}:Z{index+1}', 'values': [vals]}
+
+        await sotw_sheet.batch_update([data])
+
+        await ctx.send(f'Succes! The voting data for SOTW #{num} has been logged.')
 
 def setup(bot):
     bot.add_cog(Cozy(bot))
