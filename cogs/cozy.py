@@ -771,7 +771,7 @@ class Cozy(commands.Cog):
             raise commands.CommandError(message=f'Please have the previous winner choose a skill from the wildcards and replace the wildcard on the SOTW logging sheet before using this command.')
 
         past_sotw_sheet = await ss.worksheet('Past_SOTWs')
-        col = await past_sotw_sheet.col_values(1)
+        col = await past_sotw_sheet.col_values(2)
         next_num = int(col[len(col) - 1]) + 1
 
         now = datetime.utcnow()
@@ -970,7 +970,7 @@ class Cozy(commands.Cog):
         msg_id = int(msg_id)
 
         try: 
-            msg = await ctx.guild.get_channel(config['cozy_sotw_voting_channel_id']).fetch_message(msg_id)
+            msg = await self.bot.get_channel(config['cozy_sotw_voting_channel_id']).fetch_message(msg_id)
         except:
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`. Was the poll deleted?')
         
@@ -1020,7 +1020,7 @@ class Cozy(commands.Cog):
             for i, val in enumerate(values[0]):
                 if i >= 2:
                     if skill.lower() == val.lower():
-                        row[i] = str(votes)
+                        row[i] = votes
                         found = True
                         break
             if not found:
@@ -1029,7 +1029,7 @@ class Cozy(commands.Cog):
         vals = row[2:]
         data = {'range': f'C{index+1}:Z{index+1}', 'values': [vals]}
 
-        await sotw_sheet.batch_update([data])
+        await sotw_sheet.batch_update([data], value_input_option='USER_ENTERED')
 
         await ctx.send(f'Success! The voting data for SOTW #{num} has been logged.')
 
