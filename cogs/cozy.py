@@ -26,7 +26,7 @@ cozy_event_reminders_sent = []
 
 cozy_sotw_url = ''
 
-num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯']
+num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
 wom_metrics = ["overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic", "cooking", "woodcutting", "fletching", "fishing", 
                "firemaking", "crafting", "smithing", "mining", "herblore", "agility", "thieving", "slayer", "farming", "runecrafting", "hunter", "construction",
@@ -769,6 +769,11 @@ class Cozy(commands.Cog):
 
         if "Wildcard" in skills:
             raise commands.CommandError(message=f'Please have the previous winner choose a skill from the wildcards and replace the wildcard on the SOTW logging sheet before using this command.')
+        
+        if len(skills) < 2:
+            raise commands.CommandError(message=f'Too few options. Please correctly generate the skills for the next vote on the SOTW logging sheet.')
+        if len(skills) > 20:
+            raise commands.CommandError(message=f'Too many options. Please check the SOTW logging sheet.')
 
         past_sotw_sheet = await ss.worksheet('Past_SOTWs')
         col = await past_sotw_sheet.col_values(2)

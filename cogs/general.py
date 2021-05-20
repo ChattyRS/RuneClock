@@ -25,7 +25,7 @@ months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 
 
 owm = pyowm.OWM(config['weatherAPI'])
 
-num_emoji = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯']
+num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
 def perm_string(p):
     '''
@@ -568,7 +568,7 @@ class General(commands.Cog):
         if len(options) < 2:
             raise commands.CommandError(message='Error: insufficient options to create a poll. At least two options are required.')
         elif len(options) > 20:
-            raise commands.CommandError(message='Error: too many options. This command only supports up to twenty options.')
+            raise commands.CommandError(message='Error: too many options. This command only supports up to 20 options.')
 
         txt = ''
         i = 0
