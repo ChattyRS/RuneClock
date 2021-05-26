@@ -1,9 +1,10 @@
 import discord
 import asyncio
 from discord.ext import commands, tasks
+from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, Poll
+from main import config_load, addCommand, Poll, Guild
 from datetime import datetime, timedelta, timezone, date
 import re
 import validators
@@ -182,7 +183,54 @@ class Cozy(commands.Cog):
                     return
                 data = await r.json()
                 print(f'Wiseoldman group updated.\nResponse: {data["message"]}')
+    
+    @Cog.listener()
+    async def on_user_update(self, before, after):
+        if before.name != after.name or before.discriminator != after.discriminator:
+            cozy = self.bot.get_guild(config['cozy_guild_id'])
+            if cozy:
+                if after.id in [member.id for member in cozy.members]:
+                    guild = await Guild.get(cozy.id)
+                    if guild:
+                        if guild.log_channel_id:
+                            channel = cozy.get_channel(guild.log_channel_id)
 
+                            member = None
+                            for m in cozy.members:
+                                if m.id == after.id:
+                                    member = m
+                                    break
+                            
+                            if member:
+                                beforeName = f'{before.name}#{before.discriminator}'
+                                afterName = f'{after.name}#{after.discriminator}'
+                                txt = f'{member.mention} {afterName}'
+                                embed = discord.Embed(title=f'**Name Changed**', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
+                                embed.add_field(name='Previously', value=beforeName, inline=False)
+                                embed.set_footer(text=f'User ID: {after.id}')
+                                embed.set_thumbnail(url=after.avatar_url)
+                                try:
+                                    await channel.send(embed=embed)
+                                except discord.Forbidden:
+                                    pass
+
+                                agc = await self.bot.agcm.authorize()
+                                ss = await agc.open_by_key(config['cozy_roster_key'])
+                                roster = await ss.worksheet('Roster')
+
+                                values = await roster.get_all_values()
+                                values = values[1:]
+
+                                found = False
+                                for i, val in enumerate(values):
+                                    if val[5] == beforeName:
+                                        await roster.update_cell(i+2, 6, afterName)
+                                        await channel.send(f'The roster has been updated with the new username: `{afterName}`.')
+                                        found = True
+                                        break
+                                
+                                if not found:
+                                    await channel.send(f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.')
 
     @commands.command(hidden=True)
     @cozy_council()
@@ -777,7 +825,7 @@ class Cozy(commands.Cog):
 
         past_sotw_sheet = await ss.worksheet('Past_SOTWs')
         col = await past_sotw_sheet.col_values(2)
-        next_num = int(col[len(col) - 1]) + 1
+        next_num = len(col)
 
         now = datetime.utcnow()
         next_monday = now + timedelta(days=-now.weekday(), weeks=1)
