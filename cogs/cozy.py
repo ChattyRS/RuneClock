@@ -293,12 +293,14 @@ class Cozy(commands.Cog):
 
             rank = entry[1]
 
-            ranks = ["Friend", "Squire", "Knight", "Paladin", "Hero", "Champion", "Council"]
-            ranks_points = ['1', '2', '3', '4', '7', '8', '9']
+            ranks = ["Friend", "Squire", "Knight", "Paladin", "Sage", "Elder", "Hero", "Champion", "Council"]
+            ranks_points = ['1', '2', '3', '4', '5', '6', '8', '9', '10']
             role_ids = [config['cozy_friend_role_id'],
                         config['cozy_squire_role_id'],
                         config['cozy_knight_role_id'],
                         config['cozy_paladin_role_id'],
+                        config['cozy_sage_role_id'],
+                        config['cozy_elder_role_id'],
                         config['cozy_hero_role_id'],
                         config['cozy_champion_role_id'],
                         config['cozy_council_role_id']]
@@ -432,12 +434,14 @@ class Cozy(commands.Cog):
 
             rank = entry[1]
 
-            ranks = ["Friend", "Squire", "Knight", "Paladin", "Hero", "Champion", "Council"]
-            ranks_points = ['1', '2', '3', '4', '7', '8', '9']
+            ranks = ["Friend", "Squire", "Knight", "Paladin", "Sage", "Elder", "Hero", "Champion", "Council"]
+            ranks_points = ['1', '2', '3', '4', '5', '6', '8', '9', '10']
             role_ids = [config['cozy_friend_role_id'],
                         config['cozy_squire_role_id'],
                         config['cozy_knight_role_id'],
                         config['cozy_paladin_role_id'],
+                        config['cozy_sage_role_id'],
+                        config['cozy_elder_role_id'],
                         config['cozy_hero_role_id'],
                         config['cozy_champion_role_id'],
                         config['cozy_council_role_id']]
