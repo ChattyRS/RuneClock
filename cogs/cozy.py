@@ -346,12 +346,13 @@ class Cozy(commands.Cog):
                     elif role in roles:
                         msg += f'Error: discord user `{disc_name}` for member `{name}` already had role `{old_role.name}. Their discord account has not been promoted further.`.\n'
                         continue
-                    roles.remove(old_role)
+                    if old_role.id != role_ids[0]:
+                        roles.remove(old_role)
                     roles.append(role)
                     try:
                         await disc_account.edit(roles=roles)
                     except:
-                        msg += f'I have insufficient permissions to assign `{role.name}` to `{name}`.'
+                        msg += f'I have insufficient permissions to assign role `{role.name}` to `{name}`.'
                         continue
                     msg += f'`{disc_name}` was given role `{role.name}`.\n'
                 else:
@@ -495,7 +496,7 @@ class Cozy(commands.Cog):
                     try:
                         await disc_account.edit(roles=roles)
                     except:
-                        msg += f'I have insufficient permissions to remove `{old_role.name}` from `{name}`.'
+                        msg += f'I have insufficient permissions to remove role `{old_role.name}` from `{name}`.'
                         continue
                     msg += f'`{disc_name}` was given role `{role.name}`.\n'
                 else:
