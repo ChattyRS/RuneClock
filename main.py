@@ -1439,10 +1439,11 @@ class Bot(commands.AutoShardedBot):
                 logging.critical(f'Error encountered in rs3 price tracking: {e}')
                 await asyncio.sleep(60)
             except Exception as e:
-                print(f'Error encountered in rs3 price tracking: {e}')
-                logging.critical(f'Error encountered in rs3 price tracking: {e}')
+                error = f'Error encountered in rs3 price tracking: {e}'
+                print(error)
+                logging.critical(error)
                 try:
-                    await channel.send(f'Error encountered in rs3 price tracking: {e}')
+                    await channel.send(error)
                 except:
                     pass
                 await asyncio.sleep(300)
@@ -1513,10 +1514,11 @@ class Bot(commands.AutoShardedBot):
                 logging.critical(f'Error encountered in osrs price tracking: {e}')
                 await asyncio.sleep(60)
             except Exception as e:
-                print(f'Error encountered in osrs price tracking: {e}')
-                logging.critical(f'Error encountered in osrs price tracking: {e}')
+                error = f'Error encountered in osrs price tracking: {e}'
+                print(error)
+                logging.critical(error)
                 try:
-                    await channel.send(f'Error encountered in osrs price tracking: {e}')
+                    await channel.send(error)
                 except:
                     pass
                 await asyncio.sleep(300)
