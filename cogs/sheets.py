@@ -23,9 +23,9 @@ portablesNames = ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 
 portablesNamesUpper = ['FLETCHERS', 'CRAFTERS', 'BRAZIERS', 'SAWMILLS', 'RANGES', 'WELLS', 'WORKBENCHES']
 busyLocs = [[84, "LM"], [99, "LM"], [100, "SP"]]
 forbiddenLocs = [[2, "BU"]]
-highestWorld = 245
+highestWorld = 259
 forbiddenWorlds = [13, 47, 55, 75, 90, 93, 94, 95, 101, 102, 107, 109, 110, 111, 112, 113, 118, 121, 122, 125, 126, 127, 128, 129, 130, 131, 132, 133]
-f2pWorlds = [3, 7, 8, 11, 17, 19, 20, 29, 33, 34, 38, 41, 43, 57, 61, 80, 81, 108, 120, 135, 136, 141, 210, 215, 225, 236, 245]
+f2pWorlds = [3, 7, 8, 11, 17, 19, 20, 29, 33, 34, 38, 41, 43, 57, 61, 80, 81, 108, 120, 135, 136, 141, 210, 215, 225, 236, 239, 245, 249, 250, 255, 256]
 totalWorlds = [[86, " (1500+)"], [114, " (1500+)"], [30, " (2000+)"], [48, " (2600+)"], [52, " (VIP)"]]
 
 portableAliases = [['fletcher', 'fletchers', 'fletch', 'fl', 'f'],
