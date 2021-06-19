@@ -121,8 +121,7 @@ async def purge_guild(guild):
 
 class Bot(commands.AutoShardedBot):
     def __init__(self, **kwargs):
-        intents = discord.Intents.default()
-        intents.members = True
+        intents = discord.Intents.all()
         super().__init__(
             max_messages = 1000000,
             command_prefix=self.get_prefix_,
@@ -154,13 +153,14 @@ class Bot(commands.AutoShardedBot):
         await asyncio.sleep(5) # Ensure database is up before we continue
         self.loop.create_task(self.load_all_extensions())
         print(f'Loading Discord...')
+        await self.wait_until_ready()
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='@RuneClock help'))
         channel = self.get_channel(config['testChannel'])
         self.app_info = await self.application_info()
         msg = (f'Logged in to Discord as: {self.user.name}\n'
-               f'Using discord.py version: {discord.__version__}\n'
-               f'Owner: {self.app_info.owner}\n'
-               f'Time: {str(self.start_time)} UTC')
+            f'Using discord.py version: {discord.__version__}\n'
+            f'Owner: {self.app_info.owner}\n'
+            f'Time: {str(self.start_time)} UTC')
         print(msg)
         print('-' * 10)
         logging.critical(msg)
@@ -174,7 +174,7 @@ class Bot(commands.AutoShardedBot):
                 try:
                     if channel:
                         await channel.send(msg)
-                except discord.Forbidden:
+                except:
                     pass
                 self.loop.create_task(self.notify())
                 self.loop.create_task(self.custom_notify())
@@ -245,7 +245,7 @@ class Bot(commands.AutoShardedBot):
         '''
         This event is called every time the bot connects or resumes connection.
         '''
-        print('All guild members loaded.')
+        print('Ready: all guilds loaded.')
 
     async def check_guilds(self):
         '''
@@ -253,7 +253,8 @@ class Bot(commands.AutoShardedBot):
         Checks database for entries of guilds that the bot is no longer a member of
         Adds default prefix entry to prefixes table if guild doesn't have a prefix set
         '''
-        logging.info('Loading guilds...')
+        logging.info('Checking guilds...')
+        print(f'Checking guilds...')
         config = config_load()
 
         # Adds 100 old messages to cache for each channel in Portables
@@ -263,8 +264,6 @@ class Bot(commands.AutoShardedBot):
             for channel in guild.channels:
                 async for message in channel.history(limit=100):
                     self.messages.append(message)
-
-        print(f'Loading guilds...')
 
         guilds = await Guild.query.gino.all()
         for guild in guilds:
@@ -278,7 +277,7 @@ class Bot(commands.AutoShardedBot):
             elif not guild.prefix:
                 await guild.update(prefix='-').apply()
 
-        msg = f'{str(len(self.guilds))} servers loaded'
+        msg = f'{str(len(self.guilds))} guilds checked and messages cached'
         print(msg)
         print('-' * 10)
         logging.info(msg)
@@ -396,7 +395,10 @@ class Bot(commands.AutoShardedBot):
             return
 
         role = None
-        guild = await Guild.get(channel.guild.id)
+        try:
+            guild = await Guild.get(channel.guild.id)
+        except:
+            return
         if not guild:
             return
         if not guild.role_channel_id == channel.id:
@@ -433,7 +435,10 @@ class Bot(commands.AutoShardedBot):
             return
 
         role = None
-        guild = await Guild.get(channel.guild.id)
+        try:
+            guild = await Guild.get(channel.guild.id)
+        except:
+            return
         if not guild:
             return
         if not guild.role_channel_id == channel.id:

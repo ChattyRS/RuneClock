@@ -262,7 +262,8 @@ class General(commands.Cog):
         if not member:
             raise commands.CommandError(message=f'Error: could not find member: `{name}`.')
 
-        member = await ctx.guild.fetch_member(member.id)
+        members = await ctx.guild.query_members(user_ids=[member.id], presences=True)
+        member = members[0]
 
         colour = 0x00b2ff
         timestamp = datetime.utcnow()

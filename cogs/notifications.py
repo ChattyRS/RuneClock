@@ -689,6 +689,9 @@ class Notifications(commands.Cog):
                         break
             if not found:
                 raise commands.CommandError(message=f'Could not find member: `{name}`.')
+        
+        members = await ctx.guild.query_members(user_ids=[member.id], presences=True)
+        member = members[0]
 
         if type in [1,2,3] and str(member.status) == 'online':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already online.')

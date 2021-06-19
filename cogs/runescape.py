@@ -227,6 +227,8 @@ class Runescape(commands.Cog):
             
             config = config_load()
             emoji_server = self.bot.get_guild(int(config['emoji_server']))
+            if not emoji_server:
+                return
             second_runes_temp = []
             for emoji in emoji_server.emojis:
                 if emoji.name.upper() == first_rune.upper().replace(' ', '_'):
