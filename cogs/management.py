@@ -870,6 +870,20 @@ class Management(commands.Cog):
         else:
             await ctx.send(f'Reloaded extension: **{module}**')
 
+    @commands.command(hidden=True)
+    @portables_admin()
+    @portables_only()
+    async def reload_sheets(self, ctx):
+        '''
+        Reloads the sheets extension.
+        '''
+        try:
+            self.bot.reload_extension(f'cogs.sheets')
+        except:
+            raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
+        else:
+            await ctx.send(f'Reloaded extension: **sheets**')
+
     @commands.command(pass_context=True, hidden=True)
     @is_owner()
     async def repl(self, ctx):

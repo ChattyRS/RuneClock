@@ -149,6 +149,7 @@ class Bot(commands.AutoShardedBot):
     async def initialize(self):
         print(f'Initializing...')
         config = config_load()
+        await asyncio.sleep(5) # Wait to ensure database is running on boot
         await database_setup()
         await asyncio.sleep(5) # Ensure database is up before we continue
         self.loop.create_task(self.load_all_extensions())
