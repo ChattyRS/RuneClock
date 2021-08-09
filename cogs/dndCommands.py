@@ -322,7 +322,7 @@ class DNDCommands(commands.Cog):
         now = now.replace(microsecond=0)
         
         embed = discord.Embed(title='Minigame Spotlight', colour=0x00b2ff, description=self.bot.spotlight)
-        embed.set_footer(text=timeDiffToString(self.next_spotlight - now))
+        embed.set_footer(text=timeDiffToString(self.bot.next_spotlight - now))
         
         await ctx.send(embed=embed)
 

@@ -402,21 +402,57 @@ class Bot(commands.AutoShardedBot):
             return
         if not guild:
             return
-        if not guild.role_channel_id == channel.id:
-            return
 
-        emoji = payload.emoji
-        roleName = emoji.name
-        if emoji.name in notifRoles:
-            role = discord.utils.get(channel.guild.roles, name=roleName)
-        elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
-            role = discord.utils.get(channel.guild.roles, name=roleName)
-            
-        if role:
-            try:
-                await user.add_roles(role)
-            except discord.Forbidden:
-                return
+        if guild.role_channel_id == channel.id:
+            emoji = payload.emoji
+            roleName = emoji.name
+            if emoji.name in notifRoles:
+                role = discord.utils.get(channel.guild.roles, name=roleName)
+            elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
+                role = discord.utils.get(channel.guild.roles, name=roleName)
+                
+            if role:
+                try:
+                    await user.add_roles(role)
+                except discord.Forbidden:
+                    pass
+        
+        if guild.hall_of_fame_channel_id:
+            hof_channel = self.get_channel(guild.hall_of_fame_channel_id)
+            if hof_channel:
+                if str(payload.emoji) == '🌟':
+                    message = await channel.fetch_message(payload.message_id)
+                    if message:
+                        for r in message.reactions:
+                            if r.emoji == '🌟':
+                                if r.count >= guild.hall_of_fame_react_num:
+                                    found = False
+                                    hof_msg = None
+                                    hof_embed = None
+                                    async for msg in hof_channel.history(limit=1000, after=message.created_at):
+                                        if msg.embeds:
+                                            for embed in msg.embeds:
+                                                footer = embed.footer.text
+                                                if str(message.id) in footer:
+                                                    found = True
+                                                    hof_msg = msg
+                                                    hof_embed = embed
+                                                    break
+                                    if not found:
+                                        embed = discord.Embed(title=f'Hall of fame 🌟 {r.count}', description=message.content, colour=0xffd700, url=message.jump_url, timestamp=message.created_at)
+                                        embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+                                        if message.attachments:
+                                            for a in message.attachments:
+                                                if 'image' in a.content_type:
+                                                    embed.set_image(url=a.url)
+                                                    break
+                                        embed.set_footer(text=f'Message ID: {message.id}')
+                                        await hof_channel.send(embed=embed)
+                                    else:
+                                        hof_embed.title = f'Hall of fame 🌟 {r.count}'
+                                        await hof_msg.edit(embed=hof_embed)
+                                break
+
 
     async def on_raw_reaction_remove(self, payload):
         '''

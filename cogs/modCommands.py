@@ -948,6 +948,53 @@ class ModCommands(commands.Cog):
         else:
             await guild.update(delete_channel_ids=[channel.id]).apply()
             await ctx.send(f'All future messages in {channel.mention} will be deleted.')
+    
+    @commands.command(hidden=True, aliases=['hof'])
+    @is_admin()
+    async def hall_of_fame(self, ctx, channel='', react_num=10):
+        '''
+        Sets the hall of fame channel and number of reactions for this server. (Admin+)
+        Arguments: channel (mention, name, or id), react_num (int)
+        After [react_num] reactions with the :star2: emoji, messages will be shown in the hall of fame channel.
+        '''
+        addCommand()
+
+        guild = await Guild.get(ctx.guild.id)
+
+        if not channel:
+            await guild.update(hall_of_fame_channel_id=None).apply()
+            await ctx.send(f'Disabled hall of fame for this server.')
+            return
+        elif ctx.message.channel_mentions:
+            channel = ctx.message.channel_mentions[0]
+        else:
+            found = False
+            if is_int(channel):
+                for c in ctx.guild.text_channels:
+                    if c.id == int(channel):
+                        channel = c
+                        found = True
+                        break
+            if not found:
+                for c in ctx.guild.text_channels:
+                    if c.name.upper() == channel.upper():
+                        channel = c
+                        found = True
+                        break
+            if not found:
+                for c in ctx.guild.text_channels:
+                    if channel.upper() in c.name.upper():
+                        channel = c
+                        found = True
+                        break
+            if not found:
+                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+
+        if react_num < 1:
+            raise commands.CommandError(message=f'Invalid argument: `react_num` (`{react_num}`). Must be at least 1.')
+
+        await guild.update(hall_of_fame_channel_id=channel.id, hall_of_fame_react_num=react_num).apply()
+        await ctx.send(f'Set the hall of fame channel for this server to {channel.mention}. The number of :star2: reactions required has been set to `{react_num}`.')
 
 def setup(bot):
     bot.add_cog(ModCommands(bot))

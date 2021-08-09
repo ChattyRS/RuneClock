@@ -37,6 +37,8 @@ class Guild(db.Model):
     log_bots = db.Column(db.Boolean)
     modmail_public = db.Column(db.BigInteger)
     modmail_private = db.Column(db.BigInteger)
+    hall_of_fame_channel_id = db.Column(db.BigInteger)
+    hall_of_fame_react_num = db.Column(db.BigInteger)
 
 class Role(db.Model):
     __tablename__ = 'roles'
