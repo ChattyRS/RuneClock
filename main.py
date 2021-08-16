@@ -627,6 +627,7 @@ class Bot(commands.AutoShardedBot):
                         await admin_sheet.update_cell(row, discord_col, str(monthly))
                         await admin_sheet.update_cell(row, discord_col+1, str(total))
             # Plagiarism check for Portables smiley applications
+            '''
             if message.channel.id == config['applicationChannel']:
                 if not rank_role in message.author.roles:
                     application_lines = ["0. What is your RSN?".upper(),
@@ -690,6 +691,7 @@ class Bot(commands.AutoShardedBot):
                         await message.channel.send(msg)
                     else:
                         await message.add_reaction('✅')
+            '''
 
                     
 

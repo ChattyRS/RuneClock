@@ -437,7 +437,7 @@ class ModCommands(commands.Cog):
             except discord.Forbidden:
                 raise commands.CommandError(message=f'I have insufficient permissions to remove this role from this user.')
 
-    @commands.command(pass_context=True, aliases=['promo'])
+    @commands.command(pass_context=True, aliases=['promo'], hidden=True)
     @portables_admin()
     @portables_only()
     async def promote(self, ctx, *memberNames):
@@ -508,7 +508,7 @@ class ModCommands(commands.Cog):
         if txt:
             await ctx.send(txt)
 
-    @commands.command(pass_context=True, aliases=['demo'])
+    @commands.command(pass_context=True, aliases=['demo'], hidden=True)
     @portables_admin()
     @portables_only()
     async def demote(self, ctx, *memberNames):
@@ -603,7 +603,7 @@ class ModCommands(commands.Cog):
         if txt:
             await ctx.send(txt)
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     @portables_admin()
     @portables_only()
     async def derank(self, ctx, *memberNames):
@@ -742,7 +742,7 @@ class ModCommands(commands.Cog):
                 raise commands.CommandError(message=f'Missing permissions: `edit_role`.')
             await ctx.send(f'{emoji}Role **{role.name}** has been made **{x}mentionable**.')
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     @portables_admin()
     @portables_only()
     async def accept(self, ctx):
@@ -781,7 +781,7 @@ class ModCommands(commands.Cog):
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions.')
 
-    @commands.command(pass_context=True, aliases=['reject'])
+    @commands.command(pass_context=True, aliases=['reject'], hidden=True)
     @portables_admin()
     @portables_only()
     async def decline(self, ctx):

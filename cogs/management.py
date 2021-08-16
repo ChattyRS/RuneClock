@@ -216,19 +216,18 @@ class Management(commands.Cog):
             return cog + ':' if cog is not None else '\u200bNo Category:'
 
         def predicate(cmd):
+            if ctx.author.id == config['owner']:
+                    return True
+            elif cmd.hidden:
+                return False
+
             if ctx.guild.id == config['portablesServer']:
-                smiley = False
-                rank = False
-                mod = False
+                helper = False
                 admin = False
                 leader = False
                 for role in ctx.author.roles:
-                    if role.id == config['smileyRole']:
-                        smiley = True
-                    elif role.id == config['rankRole']:
-                        rank = True
-                    elif role.id == config['modRole']:
-                        mod = True
+                    if role.id == config['helperRole']:
+                        helper = True
                     elif role.id == config['adminRole']:
                         admin = True
                     elif role.id == config['leaderRole']:
@@ -239,19 +238,11 @@ class Management(commands.Cog):
                     return False
                 if not admin and 'Admin+' in cmd.help:
                     return False
-                if not mod and 'Mod+' in cmd.help:
-                    return False
-                if not rank and 'Rank+' in cmd.help:
-                    return False
-                if not smiley and 'Smiley+' in cmd.help:
+                if not helper and 'Helper+' in cmd.help:
                     return False
                 return True
             else:
-                if ctx.author.id == config['owner']:
-                    return True
-                elif cmd.hidden:
-                    return False
-                elif 'Portables only' in cmd.help:
+                if 'Portables only' in cmd.help:
                     return False
                 elif 'Admin+' in cmd.help or 'Leader+' in cmd.help:
                     return ctx.author.guild_permissions.administrator

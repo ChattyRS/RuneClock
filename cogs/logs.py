@@ -394,7 +394,7 @@ class Logs(commands.Cog):
                 await channel.send(embed=embed)
             except discord.Forbidden:
                 return
-
+            '''
             if after.guild == self.bot.get_guild(config['portablesServer']):
                 for r in after.guild.roles:
                     if r.id == config['rankRole']:
@@ -426,6 +426,7 @@ class Logs(commands.Cog):
                         await modChannel.send(msg)
                     except discord.Forbidden:
                         return
+            '''
 
     @Cog.listener()
     async def on_guild_update(self, before, after):
