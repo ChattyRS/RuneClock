@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 import html
 import re
 from utils import timeDiffToString, is_int, RoleConverter
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 
 config = config_load()
 

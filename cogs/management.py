@@ -20,7 +20,7 @@ import copy
 from typing import Union
 import itertools
 import utils
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only, is_int
+from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only, is_int
 from github import Github
 import aiohttp
 import matplotlib.pyplot as plt

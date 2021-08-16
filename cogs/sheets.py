@@ -12,7 +12,7 @@ import utils
 import copy
 import gspread_asyncio
 import gspread
-from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 from utils import cozy_council
 
 config = config_load()
@@ -37,6 +37,25 @@ portableAliases = [['fletcher', 'fletchers', 'fletch', 'fl', 'f'],
                    ['workbench', 'workbenches', 'benches', 'bench', 'wb', 'wo']]
 
 rankTitles = ['Sergeants', 'Corporals', 'Recruits', 'New']
+
+fletchers_channel_id = config['fletchers_channel_id']
+crafters_channel_id = config['crafters_channel_id']
+braziers_channel_id = config['braziers_channel_id']
+sawmills_channel_id = config['sawmills_channel_id']
+ranges_channel_id = config['ranges_channel_id']
+wells_channel_id = config['wells_channel_id']
+workbenches_channel_id = config['workbenches_channel_id']
+
+portables_channel_ids = [fletchers_channel_id,
+                         crafters_channel_id,
+                         braziers_channel_id,
+                         sawmills_channel_id,
+                         ranges_channel_id,
+                         wells_channel_id,
+                         workbenches_channel_id]
+
+portables_channel_mentions = [f'<#{id}>' for id in portables_channel_ids]
+portables_channel_mention_string = ', '.join(portables_channel_mentions[:len(portables_channel_mentions) - 1]) + ', or ' + portables_channel_mentions[len(portables_channel_mentions) - 1]
 
 def getPorts(input):
     '''
@@ -400,7 +419,7 @@ def checkPorts(newPorts, ports):
             '''
     return ''
 
-def get_port_type(input):
+def get_port_type(input, channel=None):
     if 'FL' in input or input.startswith('F'):
         return ['fletcher', 1]
     elif 'CR' in input or (input.startswith('C') and not (input.startswith('CA') or input.startswith('CW'))):
@@ -416,6 +435,8 @@ def get_port_type(input):
     elif 'WOR' in input or 'BEN' in input or input.startswith('WO') or input.startswith('WB'):
         return ['workbench', 7]
     else:
+        if channel.id in portables_channel_ids:
+            return [portablesNames[portables_channel_ids.index(channel.id)].lower(), portables_channel_ids.index(channel.id) + 1]
         return ['', -1]
     
 last_ports = None
@@ -496,6 +517,8 @@ class Sheets(commands.Cog):
         if ports[22].value == last_ports[22].value:
             last_ports = ports
             return
+
+        '''
         last_ports = ports
 
         credit = ports[22].value
@@ -503,8 +526,9 @@ class Sheets(commands.Cog):
         editors = get_editors(credit)
         for rank in editors:
             await add_activity(self.bot.agcm, rank.strip(), datetime.utcnow(), sheet_activity=True)
+        '''
 
-    @commands.command()
+    @commands.command(aliases=['box'])
     async def boxes(self, ctx):
         '''
         Get portable bank deposit box locations.
@@ -530,34 +554,32 @@ class Sheets(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['p', 'portable'] + [item for sublist in portableAliases for item in sublist])
-    async def portables(self, ctx, portable='', *stuff):
+    async def portables(self, ctx, portable='', *input):
         '''
         Get portable locations.
         '''
         addCommand()
 
         if ctx.invoked_with in [item for sublist in portableAliases for item in sublist]:
-            stuff = (portable,) + stuff
+            input = (portable,) + input
             portable = ctx.invoked_with
         
-        if any(thing for thing in stuff):
+        if any(thing for thing in input):
             edit_command = commands.Bot.get_command(self.bot, 'edit')
             try:
                 for check in edit_command.checks:
                     if not await check(ctx):
-                        raise commands.CommandError(message=f'Insufficient permissions: `Portables smiley`.')
-                await edit_command.callback(self, ctx, portable, *stuff)
+                        raise commands.CommandError(message=f'Insufficient permissions: `Portables helper`.')
+                await edit_command.callback(self, ctx, portable, *input)
                 return
             except commands.CommandError as e:
                 raise e
 
-        locChannel = self.bot.get_channel(config['locChannel'])
         adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
-
-        if locChannel:
+        if adminCommandsChannel:
             if ctx.guild == self.bot.get_guild(config['portablesServer']):
-                if ctx.channel != locChannel and ctx.channel != adminCommandsChannel:
-                    raise commands.CommandError(message=f'Error: Incorrect channel. Use {locChannel.mention}.')
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
         global last_ports
         if last_ports is None:
@@ -604,7 +626,7 @@ class Sheets(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.command()
-    @is_smiley()
+    @is_helper()
     async def update_time(self, ctx):
         '''
         Updates the time on the Portables sheet.
@@ -617,16 +639,13 @@ class Sheets(commands.Cog):
         portables = self.bot.get_guild(config['portablesServer'])
         if not portables:
             raise commands.CommandError(message=f'Error: could not find Portables server.')
-        locChannel = portables.get_channel(config['locationChannel'])
-        adminCommandsChannel = portables.get_channel(config['adminCommandsChannel'])
         member = await portables.fetch_member(ctx.author.id)
 
-        if ctx.guild == portables:
-            if ctx.channel != locChannel and ctx.channel != adminCommandsChannel: # if this is not the locations channel, return
-                if locChannel:
-                    raise commands.CommandError(message=f'Incorrect channel. Please use {locChannel.mention}.')
-                else:
-                    raise commands.CommandError(message=f'Incorrect channel. Please use the `locations` channel.')
+        adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
+        if adminCommandsChannel:
+            if ctx.guild == self.bot.get_guild(config['portablesServer']):
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
         name = '' # initialize empty name of user
         isRank = False # boolean value representing whether or not the user is a rank
@@ -639,7 +658,7 @@ class Sheets(commands.Cog):
 
         await ctx.send(f'The time has been updated to `{timestamp}`.')
 
-    @commands.command(aliases=['banlist'])
+    @commands.command(aliases=['banlist'], hidden=True)
     @is_mod()
     async def addban(self, ctx, name="", *reasons):
         '''
@@ -719,7 +738,7 @@ class Sheets(commands.Cog):
         adminChannel = self.bot.get_channel(config['adminChannel'])
         await adminChannel.send(f'**{name}** has been added to the banlist with status **Pending**.')
 
-    @commands.command()
+    @commands.command(hidden=True)
     @is_rank()
     async def helper(self, ctx, *nameParts):
         '''
@@ -805,7 +824,7 @@ class Sheets(commands.Cog):
             await sheet.update_cell(row, creditCol, userName)
             await ctx.send(f'**{name}** has been noted as active for **{timestamp}**.')
 
-    @commands.command()
+    @commands.command(hidden=True)
     @is_rank()
     async def smileyactivity(self, ctx, *nameParts):
         '''
@@ -876,7 +895,7 @@ class Sheets(commands.Cog):
         await sheet.update_cell(row, creditCol, userName)
         await ctx.send(f'**{name}** has been noted as active for **{timestamp}**.')
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     @portables_admin()
     async def addsmiley(self, ctx, *nameParts):
         '''
@@ -935,7 +954,7 @@ class Sheets(commands.Cog):
             adminChannel = self.bot.get_channel(config['adminChannel'])
             await adminChannel.send(f'**{name}** has been added to the smileys sheet with status **Pending**.')
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     @portables_leader()
     async def activatesmiley(self, ctx, *nameParts):
         '''
@@ -990,7 +1009,7 @@ class Sheets(commands.Cog):
 
         await ctx.send(f'**{name}**\'s status has been set to active.')
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     @portables_admin()
     async def addalt(self, ctx, name="", member=""):
         '''
@@ -1082,10 +1101,10 @@ class Sheets(commands.Cog):
             await adminChannel.send(f'**{memberName}**\'s alt, **{name}**, has been added to the smileys sheet with status **Pending**.')
 
     @commands.command(pass_context=True, aliases=['a'], ignore_extra=True)
-    @is_smiley()
+    @portables_only()
     async def add(self, ctx):
         """
-        Add portable locations (Smiley+) (Portables only).
+        Add portable locations (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
@@ -1095,23 +1114,20 @@ class Sheets(commands.Cog):
         portables = self.bot.get_guild(config['portablesServer'])
         if not portables:
             raise commands.CommandError(message=f'Error: could not find Portables server.')
-        locChannel = portables.get_channel(config['locationChannel'])
-        adminCommandsChannel = portables.get_channel(config['adminCommandsChannel'])
         member = await portables.fetch_member(ctx.author.id)
 
-        if ctx.guild == portables:
-            if ctx.channel != locChannel and ctx.channel != adminCommandsChannel: # if this is not the locations channel, return
-                if locChannel:
-                    raise commands.CommandError(message=f'Incorrect channel. Please use {locChannel.mention}.')
-                else:
-                    raise commands.CommandError(message=f'Incorrect channel. Please use the `locations` channel.')
+        adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
+        if adminCommandsChannel:
+            if ctx.guild == self.bot.get_guild(config['portablesServer']):
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
         input = ctx.message.content.upper().replace(ctx.prefix.upper(), '', 1).replace(ctx.invoked_with.upper(), '', 1).strip() # get the input corresponding to this message
         if not input: # if there was no input, return
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
         # get the portable type corresponding to the input
-        portable, col = get_port_type(input)
+        portable, col = get_port_type(input, ctx.channel)
         if col == -1: # if no portable type was given, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
 
@@ -1156,13 +1172,13 @@ class Sheets(commands.Cog):
         timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         name = '' # initialize empty name of user
-        isRank = False # boolean value representing whether or not the user is a rank
-        rankRole = discord.utils.get(portables.roles, id=config['rankRole'])
-        if rankRole in member.roles: # if the rank role is in the set of roles corresponding to the user
-            isRank = True # then set isRank to true
+        isHelper = False # boolean value representing whether or not the user is a rank
+        helperRole = discord.utils.get(portables.roles, id=config['helperRole'])
+        if helperRole in member.roles: # if the rank role is in the set of roles corresponding to the user
+            isHelper = True # then set isRank to true
             name = utils.get_user_name(member) # and get the name of the user
 
-        await updateSheet(self.bot.agcm, col, newVal, timestamp, name, isRank) # update the sheet
+        await updateSheet(self.bot.agcm, col, newVal, timestamp, name, isHelper) # update the sheet
 
         # send confirmation message
         if multiple:
@@ -1171,10 +1187,10 @@ class Sheets(commands.Cog):
             await ctx.send(f'The **{portable}** location **{newPortsText}** has been added to the Portables sheet.')
 
     @commands.command(pass_context=True, aliases=['rem'], ignore_extra=True)
-    @is_smiley()
+    @portables_only()
     async def remove(self, ctx):
         """
-        Remove portable locations (Smiley+) (Portables only).
+        Remove portable locations (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
@@ -1184,16 +1200,13 @@ class Sheets(commands.Cog):
         portables = self.bot.get_guild(config['portablesServer'])
         if not portables:
             raise commands.CommandError(message=f'Error: could not find Portables server.')
-        locChannel = portables.get_channel(config['locationChannel'])
-        adminCommandsChannel = portables.get_channel(config['adminCommandsChannel'])
         member = await portables.fetch_member(ctx.author.id)
 
-        if ctx.guild == portables:
-            if ctx.channel != locChannel and ctx.channel != adminCommandsChannel: # if this is not the locations channel, return
-                if locChannel:
-                    raise commands.CommandError(message=f'Incorrect channel. Please use {locChannel.mention}.')
-                else:
-                    raise commands.CommandError(message=f'Incorrect channel. Please use the `locations` channel.')
+        adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
+        if adminCommandsChannel:
+            if ctx.guild == self.bot.get_guild(config['portablesServer']):
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
         # get the input corresponding to this message
         input = ctx.message.content.upper().replace(ctx.prefix.upper(), '', 1).replace(ctx.invoked_with.upper(), '', 1).strip() # get the input corresponding to this message
@@ -1202,7 +1215,7 @@ class Sheets(commands.Cog):
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
         # get the portable type corresponding to the input
-        portable, col = get_port_type(input)
+        portable, col = get_port_type(input, ctx.channel)
         if col == -1: # if no portable type was given, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
 
@@ -1248,13 +1261,13 @@ class Sheets(commands.Cog):
         timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         name = '' # initialize empty name of user
-        isRank = False # boolean value representing whether or not the user is a rank
-        rankRole = discord.utils.get(portables.roles, id=config['rankRole'])
-        if rankRole in member.roles: # if the rank role is in the set of roles corresponding to the user
-            isRank = True # then set isRank to true
+        isHelper = False # boolean value representing whether or not the user is a rank
+        helperRole = discord.utils.get(portables.roles, id=config['rankRole'])
+        if helperRole in member.roles: # if the rank role is in the set of roles corresponding to the user
+            isHelper = True # then set isRank to true
             name = utils.get_user_name(member) # and get the name of the user
 
-        await updateSheet(self.bot.agcm, col, newVal, timestamp, name, isRank) # update the sheet
+        await updateSheet(self.bot.agcm, col, newVal, timestamp, name, isHelper) # update the sheet
 
         # send confirmation message
         if multiple:
@@ -1263,10 +1276,10 @@ class Sheets(commands.Cog):
             await ctx.send(f'The **{portable}** location **{oldPortsText}** has been removed from the Portables sheet.')
 
     @commands.command(aliases=['rall'], ignore_extra=True)
-    @is_smiley()
+    @is_helper()
     async def removeall(self, ctx, *input):
         '''
-        Removes all instances of a given location, or all locations of a given portable. (Smiley+) (Portables only)
+        Removes all instances of a given location, or all locations of a given portable. (Helper+) (Portables only)
         Arguments: [portable] / [worlds][locations]
         Constraints: If calling the command with a portable, you can only do one portable at a time.
         Example: `-removeall range` / `-removeall 84 ca`
@@ -1275,13 +1288,13 @@ class Sheets(commands.Cog):
         await ctx.channel.trigger_typing() # send 'typing...' status
 
         portables = self.bot.get_guild(config['portablesServer'])
-        locChannel = self.bot.get_channel(config['locationChannel'])
-        adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
         member = await portables.fetch_member(ctx.author.id)
 
-        if ctx.guild == portables:
-            if ctx.channel != locChannel and ctx.channel != adminCommandsChannel: # if this is not the locations channel, return
-                raise commands.CommandError(message=f'Incorrect channel. Please use {locChannel.mention}.')
+        adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
+        if adminCommandsChannel:
+            if ctx.guild == self.bot.get_guild(config['portablesServer']):
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
         if input:
             input = ' '.join(input).upper().strip()
@@ -1299,6 +1312,9 @@ class Sheets(commands.Cog):
                     port = aliases[0]
                     index = i
                     break
+            if not port:
+                if ctx.channel.id in portables_channel_ids:
+                    port = portablesNames[portables_channel_ids.index(ctx.channel.id)].lower()
             if not port:
                 raise commands.CommandError(message=f'Invalid argument: `{input}`.')
 
@@ -1338,10 +1354,10 @@ class Sheets(commands.Cog):
 
 
     @commands.command(pass_context=True, ignore_extra=True)
-    @is_smiley()
+    @is_helper()
     async def edit(self, ctx, portable='', *inputLocs):
         '''
-        Edit portable locations (Smiley+) (Portables only).
+        Edit portable locations (Helper+) (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
         Alternatively, you can directly use -portable [arguments], e.g.: -fletch 100 ca
         Constraints: This command can only be used in the locations channel. Only approved locations and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
@@ -1350,13 +1366,13 @@ class Sheets(commands.Cog):
         await ctx.channel.trigger_typing() # send 'typing...' status
 
         portables = self.bot.get_guild(config['portablesServer'])
-        locChannel = self.bot.get_channel(config['locationChannel'])
-        adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
         member = await portables.fetch_member(ctx.author.id)
 
-        if ctx.guild == portables:
-            if ctx.channel != locChannel and ctx.channel != adminCommandsChannel: # if this is not the locations channel, return
-                raise commands.CommandError(message=f'Incorrect channel. Please use {locChannel.mention}.')
+        adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
+        if adminCommandsChannel:
+            if ctx.guild == self.bot.get_guild(config['portablesServer']):
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
         if not portable: # if there was no portable type in the input, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
@@ -1411,7 +1427,7 @@ class Sheets(commands.Cog):
 
         await ctx.send(f'The **{portable}** locations have been edited to: **{newPortsText}**.') # send confirmation message
 
-    @commands.command(pass_context=True, aliases=['watch'])
+    @commands.command(pass_context=True, aliases=['watch'], hidden=True)
     @is_rank()
     async def watchlist(self, ctx, name="", *reasons):
         '''
@@ -1469,7 +1485,7 @@ class Sheets(commands.Cog):
 
         await ctx.send(f'**{name}** has been added to the watchlist ({str(count)}).')
 
-    @commands.command(pass_context=True, aliases=['act', 'active'])
+    @commands.command(pass_context=True, aliases=['act', 'active'], hidden=True)
     @portables_admin()
     async def activity(self, ctx, *nameParts):
         '''
@@ -1537,7 +1553,7 @@ class Sheets(commands.Cog):
         await sheet.update_cell(row, col, timestamp)
         await ctx.send(f'**{name}** has been noted as active for **{timestamp}** **{datetime.utcnow().strftime("%b")}**.')
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     @portables_admin()
     async def sheetactivity(self, ctx, *nameParts):
         '''

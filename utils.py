@@ -101,23 +101,25 @@ def is_rank():
         raise commands.CommandError(message='Insufficient permissions: `Portables rank`')
     return commands.check(predicate)
 
-def is_smiley():
+def is_helper():
     async def predicate(ctx):
         portables = ctx.bot.get_guild(config['portablesServer'])
         if portables:
             member = await portables.fetch_member(ctx.author.id)
             if member:
-                smiley_role = portables.get_role(config['smileyRole'])
-                if smiley_role in member.roles:
+                helper_role = portables.get_role(config['helperRole'])
+                if helper_role in member.roles:
                     return True
         if ctx.author.id == config['owner']:
             return True
-        raise commands.CommandError(message='Insufficient permissions: `Portables smiley`')
+        raise commands.CommandError(message='Insufficient permissions: `Portables helper`')
     return commands.check(predicate)
 
 def portables_only():
     async def predicate(ctx):
         if ctx.guild.id == config['portablesServer']:
+            return True
+        if ctx.author.id == config['owner']:
             return True
         raise commands.CommandError(message='Insufficient permissions: `Portables server only`')
     return commands.check(predicate)

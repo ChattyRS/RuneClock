@@ -7,7 +7,7 @@ from main import config_load, addCommand, Command
 import re
 from datetime import datetime
 import utils
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 
 config = config_load()
 

@@ -14,7 +14,7 @@ import sympy
 from utils import is_int, is_float
 from forex_python.converter import CurrencyRates
 from utils import units, unit_aliases
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 import io
 import multiprocessing
 

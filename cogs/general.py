@@ -13,7 +13,7 @@ import cmath
 from utils import is_int, is_float
 import codecs
 import json
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 import validators
 
 config = config_load()

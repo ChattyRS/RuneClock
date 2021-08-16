@@ -6,7 +6,7 @@ sys.path.append('../')
 from main import config_load, addCommand, districts
 from datetime import datetime, timedelta
 from utils import timeDiffToString
-from utils import itemEmojis, is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import itemEmojis, is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 
 config = config_load()
 

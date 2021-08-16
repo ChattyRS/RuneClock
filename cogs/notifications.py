@@ -5,7 +5,7 @@ import sys
 sys.path.append('../')
 import json
 from datetime import datetime, timedelta
-from utils import is_int, is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import is_int, is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 
 config = config_load()
 

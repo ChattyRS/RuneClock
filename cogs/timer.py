@@ -11,7 +11,7 @@ import re
 from utils import timeDiffToString
 import pytz
 from utils import countries, is_int
-from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, is_smiley, portables_only
+from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, portables_only
 
 def string_to_timezone(timezone):
     if timezone.upper() == 'USA':

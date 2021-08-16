@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 from lxml import html
 import json
 from utils import is_int, is_float, draw_num, xp_to_level, combat_level, draw_outline_osrs, draw_outline_rs3
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, is_smiley, portables_only, level_to_xp
+from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only, level_to_xp
 from utils import timeDiffToString
 import io
 import imageio
