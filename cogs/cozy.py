@@ -1047,7 +1047,7 @@ class Cozy(commands.Cog):
                 split = line.split(' ')
                 while '' in split:
                     split.remove('')
-                e, s = split
+                e, s = split[0], ' '.join(split[1:])
                 if e == r:
                     results[s] = v
                     lines.remove(line)
