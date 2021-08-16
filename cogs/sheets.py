@@ -1182,9 +1182,9 @@ class Sheets(commands.Cog):
 
         # send confirmation message
         if multiple:
-            await ctx.send(f'The **{portable}** locations **{newPortsText}** have been added to the Portables sheet.')
+            await ctx.send(f'The **{portable}** locations **{newPortsText}** have been added.')
         else:
-            await ctx.send(f'The **{portable}** location **{newPortsText}** has been added to the Portables sheet.')
+            await ctx.send(f'The **{portable}** location **{newPortsText}** has been added.')
 
     @commands.command(pass_context=True, aliases=['rem'], ignore_extra=True)
     @portables_only()
@@ -1254,9 +1254,9 @@ class Sheets(commands.Cog):
         # if no change, raise an error
         if newVal == val:
             if multiple:
-                raise commands.CommandError(message=f'The `{portable}` locations `{format(oldPorts)}` weren\'t found on the sheet.')
+                raise commands.CommandError(message=f'The `{portable}` locations `{format(oldPorts)}` weren\'t found.')
             else:
-                raise commands.CommandError(message=f'The `{portable}` location `{format(oldPorts)}` was not found on the sheet.')
+                raise commands.CommandError(message=f'The `{portable}` location `{format(oldPorts)}` was not found.')
 
         timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
@@ -1271,9 +1271,9 @@ class Sheets(commands.Cog):
 
         # send confirmation message
         if multiple:
-            await ctx.send(f'The **{portable}** locations **{oldPortsText}** have been removed from the Portables sheet.')
+            await ctx.send(f'The **{portable}** locations **{oldPortsText}** have been removed.')
         else:
-            await ctx.send(f'The **{portable}** location **{oldPortsText}** has been removed from the Portables sheet.')
+            await ctx.send(f'The **{portable}** location **{oldPortsText}** has been removed.')
 
     @commands.command(aliases=['rall'], ignore_extra=True)
     @is_helper()
