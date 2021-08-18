@@ -14,6 +14,7 @@ import gspread_asyncio
 import gspread
 from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 from utils import cozy_council
+import logging
 
 config = config_load()
 
@@ -441,6 +442,13 @@ def get_port_type(input, channel=None):
     
 last_ports = None
 
+def get_last_ports():
+    return last_ports
+
+def set_last_ports(ports):
+    global last_ports
+    last_ports = ports
+
 def get_editors(credit):
     '''
     Get list of editor names from credit cell string
@@ -470,63 +478,60 @@ class Sheets(commands.Cog):
         '''
         Loop to track location update activity
         '''
-        global last_ports
-        if last_ports is None:
+        try:
             agc = await self.bot.agcm.authorize()
             ss = await agc.open(config['sheetName'])
             home = await ss.worksheet('Home')
 
-            last_ports = await home.range('A20:I22')
-            return
-        
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(config['sheetName'])
-        home = await ss.worksheet('Home')
+            last_ports = get_last_ports()
+            if last_ports is None:
+                last_ports = await home.range('A20:I22')
+                set_last_ports(last_ports)
+                return
 
-        ports = await home.range('A20:I22')
-        
-        if not any(ports[i].value != l_p.value for i, l_p in enumerate(last_ports)):
-            return
-        else:
-            top_row_old, mid_row_old, bot_row_old = last_ports[:9], last_ports[9:18], last_ports[18:]
-            top_row, mid_row, bot_row = ports[:9], ports[9:18], ports[18:]
+            ports = await home.range('A20:I22')
+            
+            if not any(ports[i].value != l_p.value for i, l_p in enumerate(last_ports)):
+                return
+            else:
+                set_last_ports(ports)
 
-            role_ids = [config['fletcher_role'], config['crafter_role'], config['brazier_role'], config['sawmill_role'], config['range_role'], config['well_role'], config['workbench_role']]
-            port_server = self.bot.get_guild(config['portablesServer'])
-            if port_server:
-                roles = []
-                for role_id in role_ids:
-                    role = port_server.get_role(role_id)
-                    roles.append(role)
+                top_row_old, mid_row_old, bot_row_old = last_ports[:9], last_ports[9:18], last_ports[18:]
+                top_row, mid_row, bot_row = ports[:9], ports[9:18], ports[18:]
 
-                for i, cell in enumerate(mid_row[:7]):
-                    old_cell = mid_row_old[i]
-                    val = cell.value
-                    old_val = old_cell.value
-                    current_locs = getPorts(val)
-                    old_locs = getPorts(old_val)
-                    
-                    if only_f2p(old_locs):
-                        if not only_f2p(current_locs):
-                            role = roles[i]
-                            if role:
-                                loc_channel = port_server.get_channel(config['locationChannel'])
-                                if loc_channel:
-                                    await loc_channel.send(f'{role.mention} active at **{format(current_locs)}**')
+                role_ids = [config['fletcher_role'], config['crafter_role'], config['brazier_role'], config['sawmill_role'], config['range_role'], config['well_role'], config['workbench_role']]
+                port_server = self.bot.get_guild(config['portablesServer'])
+                if port_server:
+                    roles = []
+                    for role_id in role_ids:
+                        role = port_server.get_role(role_id)
+                        roles.append(role)
+
+                    for i, cell in enumerate(mid_row[:7]):
+                        old_cell = mid_row_old[i]
+                        val = cell.value
+                        old_val = old_cell.value
+                        current_locs = getPorts(val)
+                        old_locs = getPorts(old_val)
                         
-        if ports[22].value == last_ports[22].value:
-            last_ports = ports
-            return
+                        if only_f2p(old_locs):
+                            if not only_f2p(current_locs):
+                                role = roles[i]
+                                if role:
+                                    channel_id = portables_channel_ids[i]
+                                    loc_channel = port_server.get_channel(channel_id)
+                                    if loc_channel:
+                                        await loc_channel.send(f'{role.mention} active at **{format(current_locs)}**')
+        except Exception as e:
+            error = f'Error encountered portable locations tracking: {e}'
+            print(error)
+            logging.critical(error)
 
-        '''
-        last_ports = ports
-
-        credit = ports[22].value
-
-        editors = get_editors(credit)
-        for rank in editors:
-            await add_activity(self.bot.agcm, rank.strip(), datetime.utcnow(), sheet_activity=True)
-        '''
+            try:
+                channel = self.get_channel(config['testChannel'])
+                await channel.send(error)
+            except:
+                pass
 
     @commands.command(aliases=['box'])
     async def boxes(self, ctx):
@@ -545,7 +550,7 @@ class Sheets(commands.Cog):
             if ctx.channel != locChannel and ctx.channel != adminCommandsChannel:
                 raise commands.CommandError(message=f'Error: Incorrect channel. Use {locChannel.mention}.')
         
-        global last_ports
+        last_ports = get_last_ports()
         boxes = last_ports[17].value
 
         embed = discord.Embed(title='__Deposit boxes__', description=boxes, colour=0xff0000, url=config['publicSheets'], timestamp=datetime.utcnow())
@@ -581,7 +586,7 @@ class Sheets(commands.Cog):
                 if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
                     raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
-        global last_ports
+        last_ports = get_last_ports()
         if last_ports is None:
             return
         top_row, mid_row, bot_row = last_ports[:9], last_ports[9:18], last_ports[18:]
