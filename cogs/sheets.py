@@ -1262,7 +1262,7 @@ class Sheets(commands.Cog):
 
         name = '' # initialize empty name of user
         isHelper = False # boolean value representing whether or not the user is a rank
-        helperRole = discord.utils.get(portables.roles, id=config['rankRole'])
+        helperRole = discord.utils.get(portables.roles, id=config['helperRole'])
         if helperRole in member.roles: # if the rank role is in the set of roles corresponding to the user
             isHelper = True # then set isRank to true
             name = utils.get_user_name(member) # and get the name of the user
