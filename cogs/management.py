@@ -268,8 +268,13 @@ class Management(commands.Cog):
                         val_short += f'• `{command.name} {param_text}`\n'
                     val = val.strip()
                     val_short = val_short.strip()
-                    embed.add_field(name=f'{category}', value=val, inline=False)
-                    embed_short.add_field(name=f'{category}', value=val_short, inline=False)
+                    if category.upper() == 'COZY':
+                        if ctx.guild.id == config['cozy_guild_id'] or ctx.author.id == config['owner']:
+                            embed.add_field(name=f'{category}', value=val, inline=False)
+                            embed_short.add_field(name=f'{category}', value=val_short, inline=False)
+                    else:
+                        embed.add_field(name=f'{category}', value=val, inline=False)
+                        embed_short.add_field(name=f'{category}', value=val_short, inline=False)
 
         embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url='https://i.imgur.com/hu3nR8o.png')
         embed.set_footer(text=f'{len(self.bot.commands)} commands • {len(self.bot.extensions)} extensions')
