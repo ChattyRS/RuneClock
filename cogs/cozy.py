@@ -1090,6 +1090,71 @@ class Cozy(commands.Cog):
         await sotw_sheet.batch_update([data], value_input_option='USER_ENTERED')
 
         await ctx.send(f'Success! The voting data for SOTW #{num} has been logged.')
+    
+
+    @commands.command()
+    @cozy_council()
+    @cozy_only()
+    async def get_compliments(self, ctx):
+        '''
+        Returns the list of compliments in a conveniently formatted text file
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_roster_key'])
+        roster = await ss.worksheet('Roster')
+
+        members = await roster.get_all_values()
+        members = members[1:]
+
+        ss = await agc.open_by_key(config['cozy_cotw_nominations_key'])
+        compliment_sheet = await ss.worksheet('Nominations')
+
+        compliments = await compliment_sheet.get_all_values()
+        if (len(compliments) <= 2):
+            raise commands.CommandError(message='The compliments sheet is empty.')
+        compliments = compliments[2:]
+
+        
+        comps = []
+        for compliment in compliments:
+            c = [[compliment[0]], compliment[2]]
+            dup = False
+            for i, x in enumerate(comps):
+                if x[1] == c[1]:
+                    comps[i][0].append(c[0][0])
+                    dup = True
+                    break
+            if not dup:
+                comps.append(c)
+
+        messages = []
+        for compliment in comps:
+            names, msg = compliment
+            disc_names = []
+            for name in names:
+                disc_name = name
+                for member in members:
+                    member_name, disc = member[0], member[5].strip()
+                    if member_name.lower() == name.lower():
+                        cozy = self.bot.get_guild(config['cozy_guild_id'])
+                        for m in cozy.members:
+                            if f'{m.name}#{m.discriminator}' == disc:
+                                disc_name = m.mention
+                                break
+                        break
+                disc_names.append(disc_name)
+            messages.append(f'{", ".join(disc_names)} - {msg}')
+        
+        txt = '\n\n'.join(messages)
+
+        with open('data/compliments.txt', 'w', encoding='UTF-8') as file:
+            file.write(txt)
+        with open('data/compliments.txt', 'rb') as file:
+            await ctx.send(file=discord.File(file, 'compliments.txt'))
+
 
 def setup(bot):
     bot.add_cog(Cozy(bot))
