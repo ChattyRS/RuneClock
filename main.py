@@ -569,6 +569,7 @@ class Bot(commands.AutoShardedBot):
             print(txt)
 
         # Message count for portables ranks
+        '''
         if message.guild.id == config['portablesServer']:
             rank_role = message.guild.get_role(config['rankRole'])
             admin_role = message.guild.get_role(config['adminRole'])
@@ -626,6 +627,7 @@ class Bot(commands.AutoShardedBot):
                         total += 1
                         await admin_sheet.update_cell(row, discord_col, str(monthly))
                         await admin_sheet.update_cell(row, discord_col+1, str(total))
+            '''
             # Plagiarism check for Portables smiley applications
             '''
             if message.channel.id == config['applicationChannel']:

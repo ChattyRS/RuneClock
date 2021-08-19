@@ -92,49 +92,82 @@ class ModCommands(commands.Cog):
                     '''
                     Cozy COTW nomination logging
                     '''
-                    if guild.id == config['cozy_guild_id']:
-                        agc = await self.bot.agcm.authorize()
-                        ss = await agc.open_by_key(config['cozy_roster_key'])
-                        roster = await ss.worksheet('Roster')
+                    try:
+                        if guild.id == config['cozy_guild_id']:
+                            agc = await self.bot.agcm.authorize()
+                            ss = await agc.open_by_key(config['cozy_roster_key'])
+                            roster = await ss.worksheet('Roster')
 
-                        values = await roster.get_all_values()
-                        values = values[1:]
+                            values = await roster.get_all_values()
+                            values = values[1:]
 
-                        author_name = ""
-                        for value in values:
-                            if value[5] == f'{author.name}#{author.discriminator}':
-                                author_name = value[0]
-                                break
-                        if not author_name:
-                            await private.send(f'This nomination has **not** been logged:\n```Could not find discord user: {author.name}#{author.discriminator}.```')
-                            return
-                        
-                        nominees = []
-                        for value in values:
-                            if value[0].lower() in txt.lower():
-                                nominees.append(value[0])
-                        if not nominees:
-                            await private.send(f'This nomination has **not** been logged:\n```Could not find nominees.```')
-                            return
+                            author_name = ""
+                            for value in values:
+                                if value[5] == f'{author.name}#{author.discriminator}':
+                                    author_name = value[0]
+                                    break
+                            if not author_name:
+                                await private.send(f'This nomination has **not** been logged:\n```Could not find discord user: {author.name}#{author.discriminator}.```')
+                                return
+                            
+                            nominees = []
+                            for value in values:
+                                if value[0].lower() in txt.lower():
+                                    index = txt.lower().index(value[0].lower())
+                                    index_before = index - 1
+                                    index_after = index + len(value[0])
+                                    whitespace_before = True
+                                    whitespace_after = True
+                                    if index_before >= 0:
+                                        prev_char = txt[index_before]
+                                        if not prev_char.isspace():
+                                            whitespace_before = False
+                                    if index_after < len(txt):
+                                        next_char = txt[whitespace_after]
+                                        if not next_char.isspace():
+                                            whitespace_after = False
+                                    if whitespace_before and whitespace_after:
+                                        if f'{author.name}#{author.discriminator}' == value[5].strip():
+                                            await message.channel.send(f'{author.mention} you cannot nominate yourself. Nice try though.', delete_after=10)
+                                            await private.send(f'This nomination has **not** been logged:\n```User tried to nominate themselves.```')
+                                            return
+                                        nominees.append(value[0])
+                                if not value[0] in nominees:
+                                    if any(f'{m.name}#{m.discriminator}' == value[5].strip() for m in message.mentions):
+                                        if f'{author.name}#{author.discriminator}' == value[5].strip():
+                                            await message.channel.send(f'{author.mention} you cannot nominate yourself. Nice try though.', delete_after=10)
+                                            await private.send(f'This nomination has **not** been logged:\n```User tried to nominate themselves.```')
+                                            return
+                                        nominees.append(value[0])
+                            if not nominees:
+                                await private.send(f'This nomination has **not** been logged:\n```Could not find nominees.```')
+                                return
 
-                        ss = await agc.open_by_key(config['cozy_cotw_nominations_key'])
-                        nomination_sheet = await ss.worksheet('Nominations')
+                            ss = await agc.open_by_key(config['cozy_cotw_nominations_key'])
+                            nomination_sheet = await ss.worksheet('Nominations')
 
-                        first_row = 1
-                        col_values = await nomination_sheet.col_values(1)
-                        first_row += len(col_values)
+                            first_row = 1
+                            col_values = await nomination_sheet.col_values(1)
+                            first_row += len(col_values)
 
-                        rows = []
-                        for nominee in nominees:
-                            rows.append([nominee, author_name, txt])
-                        
-                        await nomination_sheet.insert_rows(rows, first_row)
+                            rows = []
+                            for nominee in nominees:
+                                rows.append([nominee, author_name, txt, str(datetime.utcnow())])
+                            
+                            await nomination_sheet.insert_rows(rows, first_row)
 
-                        msg = 'Logged nominations:\n```'
-                        msg += '\n'.join(nominees)
-                        msg += '```'
+                            msg = 'Logged nominations:\n```'
+                            msg += '\n'.join(nominees)
+                            msg += '```'
 
-                        await private.send(msg)
+                            await private.send(msg)
+                    except Exception as e:
+                        try:
+                            test_channel = self.bot.get_channel(config['testChannel'])
+                            if test_channel:
+                                await test_channel.send(f'Encountered error in cozy nomination logging:\n{e}')
+                        except:
+                            pass
 
 
     @commands.command()
