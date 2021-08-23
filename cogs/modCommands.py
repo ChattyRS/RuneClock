@@ -116,17 +116,17 @@ class ModCommands(commands.Cog):
                                     index = txt.lower().index(value[0].lower())
                                     index_before = index - 1
                                     index_after = index + len(value[0])
-                                    whitespace_before = True
-                                    whitespace_after = True
+                                    alnum_before = False
+                                    alnum_after = False
                                     if index_before >= 0:
                                         prev_char = txt[index_before]
-                                        if not prev_char.isspace():
-                                            whitespace_before = False
+                                        if prev_char.isalnum():
+                                            alnum_before = True
                                     if index_after < len(txt):
-                                        next_char = txt[whitespace_after]
-                                        if not next_char.isspace():
-                                            whitespace_after = False
-                                    if whitespace_before and whitespace_after:
+                                        next_char = txt[index_after]
+                                        if next_char.isalnum():
+                                            alnum_after = True
+                                    if not alnum_before and not alnum_after:
                                         if f'{author.name}#{author.discriminator}' == value[5].strip():
                                             await message.channel.send(f'{author.mention} you cannot nominate yourself. Nice try though.', delete_after=10)
                                             await private.send(f'This nomination has **not** been logged:\n```User tried to nominate themselves.```')
@@ -156,9 +156,9 @@ class ModCommands(commands.Cog):
                             
                             await nomination_sheet.insert_rows(rows, first_row)
 
-                            msg = 'Logged nominations:\n```'
+                            msg = 'Logged nominations:\n```\n'
                             msg += '\n'.join(nominees)
-                            msg += '```'
+                            msg += '\n```'
 
                             await private.send(msg)
                     except Exception as e:
