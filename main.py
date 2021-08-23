@@ -567,134 +567,6 @@ class Bot(commands.AutoShardedBot):
             txt = f'Command \"{msg}\" processed in {time} ms.'
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
-
-        # Message count for portables ranks
-        '''
-        if message.guild.id == config['portablesServer']:
-            rank_role = message.guild.get_role(config['rankRole'])
-            admin_role = message.guild.get_role(config['adminRole'])
-            if rank_role in message.author.roles and not admin_role in message.author.roles:
-                name = utils.get_user_name(message.author) # get clean name
-                agc = await self.agcm.authorize()
-                ss = await agc.open(config['adminSheetName'])
-                admin_sheet = await ss.worksheet('Rank Reports')
-                header_rows = 4
-                discord_col = 66
-
-                ranks = await admin_sheet.col_values(1)
-                ranks = ranks[header_rows:]
-                monthly_message_counts = await admin_sheet.col_values(discord_col)
-                monthly_message_counts = monthly_message_counts[header_rows:]
-                total_message_counts = await admin_sheet.col_values(discord_col+1)
-                total_message_counts = total_message_counts[header_rows:]
-
-                for i, rank in enumerate(ranks):
-                    if not rank:
-                        ranks = ranks[:i]
-                        monthly_message_counts = monthly_message_counts[:i]
-                        total_message_counts = total_message_counts[:i]
-                        break
-
-                row = 0
-                index = 0
-                for i, rank in enumerate(ranks):
-                    if name.upper() == rank.upper():
-                        row = i + 1 + header_rows
-                        index = i
-                        break
-                if not row:
-                    for i, rank in enumerate(ranks):
-                        if name.upper() in rank.upper():
-                            row = i + 1 + header_rows
-                            index = i
-                            break
-                if row:
-                    try:
-                        monthly = monthly_message_counts[index].strip()
-                    except:
-                        monthly = '0'
-                    try:
-                        total = total_message_counts[index].strip()
-                    except:
-                        total = '0'
-                    if not monthly:
-                        monthly = '0'
-                    if not total:
-                        total = '0'
-                    if utils.is_int(monthly) and utils.is_int(total):
-                        monthly, total = int(monthly), int(total)
-                        monthly += 1
-                        total += 1
-                        await admin_sheet.update_cell(row, discord_col, str(monthly))
-                        await admin_sheet.update_cell(row, discord_col+1, str(total))
-            '''
-            # Plagiarism check for Portables smiley applications
-            '''
-            if message.channel.id == config['applicationChannel']:
-                if not rank_role in message.author.roles:
-                    application_lines = ["0. What is your RSN?".upper(),
-                                            "1. Have you fully read our #rules?".upper(),
-                                            "2. Do you acknowledge and agree to the smiley terms?".upper(),
-                                            "3. What is expected from smiley ranks?".upper(),
-                                            "4. If you are genuinely applying to help the FC as a smiley, in what ways do you wish to help?".upper(),
-                                            "5. Do you have any goals you wish to achieve with portables and the FC?".upper(),
-                                            "6. Would you be interested in or intend to become an official rank in the future?".upper()]
-                    
-                    old_messages = await message.channel.history(limit=100).flatten()
-                    for old_msg in old_messages:
-                        if old_msg.id == message.id or old_msg.author.bot or not message.clean_content.upper().startswith(application_lines[0]) or rank_role in message.author.roles:
-                            old_messages.remove(old_msg)
-
-                    txt = message.clean_content.upper().replace('*', '').replace('`', '').replace('_', '')
-
-                    # Check if this message is an application
-                    if not txt.startswith(application_lines[0]):
-                        return
-
-                    answers = split(txt, application_lines)
-                    clean_answers = []
-
-                    for answer in answers:
-                        if answer:
-                            clean_answers.append(answer)
-
-                    if len(clean_answers) != 7:
-                        await message.channel.send('Formatting error. Please copy the application template from the pinned messages in this channel and try again. Ensure that you answer all questions.')
-                        return
-                    
-                    for answer in clean_answers:
-                        if not answer:
-                            await message.channel.send('Application incomplete. Please ensure that you have answered all questions.')
-                            return
-                    
-                    answers_str = ';'.join(clean_answers)
-
-                    msg = ''
-                    
-                    for old_msg in old_messages:
-                        old_answers = split(old_msg.clean_content.upper().replace('*', '').replace('`', '').replace('_', ''), application_lines)
-                        clean_old_answers = []
-                        for a in old_answers:
-                            if a:
-                                clean_old_answers.append(a)
-                        if len(clean_old_answers) == 7:
-                            old_answers_str = ';'.join(clean_old_answers)
-                            sim = similarity(answers_str, old_answers_str)
-                            if sim > 0.75:
-                                new_str = f'`{int(sim*100)}%` similarity to application from `{old_msg.author.display_name}` on `{old_msg.created_at.strftime("%Y-%m-%d")}`\n'
-                                if len(msg) + len(new_str) < 1900:
-                                    msg += new_str
-                                else:
-                                    break
-                    
-                    if msg:
-                        msg = '**Possible plagiarism detected**\n' + msg
-                        await message.add_reaction('🚫')
-                        await message.channel.send(msg)
-                    else:
-                        await message.add_reaction('✅')
-            '''
-
                     
 
     async def notify(self):
@@ -1456,7 +1328,7 @@ class Bot(commands.AutoShardedBot):
                             try:
                                 graph_data = await r.json(content_type='text/html')
                                 break
-                            except:
+                            except Exception as e:
                                 print(e)
                                 await asyncio.sleep(60)
                     
