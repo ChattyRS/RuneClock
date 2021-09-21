@@ -1123,6 +1123,121 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
+    async def remove_item_osrs(self, ctx, id=0):
+        '''
+        Remove an item from the OSRS item database by ID.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if not is_int(id):
+            raise commands.CommandError(message=f'Required argument missing: `ID`.')
+        id = int(id)
+        item = await OSRSItem.get(id)
+
+        if not item:
+            raise commands.CommandError(message=f'Could not find item by id: `{id}`.')
+        
+        await item.delete()
+
+        await ctx.send(f'Item removed: `{id}`: `{item.name}`.')
+
+    @commands.command(hidden=True)
+    @is_owner()
+    async def add_item_rs3(self, ctx, id=0):
+        '''
+        Add an item to the RS3 item database by ID.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if not is_int(id):
+            raise commands.CommandError(message=f'Required argument missing: `ID`.')
+        id = int(id)
+        item = await RS3Item.get(id)
+
+        data_url = f'http://services.runescape.com/m=itemdb_rs/api/catalogue/detail.json?item={id}'
+        graph_url = f'http://services.runescape.com/m=itemdb_rs/api/graph/{id}.json'
+        item_data = None
+        graph_data = None
+
+        while not item_data and not graph_data:
+            if not item_data:
+                r = await self.bot.aiohttp.get(data_url)
+                async with r:
+                    if r.status == 404:
+                        raise commands.CommandError(message=f'Item with ID `{id}` does not exist.')
+                    elif r.status != 200:
+                        await asyncio.sleep(60)
+                        continue
+                    try:
+                        item_data = await r.json(content_type='text/html')
+                    except Exception as e:
+                        raise commands.CommandError(message=f'Encountered exception:\n```{e}```')
+            if not graph_data:
+                r = await self.bot.aiohttp.get(graph_url)
+                async with r:
+                    if r.status == 404:
+                        raise commands.CommandError(message=f'Item with ID `{id}` does not exist.')
+                    elif r.status != 200:
+                        await asyncio.sleep(60)
+                        continue
+                    try:
+                        graph_data = await r.json(content_type='text/html')
+                    except Exception as e:
+                        raise commands.CommandError(message=f'Encountered exception:\n```{e}```')
+        
+        name = item_data['item']['name']
+        icon_url = item_data['item']['icon_large']
+        type = item_data['item']['type']
+        description = item_data['item']['description']
+        members = True if item_data['item']['members'] == 'true' else False
+        
+        prices = []
+        for time, price in graph_data['daily'].items():
+            prices.append(price)
+        
+        current = prices[len(prices) - 1]
+        yesterday = prices[len(prices) - 2]
+        month_ago = prices[len(prices) - 31]
+        three_months_ago = prices[len(prices) - 91]
+        half_year_ago = prices[0]
+
+        today = str(int(current) - int(yesterday))
+        day30 = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
+        day90 = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
+        day180 = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
+
+        if not item:
+            await RS3Item.create(id=int(id), name=name, icon_url=icon_url, type=type, description=description, members=members, current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data)
+        else:
+            await item.update(current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data).apply()
+
+        await ctx.send(f'Item added: `{name}`: `{current}`.')
+    
+    @commands.command(hidden=True)
+    @is_owner()
+    async def remove_item_rs3(self, ctx, id=0):
+        '''
+        Remove an item from the RS3 item database by ID.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if not is_int(id):
+            raise commands.CommandError(message=f'Required argument missing: `ID`.')
+        id = int(id)
+        item = await RS3Item.get(id)
+
+        if not item:
+            raise commands.CommandError(message=f'Could not find item by id: `{id}`.')
+        
+        await item.delete()
+
+        await ctx.send(f'Item removed: `{id}`: `{item.name}`.')
+    
+    @commands.command(hidden=True)
+    @is_owner()
     async def server_top(self, ctx):
         '''
         Return a list of the top-10 servers by size.

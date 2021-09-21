@@ -583,7 +583,7 @@ class Sheets(commands.Cog):
         adminCommandsChannel = self.bot.get_channel(config['adminCommandsChannel'])
         if adminCommandsChannel:
             if ctx.guild == self.bot.get_guild(config['portablesServer']):
-                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids and not ctx.author.id == config['owner']:
                     raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
 
         last_ports = get_last_ports()
@@ -617,6 +617,14 @@ class Sheets(commands.Cog):
                         if portable.upper() in port_name:
                             index = i
                             break
+            # Check for correct portable channel
+            if ctx.guild == self.bot.get_guild(config['portablesServer']) and adminCommandsChannel:
+                if ctx.channel.id in portables_channel_ids:
+                    port_channel_index = portables_channel_ids.index(ctx.channel.id)
+                    if index != port_channel_index:
+                        correct_channel = ctx.guild.get_channel(portables_channel_ids[index])
+                        if correct_channel:
+                            raise commands.CommandError(message=f'Error: `Incorrect channel for {portablesNamesUpper[index].lower()}`. Please use {correct_channel.mention}.')
             embed.add_field(name=top_row[index].value, value=mid_row[index].value.replace('*', '\*'))
 
         embed.set_thumbnail(url='https://i.imgur.com/Hccdnts.png')
