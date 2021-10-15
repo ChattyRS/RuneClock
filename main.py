@@ -950,44 +950,56 @@ class Bot(commands.AutoShardedBot):
         '''
         logging.info('Initializing custom notifications...')
         while True:
-            to_notify = []
-            deleted = []
-            notifications = await Notification.query.gino.all()
-            if notifications:
-                for notification in notifications:
-                    guild = self.get_guild(notification.guild_id)
-                    if not guild:
-                        continue
-                    channel = guild.get_channel(notification.channel_id)
-                    if not channel:
-                        continue
-                    time = notification.time
-                    interval = timedelta(seconds = notification.interval)
-                    if time > datetime.utcnow():
-                        continue
-                    to_notify.append([channel, notification.message])
-                    if interval.total_seconds() != 0:
-                        while time < datetime.utcnow():
-                            time += interval
-                        await notification.update(time=time).apply()
-                    else:
-                        deleted.append(notification.guild_id)
-                        await notification.delete()
+            try:
+                to_notify = []
+                deleted = []
+                notifications = await Notification.query.gino.all()
+                if notifications:
+                    for notification in notifications:
+                        guild = self.get_guild(notification.guild_id)
+                        if not guild:
+                            continue
+                        channel = guild.get_channel(notification.channel_id)
+                        if not channel:
+                            continue
+                        time = notification.time
+                        interval = timedelta(seconds = notification.interval)
+                        if time > datetime.utcnow():
+                            continue
+                        to_notify.append([channel, notification.message])
+                        if interval.total_seconds() != 0:
+                            while time < datetime.utcnow():
+                                time += interval
+                            await notification.update(time=time).apply()
+                        else:
+                            deleted.append(notification.guild_id)
+                            await notification.delete()
 
-                for x in to_notify:
-                    channel, message = x
-                    try:
-                        await channel.send(message)
-                    except discord.Forbidden:
-                        pass
+                    for x in to_notify:
+                        channel, message = x
+                        try:
+                            await channel.send(message)
+                        except discord.Forbidden:
+                            pass
+                    
+                    if deleted:
+                        for guild_id in deleted:
+                            notifications = await Notification.query.where(Notification.guild_id==guild_id).order_by(Notification.notification_id.asc()).gino.all()
+                            if notifications:
+                                for i, notification in enumerate(notifications):
+                                    await notification.update(notification_id=i).apply()
+                await asyncio.sleep(30)
+            except Exception as e:
+                error = f'Encountered the following error in custom notification loop:\n{type(e).__name__}: {e}'
+                logging.critical(error)
+                print(error)
+                try:
+                    logChannel = self.get_channel(config['testChannel'])
+                    await logChannel.send(error)
+                except:
+                    pass
+                await asyncio.sleep(30)
                 
-                if deleted:
-                    for guild_id in deleted:
-                        notifications = await Notification.query.where(Notification.guild_id==guild_id).order_by(Notification.notification_id.asc()).gino.all()
-                        if notifications:
-                            for i, notification in enumerate(notifications):
-                                await notification.update(notification_id=i).apply()
-            await asyncio.sleep(30)
 
     async def unmute(self):
         '''
@@ -1357,6 +1369,10 @@ class Bot(commands.AutoShardedBot):
                 print(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
                 logging.critical(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
                 await asyncio.sleep(60)
+            except asyncio.TimeoutError as e:
+                print(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
+                logging.critical(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
+                await asyncio.sleep(60)
             except Exception as e:
                 error = f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}'
                 print(error)
@@ -1365,7 +1381,7 @@ class Bot(commands.AutoShardedBot):
                     await channel.send(error)
                 except:
                     pass
-                await asyncio.sleep(300)
+                await asyncio.sleep(600)
     
     async def price_tracking_osrs(self):
         '''
@@ -1432,6 +1448,10 @@ class Bot(commands.AutoShardedBot):
                 print(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')
                 logging.critical(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')
                 await asyncio.sleep(60)
+            except asyncio.TimeoutError as e:
+                print(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')
+                logging.critical(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')
+                await asyncio.sleep(60)
             except Exception as e:
                 error = f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}'
                 print(error)
@@ -1440,7 +1460,7 @@ class Bot(commands.AutoShardedBot):
                     await channel.send(error)
                 except:
                     pass
-                await asyncio.sleep(300)
+                await asyncio.sleep(600)
 
 
 if __name__ == '__main__':
