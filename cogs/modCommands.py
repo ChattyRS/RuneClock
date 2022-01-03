@@ -73,7 +73,7 @@ class ModCommands(commands.Cog):
             return
         if guild:
             if not guild.modmail_public is None and not guild.modmail_private is None:
-                if message.channel.id == guild.modmail_public:
+                if message.channel.id == guild.modmail_public or (message.guild.id == config['cozy_guild_id'] and message.channel.id == config['cozy_compliments_channel_id']):
                     embed = discord.Embed(description=f'In: {message.channel.mention}\n“{message.content}”', colour=0x00b2ff, timestamp=message.created_at)
                     embed.set_author(name=f'{message.author.display_name}#{message.author.discriminator}', icon_url=message.author.avatar_url)
                     embed.set_footer(text=f'ID: {message.id}')
@@ -84,6 +84,8 @@ class ModCommands(commands.Cog):
                     await message.delete()
 
                     private = message.guild.get_channel(guild.modmail_private)
+                    if message.guild.id == config['cozy_guild_id'] and message.channel.id == config['cozy_compliments_channel_id']:
+                        private = message.guild.get_channel(config['cozy_compliments_logging_channel_id'])
                     if private:
                         await private.send(embed=embed)
                     else:
@@ -93,7 +95,7 @@ class ModCommands(commands.Cog):
                     Cozy COTW nomination logging
                     '''
                     try:
-                        if guild.id == config['cozy_guild_id']:
+                        if guild.id == config['cozy_guild_id'] and message.channel.id == config['cozy_compliments_channel_id']:
                             agc = await self.bot.agcm.authorize()
                             ss = await agc.open_by_key(config['cozy_roster_key'])
                             roster = await ss.worksheet('Roster')
@@ -112,7 +114,7 @@ class ModCommands(commands.Cog):
                             
                             nominees = []
                             for value in values:
-                                if value[0].lower() in txt.lower():
+                                if value[0].strip() != '' and value[0].lower() in txt.lower():
                                     index = txt.lower().index(value[0].lower())
                                     index_before = index - 1
                                     index_after = index + len(value[0])
