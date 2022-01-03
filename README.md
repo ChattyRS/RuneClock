@@ -42,3 +42,10 @@ RuneClock is a general-purpose Discord bot for RuneScape Discord servers, origin
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+
+## Privacy policy
+
+In short, RuneClock only ever stores any data when explicitly requested to do so by a user.
+Any stored data is immediately deleted when it is no longer required, and/or can be deleted by the user who requested to store it.
+
+See the [PRIVACY_POLICY.md](PRIVACY_POLICY.md) file for details.
