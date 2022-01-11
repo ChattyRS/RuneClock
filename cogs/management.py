@@ -197,7 +197,7 @@ class Management(commands.Cog):
                             alias_str += ' | '
                 embed = discord.Embed(title=f'Help', description=f'`{cmd.name}{alias_str} {param_text}`\n{cmd.help}', colour=0x00e400, timestamp=datetime.utcnow())
                 embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.avatar_url)
-                embed.set_footer(text=f'For more help, feel free to DM me @ Chatty#0001', icon_url='https://i.imgur.com/HTs2ZZl.png')
+                embed.set_footer(text=f'For more help, use the support command')
                 await ctx.send(embed=embed)
                 await ctx.message.add_reaction('✅')
                 return
