@@ -1547,7 +1547,7 @@ class Runescape(commands.Cog):
         lvl_end = int(lvl_end)
         if lvl_start_or_xp < 1 or lvl_start_or_xp > 200e6:
             raise commands.CommandError(message=f'Invalid argument: `level`. Levels must be between 1 and 126. XP must be between between 1 and 200M.')
-        elif lvl_start_or_xp >= lvl_end and lvl_end > 0:
+        elif (lvl_start_or_xp <= 126 and lvl_start_or_xp >= lvl_end and lvl_end > 0) or (lvl_start_or_xp > 126 and xp_to_level(lvl_start_or_xp) >= lvl_end and lvl_end > 0):
             raise commands.CommandError(message=f'Invalid arguments: Start level must be lower than end level.')
 
         if not lvl_end:
@@ -1562,11 +1562,18 @@ class Runescape(commands.Cog):
             await ctx.send(f'At `{xp_start}` XP, you are level `{level}`, which requires `{level_xp}` XP.\nYou will reach level `{next_lvl}` at `{next_xp} XP.`')
         
         else:
-            xp_start = level_to_xp(lvl_start_or_xp)
+            if lvl_start_or_xp > 126:
+                xp_start = lvl_start_or_xp
+            else:
+                xp_start = level_to_xp(lvl_start_or_xp)
             xp_end = level_to_xp(lvl_end)
             xp_dif = xp_end - xp_start
             xp_dif = f'{xp_dif:,}'
-            await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif}` XP.')
+            if lvl_start_or_xp > 126:
+                await ctx.send(f'To reach level `{lvl_end}` from `{lvl_start_or_xp}` XP, you will need to gain `{xp_dif}` XP.')
+            else:
+                await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif}` XP.')
+            
     
     @commands.command(aliases=['actions'])
     async def xph(self, ctx, lvl_start=0, lvl_end=0, xp_rate=0.0):
