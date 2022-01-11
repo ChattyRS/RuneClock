@@ -221,8 +221,8 @@ class Cozy(commands.Cog):
         Updates all players in the Cozy Corner group on wiseoldman.net
         '''
         time = datetime.utcnow()
-        # Update every 2 hours
-        if time.hour % 2 == 0 and time.minute < 5:
+        # Update every 6 hours
+        if time.hour % 6 == 0 and time.minute < 5:
             url = 'https://api.wiseoldman.net/groups/423/update-all'
             payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
             async with self.bot.aiohttp.post(url, json=payload) as r:
