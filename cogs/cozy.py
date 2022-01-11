@@ -26,18 +26,24 @@ cozy_events = []
 cozy_event_reminders_sent = []
 
 cozy_sotw_url = ''
+cozy_botw_url = ''
 
 num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
-wom_metrics = ["overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic", "cooking", "woodcutting", "fletching", "fishing", 
+wom_metrics = [# Skills
+               "overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic", "cooking", "woodcutting", "fletching", "fishing", 
                "firemaking", "crafting", "smithing", "mining", "herblore", "agility", "thieving", "slayer", "farming", "runecrafting", "hunter", "construction",
+               # Clues & minigames
                "league_points", "bounty_hunter_hunter", "bounty_hunter_rogue", "clue_scrolls_all", "clue_scrolls_beginner", "clue_scrolls_easy",
                "clue_scrolls_medium", "clue_scrolls_hard", "clue_scrolls_elite", "clue_scrolls_master", "last_man_standing", "soul_wars_zeal",
+               # Bosses
                "abyssal_sire", "alchemical_hydra", "barrows_chests", "bryophyta", "callisto", "cerberus", "chambers_of_xeric", "chambers_of_xeric_challenge_mode",
                "chaos_elemental", "chaos_fanatic", "commander_zilyana", "corporeal_beast", "crazy_archaeologist", "dagannoth_prime", "dagannoth_rex", "dagannoth_supreme",
                "deranged_archaeologist", "general_graardor", "giant_mole", "grotesque_guardians", "hespori", "kalphite_queen", "king_black_dragon", "kraken", "kreearra", 
                "kril_tsutsaroth", "mimic", "nightmare", "obor", "sarachnis", "scorpia", "skotizo", "tempoross", "the_gauntlet", "the_corrupted_gauntlet", "theatre_of_blood",
-               "theatre_of_blood_hard_mode", "thermonuclear_smoke_devil", "tzkal_zuk", "tztok_jad", "venenatis", "vetion", "vorkath", "wintertodt", "zalcano", "zulrah", "ehp", "ehb"]
+               "theatre_of_blood_hard_mode", "thermonuclear_smoke_devil", "tzkal_zuk", "tztok_jad", "venenatis", "vetion", "vorkath", "wintertodt", "zalcano", "zulrah", 
+               # Misc
+               "ehp", "ehb"]
 
 class Cozy(commands.Cog):
     def __init__(self, bot):
@@ -45,13 +51,15 @@ class Cozy(commands.Cog):
         self.update_sotw_url.start()
         self.get_updated_calendar_events.start()
         self.cozy_event_reminders.start()
-        self.sotw_update_all.start()
+        self.wom_update_all.start()
+        self.update_botw_url.start()
 
     def cog_unload(self):
         self.update_sotw_url.cancel()
         self.get_updated_calendar_events.cancel()
         self.cozy_event_reminders.cancel()
-        self.sotw_update_all.cancel()
+        self.wom_update_all.cancel()
+        self.update_botw_url.cancel()
     
     @tasks.loop(seconds=60)
     async def get_updated_calendar_events(self):
@@ -166,9 +174,49 @@ class Cozy(commands.Cog):
                     cozy_sotw_url = url
                     break
     
+    @tasks.loop(seconds=300)
+    async def update_botw_url(self):
+        '''
+        updates the variable 'cozy_botw_url' from a discord channel
+        '''
+        global cozy_botw_url
+        channel = self.bot.get_channel(config['cozy_botw_voting_channel_id'])
+        if channel:
+            botw_message = None
+            wom = True
+            async for message in channel.history(limit=10):
+                if 'https://templeosrs.com/competitions/standings.php?id=' in message.content:
+                    wom = False
+                    botw_message = message
+                elif 'https://wiseoldman.net/competitions/' in message.content:
+                    botw_message = message
+                if botw_message:
+                    if wom:
+                        id = botw_message.content.split('https://wiseoldman.net/competitions/')[1].split('/')[0]
+                        url = f'https://wiseoldman.net/competitions/{id}'
+                        if url != cozy_botw_url:
+                            api_url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+                            r = await self.bot.aiohttp.get(api_url)
+                            async with r:
+                                if r.status != 200:
+                                    botw_message = None
+                                    continue
+                                data = await r.json()
+                                start = datetime.strptime(data['startsAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                                end = datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
+                                if not (start < datetime.utcnow() < end):
+                                    botw_message = None
+                                    continue
+                    else:
+                        id = botw_message.content.split('https://templeosrs.com/competitions/standings.php?id=')[1][:4]
+                        url = f'https://templeosrs.com/competitions/standings.php?id={id}'
+                    
+                    cozy_botw_url = url
+                    break
+    
 
     @tasks.loop(seconds=300)
-    async def sotw_update_all(self):
+    async def wom_update_all(self):
         '''
         Updates all players in the Cozy Corner group on wiseoldman.net
         '''
@@ -646,11 +694,11 @@ class Cozy(commands.Cog):
 
                 skill = data['metric']
                 skill = skill[0].upper() + skill[1:]
-                top10 = data['participants'][:11]
+                top10 = data['participants'][:10]
 
                 msg = 'No.  Name          Gain'
                 for i, p in enumerate(top10):
-                    msg += f'\n{i}.' + (4 - len(str(i))) * ' '
+                    msg += f'\n{i+1}.' + (4 - len(str(i+1))) * ' '
                     msg += p['displayName'] + (14 - len(p['displayName'])) * ' '
                     msg += str(p['progress']['gained'])
                 
@@ -686,6 +734,72 @@ class Cozy(commands.Cog):
                     msg += row[2]
 
                 await ctx.send(f'**{skill} SOTW**\n```{msg}```')
+    
+    @commands.command()
+    @cozy_only()
+    async def cozy_botw(self, ctx):
+        '''
+        Shows top-10 for the current BOTW
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        global cozy_botw_url
+        url = cozy_botw_url
+
+        if 'wiseoldman' in url:
+            url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+            
+        r = await self.bot.aiohttp.get(url)
+        async with r:
+            if r.status != 200:
+                raise commands.CommandError(message=f'Error retrieving data from: `{url}`.')
+            
+            if 'wiseoldman' in url:
+                data = await r.json()
+
+                boss = data['metric']
+                boss = boss[0].upper() + boss[1:]
+                top10 = data['participants'][:10]
+
+                msg = 'No.  Name          Gain'
+                for i, p in enumerate(top10):
+                    msg += f'\n{i+1}.' + (4 - len(str(i+1))) * ' '
+                    msg += p['displayName'] + (14 - len(p['displayName'])) * ' '
+                    msg += str(p['progress']['gained'])
+                
+                await ctx.send(f'**{boss} BOTW**\n```{msg}```')
+
+            elif 'templeosrs' in url:
+                data = await r.text()
+
+                bs = BeautifulSoup(data, "html.parser")
+                table_body = bs.find('table')
+                rows = table_body.find_all('tr')[1:]
+                player_url = ''
+                for i, row in enumerate(rows):
+                    cols = row.find_all('td')
+                    if i == 0:
+                        player_urls = cols[1].find_all('a', href=True)
+                        player_url = player_urls[0]['href']
+                    cols = [x.text.strip() for x in cols]
+                    rows[i] = cols
+
+                boss = player_url.split('&skill=')[1]
+                boss = boss.split('&')[0]
+                boss = boss[0].upper() + boss[1:]
+
+                for i, row in enumerate(rows):
+                    row[1] = row[1].replace(f'{row[2]}{row[3]}{row[4]}', '')
+                    rows[i] = row
+
+                msg = 'No.  Name          Gain'
+                for row in rows[:10]:
+                    msg += '\n' + row[0] + (5 - len(row[0])) * ' '
+                    msg += row[1] + (14 - len(row[1])) * ' '
+                    msg += row[2]
+
+                await ctx.send(f'**{boss} BOTW**\n```{msg}```')
     
     @commands.command()
     @cozy_only()
@@ -863,6 +977,65 @@ class Cozy(commands.Cog):
     @commands.command()
     @cozy_council()
     @cozy_only()
+    async def botw_poll(self, ctx):
+        '''
+        Posts a poll for the next BOTW competition.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_botw_logging_key'])
+        sotw_sheet = await ss.worksheet('BOTW')
+
+        row = await sotw_sheet.row_values(2)
+        if len(row) <= 2:
+            raise commands.CommandError(message=f'Please generate the bosses for the next vote by clicking the `Generate` button on the BOTW logging sheet before using this command.')
+        bosses = row[2:]
+
+        if "Wildcard" in bosses:
+            raise commands.CommandError(message=f'Please have the previous winner choose a boss as wildcard and replace the wildcard on the BOTW logging sheet before using this command.')
+        
+        if len(bosses) < 2:
+            raise commands.CommandError(message=f'Too few options. Please correctly generate the bosses for the next vote on the BOTW logging sheet.')
+        if len(bosses) > 20:
+            raise commands.CommandError(message=f'Too many options. Please check the BOTW logging sheet.')
+
+        past_botw_sheet = await ss.worksheet('Past_BOTWs')
+        col = await past_botw_sheet.col_values(2)
+        next_num = len(col)
+
+        now = datetime.utcnow()
+        next_monday = now + timedelta(days=-now.weekday(), weeks=1)
+        next_monday = next_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+        dif = next_monday - now
+        hours = math.floor(dif.total_seconds() / 3600) - 1
+
+        txt = ''
+        i = 0
+        for opt in bosses:
+            txt += f'\n{num_emoji[i]} {opt}'
+            i += 1
+        txt += f'\n\nThis poll will be open for {hours} hours!'
+
+        embed = discord.Embed(title=f'**BOTW #{next_num}**', description=txt, timestamp=datetime.utcnow())
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+
+        channel = self.bot.get_channel(config['cozy_botw_voting_channel_id'])
+
+        msg = await channel.send(embed=embed)
+        embed.set_footer(text=f'ID: {msg.id}')
+        await msg.edit(embed=embed)
+        for num in range(i):
+            await msg.add_reaction(num_emoji[num])
+        
+        await Poll.create(guild_id=msg.guild.id, author_id=ctx.author.id, channel_id=channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
+
+        await ctx.send(f'Success! Your poll has been created. {ctx.author.mention}')
+    
+    @commands.command()
+    @cozy_council()
+    @cozy_only()
     async def wom_sotw(self, ctx, num: int, *skill: str):
         '''
         Creates a SOTW competition on wiseoldman.net.
@@ -878,7 +1051,7 @@ class Cozy(commands.Cog):
         skill = "_".join(skill).lower()
 
         if not skill in wom_metrics:
-            raise commands.CommandError(message=f'Invalid argument: `{skill}`.')
+            raise commands.CommandError(message=f'Invalid argument: `{skill}`. You can see the valid metrics here under "Metrics": https://wiseoldman.net/docs/competitions')
 
         title = f'Cozy Corner SOTW #{num}'
         groupId = 423
@@ -897,6 +1070,51 @@ class Cozy(commands.Cog):
         end = end[:len(end)-4] + "Z"
 
         payload = {"title": title, "metric": skill, "startsAt": start, "endsAt": end, "groupId": groupId, "groupVerificationCode": groupVerificationCode}
+        url = 'https://api.wiseoldman.net/competitions'
+
+        async with self.bot.aiohttp.post(url, json=payload) as r:
+            if r.status != 201:
+                raise commands.CommandError(message=f'Error status: {r.status}.')
+            data = await r.json()
+            await ctx.send(f'Competition created:\n```Title: {data["title"]}\nMetric: {data["metric"]}\nStart: {data["startsAt"]}\nEnd: {data["endsAt"]}```\nhttps://wiseoldman.net/competitions/{data["id"]}/participants')
+    
+    @commands.command()
+    @cozy_council()
+    @cozy_only()
+    async def wom_botw(self, ctx, num: int, *boss: str):
+        '''
+        Creates a BOTW competition on wiseoldman.net.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if not num:
+            raise commands.CommandError(message=f'Required argument missing: `num`.')
+        
+        if not boss:
+            raise commands.CommandError(message=f'Required argument missing: `boss`.')
+        boss = "_".join(boss).lower()
+
+        if not boss in wom_metrics:
+            raise commands.CommandError(message=f'Invalid argument: `{boss}`. You can see the valid metrics here under "Metrics": https://wiseoldman.net/docs/competitions')
+
+        title = f'Cozy Corner BOTW #{num}'
+        groupId = 423
+        groupVerificationCode = config['cozy_wiseoldman_verification_code']
+
+        now = datetime.utcnow()
+        start = now + timedelta(days=-now.weekday(), weeks=1)
+        start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        start -= timedelta(hours=1)
+        end = start + timedelta(weeks=1)
+
+        start = start.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        start = start[:len(start)-4] + "Z"
+
+        end = end.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        end = end[:len(end)-4] + "Z"
+
+        payload = {"title": title, "metric": boss, "startsAt": start, "endsAt": end, "groupId": groupId, "groupVerificationCode": groupVerificationCode}
         url = 'https://api.wiseoldman.net/competitions'
 
         async with self.bot.aiohttp.post(url, json=payload) as r:
@@ -1090,6 +1308,85 @@ class Cozy(commands.Cog):
         await sotw_sheet.batch_update([data], value_input_option='USER_ENTERED')
 
         await ctx.send(f'Success! The voting data for SOTW #{num} has been logged.')
+    
+
+    @commands.command()
+    @cozy_council()
+    @cozy_only()
+    async def botw_votes(self, ctx, msg_id):
+        '''
+        Records votes on a BOTW poll and logs them to the BOTW sheet.
+        '''
+        addCommand()
+        await ctx.channel.trigger_typing()
+
+        if not is_int(msg_id):
+            raise commands.CommandError(message=f'Invalid argument: `{msg_id}`. Must be an integer.')
+        msg_id = int(msg_id)
+
+        try: 
+            msg = await self.bot.get_channel(config['cozy_botw_voting_channel_id']).fetch_message(msg_id)
+        except:
+            raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`. Was the poll deleted?')
+        
+        results_emoji = {}
+        for reaction in msg.reactions:
+            results_emoji[str(reaction.emoji)] = reaction.count - 1
+        
+        num = int(msg.embeds[0].title.replace("*", "").split("#")[1])
+
+        lines = msg.embeds[0].description.split('\n')
+        lines = lines[:len(lines)-2]
+        
+        results = {}
+        for r, v in results_emoji.items():
+            for line in lines:
+                split = line.split(' ')
+                while '' in split:
+                    split.remove('')
+                e, s = split[0], ' '.join(split[1:])
+                if e == r:
+                    results[s] = v
+                    lines.remove(line)
+                    break
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_botw_logging_key'])
+        sotw_sheet = await ss.worksheet('BOTW_voting_data')
+
+        values = await sotw_sheet.get_all_values()
+
+        index = 0
+
+        for i, row in enumerate(values):
+            if i >= 2:
+                if int(row[0]) == num:
+                    if any(val != "" for val in row[2:]):
+                        raise commands.CommandError(message=f'Error: there is already data present in the row for BOTW: `{num}`.')
+                    index = i
+                    break
+        
+        if not index:
+            raise commands.CommandError(message=f'Error: could not find BOTW: `{num}`. Are you sure you entered the right number?')
+        
+        row = values[index]
+        for boss, votes in results.items():
+            found = False
+            for i, val in enumerate(values[0]):
+                if i >= 2:
+                    if boss.lower() == val.lower():
+                        row[i] = votes
+                        found = True
+                        break
+            if not found:
+                raise commands.CommandError(message=f'Error: could not find boss: `{boss}`. Please check the sheet.')
+
+        vals = row[2:]
+        data = {'range': f'C{index+1}:Z{index+1}', 'values': [vals]}
+
+        await sotw_sheet.batch_update([data], value_input_option='USER_ENTERED')
+
+        await ctx.send(f'Success! The voting data for BOTW #{num} has been logged.')
     
 
     @commands.command()
