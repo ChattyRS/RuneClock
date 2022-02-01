@@ -1060,7 +1060,6 @@ class Cozy(commands.Cog):
         now = datetime.utcnow()
         start = now + timedelta(days=-now.weekday(), weeks=1)
         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-        start -= timedelta(hours=1)
         end = start + timedelta(weeks=1)
 
         start = start.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
@@ -1105,7 +1104,6 @@ class Cozy(commands.Cog):
         now = datetime.utcnow()
         start = now + timedelta(days=-now.weekday(), weeks=1)
         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-        start -= timedelta(hours=1)
         end = start + timedelta(weeks=1)
 
         start = start.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
@@ -1382,7 +1380,7 @@ class Cozy(commands.Cog):
                 raise commands.CommandError(message=f'Error: could not find boss: `{boss}`. Please check the sheet.')
 
         vals = row[2:]
-        data = {'range': f'C{index+1}:Z{index+1}', 'values': [vals]}
+        data = {'range': f'C{index+1}:AW{index+1}', 'values': [vals]}
 
         await sotw_sheet.batch_update([data], value_input_option='USER_ENTERED')
 
@@ -1451,6 +1449,79 @@ class Cozy(commands.Cog):
             file.write(txt)
         with open('data/compliments.txt', 'rb') as file:
             await ctx.send(file=discord.File(file, 'compliments.txt'))
+    
+    @commands.command()
+    @cozy_council()
+    @cozy_only()
+    async def accept(self, ctx, member: discord.Member, *, notes = ''):
+        '''
+        Accepts a cozy application.
+        Arguments: user (mention, id, etc.), notes (optional)
+        This attempts to add the new member to the roster, set their discord display name to their RSN, promote them in discord, and finally delete their application message.
+        '''
+        addCommand()
+        await ctx.message.delete()
+        await ctx.channel.trigger_typing()
+
+        applicant_role = member.guild.get_role(config['cozy_applicant_role_id'])
+        friends_role = member.guild.get_role(config['cozy_friend_role_id'])
+
+        # Validation
+        if not notes:
+            notes = ''
+
+        if (not applicant_role in member.roles) or (friends_role in member.roles):
+            raise commands.CommandError(message=f'Error: incorrect roles for member: `{member.display_name}`. Either they are not an applicant, or they are already a friend.')
+
+        message = None
+
+        channel = self.bot.get_channel(config['cozy_applications_channel_id'])
+        async for m in channel.history(limit=10):
+            if m.author == member:
+                message = m
+                break
+
+        if not message:
+            raise commands.CommandError(message=f'Error: could not find application from member: `{member.display_name}`.')
+        
+        # Parse message
+        rsn = message.content.replace('Cozy Application Form', '').replace('RuneScape Username:', '').strip().split('Total Level:')[0].strip()
+        if not rsn:
+            raise commands.CommandError(message=f'Error: could not parse username from message: `{message.id}`.')
+        if len(rsn) > 12:
+            raise commands.CommandError(message=f'Error: invalid RSN: `{rsn}`.')
+        if re.match('^[A-z0-9 -]+$', rsn) is None:
+            raise commands.CommandError(message=f'Error: invalid RSN: `{rsn}`.')
+
+        ironman = message.content.split('Are you an Ironman?:')[1].split('Why do you want to join our clan?:')[0].strip()
+        ironman = 'Ironman' if 'ye' in ironman.lower() else 'No'
+
+        # Update roster
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_roster_key'])
+        roster = await ss.worksheet('Roster')
+
+        members_col = await roster.col_values(1)
+        rows = len(members_col)
+
+        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = date_str if not date_str.startswith('0') else date_str[1:]
+        new_row = [rsn, 'Friend', ironman, 'Yes', 'Yes', f'{member.display_name}#{member.discriminator}', notes, date_str]
+        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        print(f'writing values:\n{new_row}\nto row {rows+1}')
+        await roster.update_cells(cell_list)#, nowait=True)
+
+        # Update member nickname and roles
+        roles = member.roles
+        roles.remove(applicant_role)
+        roles.append(friends_role)
+        await member.edit(nick=rsn, roles=roles)
+
+        # Delete the application message
+        await message.delete()
+
+        # Send response
+        await ctx.send(f'`{member.display_name}`\'s application has been accepted.')
 
 
 def setup(bot):

@@ -113,7 +113,7 @@ async def channelVideos(aiohttp_session, channel):
 vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.utcnow(), description='Today\'s vis wax combo has not been released yet.')
 vis_wax_combo = []
 vis_wax_released = False
-vis_wax_check_frequency = 60*10 # seconds
+vis_wax_check_frequency = 60*15 # seconds
 vis_time = 0
 
 '''
