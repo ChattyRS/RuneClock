@@ -1457,7 +1457,7 @@ class Cozy(commands.Cog):
         '''
         Accepts a cozy application.
         Arguments: user (mention, id, etc.), notes (optional)
-        This attempts to add the new member to the roster, set their discord display name to their RSN, promote them in discord, and finally delete their application message.
+        This attempts to add the new member to the roster, set their discord display name to their RSN, and finally promote them in discord.
         '''
         addCommand()
         await ctx.message.delete()
@@ -1483,6 +1483,9 @@ class Cozy(commands.Cog):
 
         if not message:
             raise commands.CommandError(message=f'Error: could not find application from member: `{member.display_name}`.')
+
+        if not 'Total Level:' in message.content or not 'Are you an Ironman?:' in message.content or not 'Why do you want to join our clan?:' in message.content:
+            raise commands.CommandError(message=f'Error: missing application form question. Applicants must copy and paste the questions for this command to work.')
         
         # Parse message
         rsn = message.content.replace('Cozy Application Form', '').replace('RuneScape Username:', '').strip().split('Total Level:')[0].strip()
@@ -1518,7 +1521,7 @@ class Cozy(commands.Cog):
         await member.edit(nick=rsn, roles=roles)
 
         # Delete the application message
-        await message.delete()
+        # await message.delete()
 
         # Send response
         await ctx.send(f'`{member.display_name}`\'s application has been accepted.')
