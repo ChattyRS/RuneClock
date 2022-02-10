@@ -1,18 +1,13 @@
 import discord
-import asyncio
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
 from main import config_load, addCommand, Poll, Guild
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, timedelta, timezone
 import re
-import validators
-import utils
 import copy
-import gspread_asyncio
 import gspread
-from utils import is_owner, is_admin
 from utils import cozy_council, cozy_only
 from bs4 import BeautifulSoup
 from gcsa.google_calendar import GoogleCalendar
@@ -256,7 +251,7 @@ class Cozy(commands.Cog):
                                 embed = discord.Embed(title=f'**Name Changed**', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
                                 embed.add_field(name='Previously', value=beforeName, inline=False)
                                 embed.set_footer(text=f'User ID: {after.id}')
-                                embed.set_thumbnail(url=after.avatar_url)
+                                embed.set_thumbnail(url=after.display_avatar.url)
                                 try:
                                     await channel.send(embed=embed)
                                 except discord.Forbidden:
@@ -683,6 +678,8 @@ class Cozy(commands.Cog):
 
         if 'wiseoldman' in url:
             url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+        else:
+            raise commands.CommandError(message=f'Could not find SOTW URL.')
             
         r = await self.bot.aiohttp.get(url)
         async with r:
@@ -749,6 +746,8 @@ class Cozy(commands.Cog):
 
         if 'wiseoldman' in url:
             url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+        else:
+            raise commands.CommandError(message=f'Could not find BOTW URL.')
             
         r = await self.bot.aiohttp.get(url)
         async with r:
@@ -960,7 +959,7 @@ class Cozy(commands.Cog):
         txt += f'\n\nThis poll will be open for {hours} hours!'
 
         embed = discord.Embed(title=f'**SOTW #{next_num}**', description=txt, timestamp=datetime.utcnow())
-        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.display_avatar.url)
 
         channel = self.bot.get_channel(config['cozy_sotw_voting_channel_id'])
 
@@ -1019,7 +1018,7 @@ class Cozy(commands.Cog):
         txt += f'\n\nThis poll will be open for {hours} hours!'
 
         embed = discord.Embed(title=f'**BOTW #{next_num}**', description=txt, timestamp=datetime.utcnow())
-        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.display_avatar.url)
 
         channel = self.bot.get_channel(config['cozy_botw_voting_channel_id'])
 
@@ -1196,7 +1195,7 @@ class Cozy(commands.Cog):
         txt += f'\n\nThis poll will be open for {hours} hours!'
 
         embed = discord.Embed(title=f'**COTW #{cotw_num}**', description=txt, timestamp=datetime.utcnow())
-        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.display_avatar.url)
 
         channel = self.bot.get_channel(config['cozy_cotw_voting_channel_id'])
 
@@ -1216,7 +1215,7 @@ class Cozy(commands.Cog):
         txt += f'\n\nThis poll will be open for {hours} hours!'
 
         embed = discord.Embed(title=f'**Ranked COTW #{cotw_num}**', description=txt, timestamp=datetime.utcnow())
-        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.avatar_url)
+        embed.set_author(name=ctx.message.author.display_name, icon_url=ctx.message.author.display_avatar.url)
 
         msg = await channel.send(embed=embed)
         embed.set_footer(text=f'ID: {msg.id}')

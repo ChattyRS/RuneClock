@@ -224,7 +224,7 @@ class Timer(commands.Cog):
         msg = '\n'.join([x[1] for x in msg])
         
         embed = discord.Embed(title=f'{input} UTC', colour=0x00b2ff, timestamp=datetime.utcnow(), description=msg)
-        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 
         await ctx.send(embed=embed)
     

@@ -1,13 +1,11 @@
 import discord
 from discord.ext import commands
-import asyncio
 import sys
 sys.path.append('../')
 from main import config_load, addCommand, Command
 import re
-from datetime import datetime
 import utils
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
+from utils import is_admin
 
 config = config_load()
 

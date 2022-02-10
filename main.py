@@ -22,8 +22,8 @@ from database import User, Guild, Role, Mute, Command, Repository, Notification,
 from database import setup as database_setup
 from database import close_connection as close_database
 import io
-from peony import PeonyClient
 import html
+import oauthlib
 
 '''
 Load config file with necessary information
@@ -35,10 +35,11 @@ def config_load():
 
 config = config_load()
 
-twitter_client = PeonyClient(consumer_key=config['consumer_key'],
-                             consumer_secret=config['consumer_secret'],
-                             access_token=config['access_token_key'],
-                             access_token_secret=config['access_token_secret'])
+twitter_client = oauthlib.oauth1.Client(
+    client_key = config['consumer_key'],
+    client_secret = config['consumer_secret'],
+    resource_owner_key = config['access_token_key'],
+    resource_owner_secret = config['access_token_secret'])
 
 commandsAnswered = 0 # int to track how many commands have been processed since startup
 
@@ -159,7 +160,7 @@ class Bot(commands.AutoShardedBot):
         channel = self.get_channel(config['testChannel'])
         self.app_info = await self.application_info()
         msg = (f'Logged in to Discord as: {self.user.name}\n'
-            f'Using discord.py version: {discord.__version__}\n'
+            f'Using Pycord version: {discord.__version__}\n'
             f'Owner: {self.app_info.owner}\n'
             f'Time: {str(self.start_time)} UTC')
         print(msg)
@@ -441,7 +442,7 @@ class Bot(commands.AutoShardedBot):
                                                         break
                                         if not found:
                                             embed = discord.Embed(title=f'Hall of fame 🌟 {r.count}', description=message.content, colour=0xffd700, url=message.jump_url, timestamp=message.created_at)
-                                            embed.set_author(name=message.author.display_name, icon_url=message.author.avatar_url)
+                                            embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
                                             if message.attachments:
                                                 for a in message.attachments:
                                                     if 'image' in a.content_type:
@@ -866,17 +867,23 @@ class Bot(commands.AutoShardedBot):
                 
                 # Notify of Pink Skirts events
                 if not notifiedThisHourPinkSkirts and i == 0:
-                    request = self.bot.twitter_client.api.statuses.user_timeline.get(screen_name='PinkSkirtsRS', count=10)
-                    responses = request.iterator.with_max_id()
-
                     ps_tweets = []
-                    async for tweets in responses:
-                        ps_tweets += [tweet for tweet in tweets]
 
-                        if len(ps_tweets) > 10:
-                            break
+                    uri = 'https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=PinkSkirtsRS&count=10'
+                    http_method = 'GET'
+
+                    uri, headers, _ = self.bot.twitter_client.sign(uri=uri, http_method=http_method)
+
+                    r = await self.bot.aiohttp.get(uri, headers=headers)
+                    async with r:
+                        try:
+                            txt = await r.text()
+                            ps_tweets = json.loads(txt)
+                        except Exception as e:
+                            print(f'Encountered exception while attempting to get pink skirts tweets: {e}')
                     
                     ps_tweets = sorted(ps_tweets, key=lambda t: datetime.strptime(t['created_at'], '%a %b %d %H:%M:%S %z %Y'), reverse=True)
+
 
                     for tweet in ps_tweets:
                         tweet_time = datetime.strptime(tweet['created_at'], '%a %b %d %H:%M:%S %z %Y').replace(tzinfo=None)
@@ -1466,5 +1473,5 @@ class Bot(commands.AutoShardedBot):
 if __name__ == '__main__':
     logging.basicConfig(filename='data/log.txt', level=logging.CRITICAL)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     loop.run_until_complete(run())

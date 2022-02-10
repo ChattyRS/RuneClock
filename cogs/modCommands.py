@@ -75,7 +75,7 @@ class ModCommands(commands.Cog):
             if not guild.modmail_public is None and not guild.modmail_private is None:
                 if message.channel.id == guild.modmail_public or (message.guild.id == config['cozy_guild_id'] and message.channel.id == config['cozy_compliments_channel_id']):
                     embed = discord.Embed(description=f'In: {message.channel.mention}\n“{message.content}”', colour=0x00b2ff, timestamp=message.created_at)
-                    embed.set_author(name=f'{message.author.display_name}#{message.author.discriminator}', icon_url=message.author.avatar_url)
+                    embed.set_author(name=f'{message.author.display_name}#{message.author.discriminator}', icon_url=message.author.display_avatar.url)
                     embed.set_footer(text=f'ID: {message.id}')
 
                     txt = message.clean_content

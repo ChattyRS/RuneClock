@@ -3,17 +3,13 @@ from discord.ext import commands
 import sys
 sys.path.append('../')
 from main import config_load, addCommand, Poll
-import math
 import random
-import re
-import pyowm
-from datetime import datetime, timedelta, timezone
+from pyowm.owm import OWM
+from datetime import datetime, timedelta
 from operator import attrgetter
-import cmath
-from utils import is_int, is_float
+from utils import is_int
 import codecs
 import json
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 import validators
 
 config = config_load()
@@ -23,7 +19,8 @@ rpsUpper = ['ROCK', 'PAPER', 'SCISSORS']
 
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-owm = pyowm.OWM(config['weatherAPI'])
+owm = OWM(config['weatherAPI'])
+owm_manager = owm.weather_manager()
 
 num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
@@ -165,35 +162,32 @@ class General(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['forecast'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def weather(self, ctx, *locations):
+    async def weather(self, ctx, *location):
         '''
         Get the weather forecast for a location
         '''
         addCommand()
         await ctx.channel.trigger_typing()
         
-        location = ''
-        for l in locations:
-            location += l + ' '
-        location = location.strip()
+        location = ' '.join(location)
         if not location:
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
         try:
-            observation = owm.weather_at_place(location)
-        except:
+            observation = owm_manager.weather_at_place(location)
+        except Exception as e:
             raise commands.CommandError(message=f'Error: could not find location: `{location}`.')
-        w = observation.get_weather()
-        temperature = w.get_temperature('celsius')
-        wind = w.get_wind('meters_sec')
+        w = observation.weather
+        temperature = w.temperature('celsius')
+        wind = w.wind('meters_sec')
 
-        title = f'Weather for: {observation.get_location().get_name()}, {observation.get_location().get_country()}'
+        title = f'Weather for: {observation.location.name}, {observation.location.country}'
         colour = 0x00b2ff
         timestamp = datetime.utcnow()
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
-        embed.add_field(name='Condition:', value=f'{w.get_status()}')
-        embed.add_field(name='Temperature:', value=f'Current: {temperature["temp"]}°C\nMax: {temperature["temp_max"]}°C\nMin: {temperature["temp_min"]}°C')
-        embed.add_field(name='Wind speed:', value=f'{wind["speed"]*3.6} km/h')
+        embed.add_field(name='Condition:', value=f'{w.status}')
+        embed.add_field(name='Temperature:', value=f'Current: {round(temperature["temp"])}°C\nMax: {round(temperature["temp_max"])}°C\nMin: {round(temperature["temp_min"])}°C')
+        embed.add_field(name='Wind speed:', value=f'{round(wind["speed"]*3.6)} km/h')
         
         await ctx.send(embed=embed)
 
@@ -210,11 +204,10 @@ class General(commands.Cog):
         timestamp = datetime.utcnow()
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
         embed.add_field(name='Owner', value=f'{guild.owner.name}#{guild.owner.discriminator}')
-        embed.add_field(name='Region', value=f'{guild.region}')
         embed.add_field(name='Channels', value=f'{len(guild.channels)}')
         embed.add_field(name='Members', value=f'{guild.member_count}')
         embed.add_field(name='Roles', value=f'{len(guild.roles)}')
-        icon = guild.icon_url
+        icon = guild.icon.url
         if icon:
             embed.set_thumbnail(url=icon)
         embed.set_footer(text=f'ID: {guild.id}')
@@ -268,12 +261,9 @@ class General(commands.Cog):
         colour = 0x00b2ff
         timestamp = datetime.utcnow()
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
-        if member.avatar_url:
-            embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.avatar_url)
-            embed.set_thumbnail(url=member.avatar_url)
-        else:
-            embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.default_avatar_url)
-            embed.set_thumbnail(url=member.default_avatar_url)
+        if member.display_avatar.url:
+            embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.display_avatar.url)
+            embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name='Status', value=f'{str(member.status)[0].upper() + str(member.status)[1:]}')
         joinTime = member.joined_at
         min = joinTime.minute
@@ -344,7 +334,7 @@ class General(commands.Cog):
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`.')
 
         embed = discord.Embed(description=f'In: {chan.mention}\n“{msg.content}”', colour=0x00b2ff, timestamp=msg.created_at)
-        embed.set_author(name=f'{msg.author.display_name}#{msg.author.discriminator}', icon_url=msg.author.avatar_url)
+        embed.set_author(name=f'{msg.author.display_name}#{msg.author.discriminator}', icon_url=msg.author.display_avatar.url)
         embed.set_footer(text=f'ID: {msg.id}')
 
         await ctx.message.delete()

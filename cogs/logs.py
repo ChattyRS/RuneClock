@@ -2,9 +2,8 @@ import asyncio
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from main import config_load, addCommand, Guild, Role
-from datetime import datetime, timedelta, timezone
-import sys
+from main import config_load, Guild, Role
+from datetime import datetime
 
 config = config_load()
 
@@ -29,11 +28,11 @@ class Logs(commands.Cog):
             if str(error).split('\"')[0] == "Command " and str(error).split('\"')[2] == " is not found":
                 return
         try:
-            username = config['postgres_username']
+            username = config['pc_username']
             error = str(error).replace(username, 'user')
             error = discord.utils.escape_mentions(error)
             msg = await ctx.send(error)
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)
             await ctx.message.delete()
             await msg.delete()
         except:
@@ -64,7 +63,7 @@ class Logs(commands.Cog):
         time = f'{creationTime.day} {months[creationTime.month-1]} {creationTime.year}, {hour}:{min}'
         txt = (f'{member.mention} {member.name}#{member.discriminator}\n'
                f'Account creation: {time}')
-        url = member.avatar_url
+        url = member.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -98,7 +97,7 @@ class Logs(commands.Cog):
         timestamp = datetime.utcnow()
         id = f'User ID: {member.id}'
         txt = f'{member.mention} {member.name}#{member.discriminator}'
-        url = member.avatar_url
+        url = member.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -125,7 +124,7 @@ class Logs(commands.Cog):
         timestamp = datetime.utcnow()
         id = f'User ID: {user.id}'
         txt = f'{user.mention} {user.name}#{user.discriminator}'
-        url = user.avatar_url
+        url = user.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -152,7 +151,7 @@ class Logs(commands.Cog):
         timestamp = datetime.utcnow()
         id = f'User ID: {user.id}'
         txt = f'{user.name}#{user.discriminator}'
-        url = user.avatar_url
+        url = user.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -187,7 +186,7 @@ class Logs(commands.Cog):
             msg = 'N/A'
         embed.add_field(name='Message', value=msg, inline=False)
         embed.set_footer(text=f'Message ID: {message.id}')
-        embed.set_thumbnail(url=message.author.avatar_url)
+        embed.set_thumbnail(url=message.author.display_avatar.url)
 
         try:
             await channel.send(embed=embed)
@@ -242,7 +241,7 @@ class Logs(commands.Cog):
             id = f'Message ID: {after.id}'
             txt = (f'By: {member.mention} {member.name}#{member.discriminator}\n'
                    f'In: {after.channel.mention}')
-            url = member.avatar_url
+            url = member.display_avatar.url
             beforeContent = before.content
             if not beforeContent:
                 beforeContent = 'N/A'
@@ -336,7 +335,7 @@ class Logs(commands.Cog):
             timestamp = datetime.utcnow()
             id = f'User ID: {after.id}'
             txt = f'{after.mention} {after.name}#{after.discriminator}'
-            url = after.avatar_url
+            url = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             beforeNick = before.nick
             if not beforeNick:
@@ -368,7 +367,7 @@ class Logs(commands.Cog):
             timestamp = datetime.utcnow()
             id = f'User ID: {after.id}'
             txt = f'{after.mention} {after.name}#{after.discriminator}'
-            url = after.avatar_url
+            url = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             added = ""
             if addedRoles:
@@ -448,7 +447,7 @@ class Logs(commands.Cog):
             timestamp = datetime.utcnow()
             id = f'Server ID: {after.id}'
             txt = f'Owner: {owner.mention} {owner.name}#{owner.discriminator}'
-            url = after.icon_url
+            url = after.icon.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             beforeName = before.name
             if not beforeName:

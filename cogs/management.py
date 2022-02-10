@@ -5,8 +5,7 @@ import os
 import sys
 sys.path.append('../')
 from main import config_load, addCommand, getCommandsAnswered, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem
-from datetime import datetime, timedelta, timezone, date
-import re
+from datetime import datetime, timedelta, date
 import psutil
 from cogs.logs import getEventsLogged
 from pathlib import Path
@@ -16,13 +15,10 @@ import textwrap
 import inspect
 from contextlib import redirect_stdout
 import io
-import copy
-from typing import Union
 import itertools
 import utils
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only, is_int
+from utils import is_owner, is_admin, portables_admin, portables_only, is_int
 from github import Github
-import aiohttp
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib.dates as mdates
@@ -177,7 +173,7 @@ class Management(commands.Cog):
                         if i < len(aliases)-1:
                             alias_str += ' | '
                 embed = discord.Embed(title=f'Help', description=f'`{command}`{alias_str}\n```{function}```\n{description}', colour=0x00e400, timestamp=datetime.utcnow())
-                embed.set_author(name=ctx.guild.me.display_name, url=config['github_link'], icon_url=ctx.guild.me.avatar_url)
+                embed.set_author(name=ctx.guild.me.display_name, url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
                 embed.set_footer(text=f'You can change the description of your custom command using the command \"description\".')
                 await ctx.send(embed=embed)
                 await ctx.message.add_reaction('✅')
@@ -196,7 +192,7 @@ class Management(commands.Cog):
                         if i < len(cmd.aliases)-1:
                             alias_str += ' | '
                 embed = discord.Embed(title=f'Help', description=f'`{cmd.name}{alias_str} {param_text}`\n{cmd.help}', colour=0x00e400, timestamp=datetime.utcnow())
-                embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.avatar_url)
+                embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
                 embed.set_footer(text=f'For more help, use the support command')
                 await ctx.send(embed=embed)
                 await ctx.message.add_reaction('✅')
@@ -276,9 +272,9 @@ class Management(commands.Cog):
                         embed.add_field(name=f'{category}', value=val, inline=False)
                         embed_short.add_field(name=f'{category}', value=val_short, inline=False)
 
-        embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url='https://i.imgur.com/hu3nR8o.png')
+        embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'])
         embed.set_footer(text=f'{len(self.bot.commands)} commands • {len(self.bot.extensions)} extensions')
-        embed_short.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url='https://i.imgur.com/hu3nR8o.png')
+        embed_short.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'])
         embed_short.set_footer(text=f'{len(self.bot.commands)} commands • {len(self.bot.extensions)} extensions')
 
         try:
@@ -769,7 +765,7 @@ class Management(commands.Cog):
             ctx.send(f'Missing permissions: `delete_message`.')
 
         embed = discord.Embed(title=title, colour=0x00b2ff, timestamp=datetime.utcnow(), description=msg)
-        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 
         await c.send(embed=embed)
         

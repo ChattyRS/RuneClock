@@ -7,7 +7,6 @@ from main import config_load, addCommand
 import math
 import re
 import cmath
-import re
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy
@@ -329,7 +328,7 @@ class Mathematics(commands.Cog):
 
             p = multiprocessing.Process(target=calculate, args=(input, val))
             p.start()
-            p.join(5)
+            p.join(10)
 
             if p.is_alive():
                 p.terminate()
@@ -390,7 +389,7 @@ class Mathematics(commands.Cog):
 
             p = multiprocessing.Process(target=plot_func, args=(x, input, val))
             p.start()
-            p.join(5)
+            p.join(10)
 
             if p.is_alive():
                 p.terminate()
@@ -456,7 +455,7 @@ class Mathematics(commands.Cog):
 
             p = multiprocessing.Process(target=solve_for_x, args=(input, val))
             p.start()
-            p.join(5)
+            p.join(10)
 
             if p.is_alive():
                 p.terminate()

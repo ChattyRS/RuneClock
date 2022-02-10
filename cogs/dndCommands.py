@@ -6,7 +6,8 @@ sys.path.append('../')
 from main import config_load, addCommand, districts
 from datetime import datetime, timedelta
 from utils import timeDiffToString
-from utils import itemEmojis, is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
+from utils import itemEmojis
+import json
 
 config = config_load()
 
@@ -55,17 +56,21 @@ class DNDCommands(commands.Cog):
         next_time = self.next_update()
         if next_time.total_seconds() > 0:
             return
-
-        # Use asynchronous Twitter library peony-twitter
-        request = self.bot.twitter_client.api.statuses.user_timeline.get(screen_name='JagexClock', count=150)
-        responses = request.iterator.with_max_id()
         
         jagex_tweets = []
-        async for tweets in responses:
-            jagex_tweets += [tweet for tweet in tweets]
 
-            if len(jagex_tweets) > 150:
-                break
+        uri = 'https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=JagexClock&count=150'
+        http_method = 'GET'
+
+        uri, headers, _ = self.bot.twitter_client.sign(uri=uri, http_method=http_method)
+
+        r = await self.bot.aiohttp.get(uri, headers=headers)
+        async with r:
+            try:
+                txt = await r.text()
+                jagex_tweets = json.loads(txt)
+            except Exception as e:
+                print(f'Encountered exception while attempting to get jagex tweets: {e}')
         
         jagex_tweets = sorted(jagex_tweets, key=lambda t: datetime.strptime(t['created_at'], '%a %b %d %H:%M:%S %z %Y'), reverse=True)
         

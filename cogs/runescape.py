@@ -4,7 +4,7 @@ import sys
 sys.path.append('../')
 from main import config_load, addCommand, User, NewsPost, RS3Item, OSRSItem
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import praw
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
@@ -12,17 +12,14 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 import math
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-from lxml import html
-import json
 from utils import is_int, is_float, draw_num, xp_to_level, combat_level, draw_outline_osrs, draw_outline_rs3
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only, level_to_xp
-from utils import timeDiffToString
+from utils import level_to_xp, timeDiffToString
 import io
 import imageio
 import copy
 import numpy as np
 import random
+from youtubesearchpython import Playlist, playlist_from_channel_id
 
 config = config_load()
 
@@ -71,44 +68,6 @@ def translateAge(age):
     age = age.replace('jaar', 'year')
     age = age.replace('geleden', 'ago')
     return age
-
-# https://github.com/mirror12k/python-youtube-videos-lister/blob/master/youtube_api.py
-async def channelVideos(aiohttp_session, channel):
-    videoURL = 'https://www.youtube.com/' + channel + '/videos'
-    for attempt_number in range(3):
-        r = await aiohttp_session.get(videoURL, headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/321 (KHTML, like Gecko) Chrome/62.0.3202.9 Safari/537.36'})
-        async with r:
-            match = re.search(r'window\["ytInitialData"\]\s*=\s*(.*);\s*window\["ytInitialPlayerResponse"\]', await r.text(), re.MULTILINE)
-            if match:
-                json_data = match.group(1)
-                data = json.loads(json_data)
-                tabs = data['contents']['twoColumnBrowseResultsRenderer']['tabs']
-                videos_tab = ''
-                for tab in tabs:
-                    if tab.get('tabRenderer') is not None and tab['tabRenderer']['title'].upper() == "VIDEO'S":
-                        videos_tab = tab
-                        break
-                if not videos_tab:
-                    raise Exception('no video tab found in ytInitialData')
-
-                video_items = videos_tab['tabRenderer']['content']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['gridRenderer']['items']
-
-                videos = []
-                for video_item in video_items:
-
-                    title = video_item['gridVideoRenderer']['title']['simpleText']
-                    if video_item['gridVideoRenderer'].get('publishedTimeText') is not None:
-                        age = video_item['gridVideoRenderer']['publishedTimeText']['simpleText']
-                    else:
-                        age = '?'
-                    url = video_item['gridVideoRenderer']['navigationEndpoint']['commandMetadata']['webCommandMetadata']['url']
-                    link = urljoin(videoURL, url)
-
-                    if age != '?':
-                        videos.append({ 'link': link, 'title': title, 'age': age })
-
-                return videos
-    raise Exception('failed to find ytInitialData')
 
 vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.utcnow(), description='Today\'s vis wax combo has not been released yet.')
 vis_wax_combo = []
@@ -1454,7 +1413,8 @@ class Runescape(commands.Cog):
         await ctx.channel.trigger_typing()
 
         try:
-            videos = await channelVideos(self.bot.aiohttp, 'runescape')
+            playlist = Playlist(playlist_from_channel_id('UCGpr8LIrdwrEak3GuZLQPwg'))
+            videos = playlist.videos
         except:
             raise commands.CommandError(message=f'Error fetching videos.')
 
@@ -1467,9 +1427,7 @@ class Runescape(commands.Cog):
             if i >= 5:
                 break
             else:
-                age = vid['age']
-                age = translateAge(age)
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+age, inline=False)
+                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
 
         await ctx.send(embed=embed)
 
@@ -1483,7 +1441,8 @@ class Runescape(commands.Cog):
         await ctx.channel.trigger_typing()
 
         try:
-            videos = await channelVideos(self.bot.aiohttp, 'OldSchoolRSCommunity')
+            playlist = Playlist(playlist_from_channel_id('UC0j1MpbiTFHYrUjOTwifW_w'))
+            videos = playlist.videos
         except:
             raise commands.CommandError(message=f'Error fetching videos.')
 
@@ -1496,9 +1455,7 @@ class Runescape(commands.Cog):
             if i >= 5:
                 break
             else:
-                age = vid['age']
-                age = translateAge(age)
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+age, inline=False)
+                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
 
         await ctx.send(embed=embed)
     
