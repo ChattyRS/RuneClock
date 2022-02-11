@@ -13,12 +13,22 @@ RuneClock is a general-purpose Discord bot for RuneScape Discord servers, origin
 
 * **Chatty#0001** on Discord
 
-## Software used
+## Software and installation
 
 * [Python 3.10](https://www.python.org/)
 * [PostgreSQL 14](https://www.postgresql.org/)
 * [Pycord 2.0.0b4](https://github.com/Pycord-Development/pycord)
 
+Install the latest development version of Pycord using the following commands:
+```
+$ git clone https://github.com/Pycord-Development/pycord
+$ cd pycord
+$ pip install -U .[voice]
+```
+After installing Python and Pycord, you can install the remaining dependencies as follows:
+```
+$ pip install -r requirements.txt
+```
 * [GINO](https://python-gino.org/docs/en/master/#)
 * [Asyncio](https://docs.python.org/3/library/asyncio.html)
 * [gspread_asyncio](https://github.com/dgilman/gspread_asyncio)
@@ -42,14 +52,6 @@ RuneClock is a general-purpose Discord bot for RuneScape Discord servers, origin
 * [PyGithub](https://github.com/PyGithub/PyGithub)
 * [Google Calendar Simple API](https://github.com/kuzmoyev/google-calendar-simple-api)
 * [youtube-search-python](https://github.com/alexmercerind/youtube-search-python)
-
-Install the latest development version of Pycord using the following commands:
-```
-$ git clone https://github.com/Pycord-Development/pycord
-$ cd pycord
-$ python -m pip install -U .[voice]
-```
-After installing Python and Pycord, you can install the remaining dependencies using `pip install -r requirements.txt`.
 
 ## License
 
