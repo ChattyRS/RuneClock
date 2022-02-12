@@ -354,6 +354,9 @@ class Notifications(commands.Cog):
                 raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
             interval = timedelta(days=days, hours=hours, minutes=minutes)
 
+        if 0 < interval.total_seconds() < 900:
+            raise commands.CommandError(message=f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
+
         # Handle input message
         msg = ''
         for m in message:
