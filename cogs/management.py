@@ -26,6 +26,8 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 w = wmi.WMI(namespace="root\OpenHardwareMonitor", privileges=["Security"])
 
+bot = commands.Bot()
+
 # to expose to the eval command
 from collections import Counter
 
@@ -441,7 +443,7 @@ class Management(commands.Cog):
         increment_command_counter()
         await ctx.send(f'`{int(self.bot.latency*1000)} ms`')
 
-    @slash_command(name='ping2', guild_ids=[299191370030252042])
+    @bot.slash_command(name='ping2', guild_ids=[299191370030252042])
     async def ping2(self, ctx):
         '''
         Pings the bot to check latency.
@@ -1031,7 +1033,7 @@ class Management(commands.Cog):
         '''
         Get an invite link to invite RuneClock to your servers.
         '''
-        url = 'https://discordapp.com/api/oauth2/authorize?client_id=449462150491275274&permissions=469879878&scope=bot'
+        url = 'https://discordapp.com/api/oauth2/authorize?client_id=449462150491275274&permissions=8&scope=bot%20applications.commands'
         await ctx.send(f'**RuneClock invite link:**\n{url}')
     
     @commands.command(hidden=True, aliases=['gino'])
