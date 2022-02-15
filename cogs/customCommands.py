@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, Command
+from main import config_load, increment_command_counter, Command
 import re
 import utils
 from utils import is_admin
@@ -56,7 +56,7 @@ class CustomCommands(commands.Cog):
         {require:role} restricts usage of the command to users with a specific role by name.
         {!command} calls a built-in bot command (no custom commands).
         '''
-        addCommand()
+        increment_command_counter()
 
         command = ctx.message.clean_content[ctx.message.clean_content.index(' ')+1:].strip()
         if ''.join(command.split()) == command:
@@ -120,7 +120,7 @@ class CustomCommands(commands.Cog):
         
         command = custom_command.function
 
-        addCommand()
+        increment_command_counter()
 
         # {require:RoleName} makes this custom command only usable by members who have a role with the given name
         while '{require:' in command:
@@ -128,14 +128,14 @@ class CustomCommands(commands.Cog):
             end = command.find('}', begin)
             if end == -1:
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            string = command[begin+9:end]
-            roleName = string.strip()
-            role = discord.utils.find(lambda r: r.name == roleName, ctx.guild.roles)
+            input = command[begin+9:end]
+            role_name = input.strip()
+            role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
             if not role:
-                raise commands.CommandError(message=f'Missing role: `{str(roleName)}`. Please verify that the role name is spelled correctly.')
-            command = command.replace('{require:' + string + '}', '')
+                raise commands.CommandError(message=f'Missing role: `{str(role_name)}`. Please verify that the role name is spelled correctly.')
+            command = command.replace('{require:' + input + '}', '')
             if not role in ctx.author.roles:
-                raise commands.CommandError(message=f'Insufficient permissions: `{roleName}`.')
+                raise commands.CommandError(message=f'Insufficient permissions: `{role_name}`.')
 
         # {user} will add the name of the user calling the command
         command = command.replace('{user}', ctx.author.name)
@@ -149,7 +149,7 @@ class CustomCommands(commands.Cog):
         # $N is a basic variable. It returns the N-th argument given to the command when called
         # $N+ returns not just the N-th argument, but also all arguments that follow
         if '$' in command:
-            toReplace = []
+            to_replace = []
             indices = [m.start() for m in re.finditer('\$', command)]
             for index in indices:
                 end = min(command.find(' ', index), command.find('}', index))
@@ -168,7 +168,7 @@ class CustomCommands(commands.Cog):
                 if not plus:
                     try:
                         arg = args[number]
-                        toReplace.append(['$' + str(number), arg])
+                        to_replace.append(['$' + str(number), arg])
                         continue
                     except:
                         raise commands.CommandError(message=f'Error: required arguments missing. Use `help {alias}`.')
@@ -179,14 +179,14 @@ class CustomCommands(commands.Cog):
                             arguments.append(arg)
                     if not arguments and number != 0:
                         raise commands.CommandError(message=f'Error: required arguments missing. Use `help {alias}`.')
-                    argString = ''
+                    arg_string = ''
                     for arg in arguments:
-                        argString += arg + ' '
-                    argString = argString.strip()
-                    toReplace.append(['$' + str(number) + '+', argString])
+                        arg_string += arg + ' '
+                    arg_string = arg_string.strip()
+                    to_replace.append(['$' + str(number) + '+', arg_string])
                     continue
-            if toReplace:
-                for tuple in toReplace:
+            if to_replace:
+                for tuple in to_replace:
                     old = tuple[0]
                     new = tuple[1]
                     command = command.replace(old, new)
@@ -197,12 +197,12 @@ class CustomCommands(commands.Cog):
             end = command.find('}', begin)
             if end == -1:
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            string = command[begin+2:end]
-            userName = string.strip()
-            member = discord.utils.find(lambda m: m.name == userName, ctx.guild.members)
+            input = command[begin+2:end]
+            user_name = input.strip()
+            member = discord.utils.find(lambda m: m.name == user_name, ctx.guild.members)
             if not member:
-                raise commands.CommandError(message=f'Missing user: `{userName}`.')
-            command = command.replace('{@' + string + '}', member.mention)
+                raise commands.CommandError(message=f'Missing user: `{user_name}`.')
+            command = command.replace('{@' + input + '}', member.mention)
 
         # {&role} will add a mention for a specific role by name
         while '{&' in command:
@@ -210,12 +210,12 @@ class CustomCommands(commands.Cog):
             end = command.find('}', begin)
             if end == -1:
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            string = command[begin+2:end]
-            roleName = string.strip()
-            role = discord.utils.find(lambda r: r.name.lower() == roleName.lower(), ctx.guild.roles)
+            input = command[begin+2:end]
+            role_name = input.strip()
+            role = discord.utils.find(lambda r: r.name.lower() == role_name.lower(), ctx.guild.roles)
             if not role:
-                raise commands.CommandError(message=f'Missing role: `{roleName}`.')
-            command = command.replace('{&' + string + '}', role.mention)
+                raise commands.CommandError(message=f'Missing role: `{role_name}`.')
+            command = command.replace('{&' + input + '}', role.mention)
 
         # {#channel} will add a mention of a specific channel by name
         # {#channelID} will add a mention of a specific channel by ID
@@ -224,14 +224,14 @@ class CustomCommands(commands.Cog):
             end = command.find('}', begin)
             if end == -1:
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            string = command[begin+2:end]
-            channelName = string.strip()
+            input = command[begin+2:end]
+            channelName = input.strip()
             channel = discord.utils.find(lambda c: str(c.id) == channelName, ctx.guild.channels)
             if not channel:
                 channel = discord.utils.find(lambda c: c.name == channelName, ctx.guild.channels)
             if not channel:
                 raise commands.CommandError(message=f'Missing channel: `{channelName}`.')
-            command = command.replace('{#' + string + '}', channel.mention)
+            command = command.replace('{#' + input + '}', channel.mention)
 
         # {!command} calls a built-in bot command (no custom commands)
         while '{!' in command:
@@ -239,22 +239,22 @@ class CustomCommands(commands.Cog):
             end = command.find('}', begin)
             if end == -1:
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            commandString = command[begin+2:end]
-            command = command.replace('{!' + commandString + '}', '')
-            space = commandString.find(' ')
+            command_string = command[begin+2:end]
+            command = command.replace('{!' + command_string + '}', '')
+            space = command_string.find(' ')
             if space == -1:
-                space = len(commandString)
-            commandName = commandString[:space]
+                space = len(command_string)
+            commandName = command_string[:space]
             if commandName == 'customCommand':
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            commandArguments = commandString[space:]
+            command_arguments = command_string[space:]
             cmd = self.bot.get_command(commandName)
             if not cmd:
                 raise commands.CommandError(message=f'Missing command: `{commandName}`.')
             customCommand = commands.Bot.get_command(self.bot, 'customCommand')
             if cmd == customCommand:
                 raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            arguments = commandArguments.split()
+            arguments = command_arguments.split()
             try:
                 for check in cmd.checks:
                     if not await check(ctx):
@@ -282,7 +282,7 @@ class CustomCommands(commands.Cog):
         '''
         Returns list of custom commands.
         '''
-        addCommand()
+        increment_command_counter()
 
         embed = discord.Embed(title='Commands')
         custom_commands = await Command.query.where(Command.guild_id==ctx.guild.id).gino.all()
@@ -331,7 +331,7 @@ class CustomCommands(commands.Cog):
         '''
         Add a short description to a custom command (Admin+).
         '''
-        addCommand()
+        increment_command_counter()
 
         if not command or not description:
             raise commands.CommandError(message=f'Error: `required arguments missing`')
@@ -352,7 +352,7 @@ class CustomCommands(commands.Cog):
         '''
         Add/remove an alias for a custom command (Admin+).
         '''
-        addCommand()
+        increment_command_counter()
 
         if not command or not alias:
             raise commands.CommandError(message=f'Error: `required arguments missing`.')

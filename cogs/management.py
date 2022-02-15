@@ -1,13 +1,14 @@
 import asyncio
 import discord
 from discord.ext import commands, tasks
+from discord.commands import slash_command
 import os
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, getCommandsAnswered, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem
+from main import config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem
 from datetime import datetime, timedelta, date
 import psutil
-from cogs.logs import getEventsLogged
+from cogs.logs import get_events_logged
 from pathlib import Path
 import wmi
 import traceback
@@ -28,8 +29,6 @@ w = wmi.WMI(namespace="root\OpenHardwareMonitor", privileges=["Security"])
 # to expose to the eval command
 from collections import Counter
 
-initialCpuUsage = psutil.cpu_percent(interval=None)
-
 config = config_load()
 
 g = Github(config['github_access_token'])
@@ -41,13 +40,6 @@ def restart():
 def reboot():
     print('Rebooting...')
     os.system('shutdown -t 0 -r -f')
-
-def pingToString(time):
-    seconds = time.seconds
-    microseconds = time.microseconds
-    ms = seconds*1000 + int(microseconds/1000)
-    time = str(ms) + ' ms'
-    return time
 
 def uptime_fraction(events, year=0, month=0, day=0):
     if day and month and year:
@@ -295,7 +287,7 @@ class Management(commands.Cog):
         [server] will be replaced by the name of your server.
         [user] will mention the user who joined.
         '''
-        addCommand()
+        increment_command_counter()
 
         msg = ' '.join(msgParts)
         if not msg:
@@ -334,7 +326,7 @@ class Management(commands.Cog):
         '''
         Returns the amount of servers that the bot is currently in.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.send(f'I am in **{len(self.bot.guilds)}** servers!')
 
     @commands.group(pass_context=True, invoke_without_command=True, aliases=['logging'])
@@ -345,7 +337,7 @@ class Management(commands.Cog):
         Arguments: channel.
         If no channel is given, logging messages will no longer be sent.
         '''
-        addCommand()
+        increment_command_counter()
 
         if ctx.message.channel_mentions:
             channel = ctx.message.channel_mentions[0]
@@ -384,7 +376,7 @@ class Management(commands.Cog):
         '''
         Toggles logging for bot messages.
         '''
-        addCommand()
+        increment_command_counter()
 
         guild = await Guild.get(ctx.guild.id)
         new_val = False if guild.log_bots is None or guild.log_bots == True else True
@@ -399,7 +391,7 @@ class Management(commands.Cog):
         '''
         Disables/enables the given command for this server. (Admin+)
         '''
-        addCommand()
+        increment_command_counter()
 
         cmd = cmd.strip()
         if not cmd:
@@ -434,7 +426,7 @@ class Management(commands.Cog):
         Changes server's command prefix (default "-"). (Admin+)
         Arguments: prefix
         '''
-        addCommand()
+        increment_command_counter()
 
         guild = await Guild.get(ctx.guild.id)
         await guild.update(prefix=prefix).apply()
@@ -446,15 +438,23 @@ class Management(commands.Cog):
         '''
         Pings the bot to check latency.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.send(f'`{int(self.bot.latency*1000)} ms`')
+
+    @slash_command(name='ping2', guild_ids=[299191370030252042])
+    async def ping2(self, ctx):
+        '''
+        Pings the bot to check latency.
+        '''
+        increment_command_counter()
+        await ctx.respond(f'`{int(self.bot.latency*1000)} ms`')
     
     @commands.command(aliases=['donate'])
     async def patreon(self, ctx):
         '''
         Provides a link to the RuneClock Patreon page where you can donate to help support ongoing development on RuneClock.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.send(f'You can support the hosting and ongoing development of RuneClock on Patreon here:\n{config["patreon"]}')
     
     @commands.command(aliases=['server'])
@@ -462,7 +462,7 @@ class Management(commands.Cog):
         '''
         Provides an invite link to the RuneClock support server.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.send(config['support_server'])
 
     @commands.group(pass_context=True, invoke_without_command=True, aliases=['github'])
@@ -470,7 +470,7 @@ class Management(commands.Cog):
         '''
         Returns the link to the GitHub repository of this bot.
         '''
-        addCommand()
+        increment_command_counter()
         name = ctx.guild.me.display_name
         await ctx.send(f'**{name} on GitHub:**\n{config["github_link"]}')
     
@@ -481,7 +481,7 @@ class Management(commands.Cog):
         Receive notifications for updates to a GitHub repository in a channel.
         Arguments: GitHub repo url, channel
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not repo_url:
@@ -540,14 +540,12 @@ class Management(commands.Cog):
                 raise commands.CommandError(message=f'Could not fetch commit data.')
             data = await r.json()
 
-        repository = Repository(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha)
-
         repositories = await Repository.query.where(Repository.guild_id==ctx.guild.id).gino.all()
         for r in repositories:
             if r.user_name == user_name and r.repo_name == repo_name:
                 raise commands.CommandError(message=f'The repository `{repo_name}` is already being tracked.')
 
-        repository = await Repository.create(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha)
+        await Repository.create(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha)
 
         await ctx.send(f'The repository `{repo_name}` is now being tracked. Notifications for new commits will be sent to {channel.mention}.')
 
@@ -566,7 +564,7 @@ class Management(commands.Cog):
         Stop receiving notifications for updates to a GitHub repository in a channel.
         Arguments: GitHub repo url, channel
         '''
-        addCommand()
+        increment_command_counter()
 
         if not repo_url:
             raise commands.CommandError(message=f'Required argument missing: `repo_url`.')
@@ -592,7 +590,7 @@ class Management(commands.Cog):
         '''
         Returns the bot's current status.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         now = datetime.utcnow()
@@ -611,10 +609,10 @@ class Management(commands.Cog):
             time = now.replace(microsecond=0, second=0, minute=0, hour=0)
             time -= start_time.replace(microsecond=0, second=0, minute=0, hour=0)
         delta = time
-        time = utils.timeDiffToString(time)
-        cpuPercent = str(psutil.cpu_percent(interval=None))
+        time = utils.time_diff_to_string(time)
+        cpu_percent = str(psutil.cpu_percent(interval=None))
         ram = psutil.virtual_memory() # total, available, percent, used, free, active, inactive, buffers, cached, shared, slab
-        ramPercent = ram[2]
+        ram_percent = ram[2]
         title = f'**Status**'
         colour = 0x00e400
         timestamp = datetime.utcnow()
@@ -648,7 +646,7 @@ class Management(commands.Cog):
                     break
 
 
-        system = f'**CPU:** {cpuPercent}%\n**RAM:** {ramPercent}%\n**Temp:** {temp}°C'
+        system = f'**CPU:** {cpu_percent}%\n**RAM:** {ram_percent}%\n**Temp:** {temp}°C'
         embed.add_field(name='__System__', value=system)
 
         info = f'**Extensions:** {cogs_txt}\n**Uptime:** {time}\n**Latency:** {int(self.bot.latency*1000)} ms'
@@ -670,7 +668,7 @@ class Management(commands.Cog):
                 notification_channels += 1
 
         notifications = round(delta.total_seconds() / 3600 * 3.365 * notification_channels)
-        processed = f'**Commands:** {getCommandsAnswered()}\n**Events:** {getEventsLogged()}\n**Notifications:** {notifications}'
+        processed = f'**Commands:** {get_command_counter()}\n**Events:** {get_events_logged()}\n**Notifications:** {notifications}'
         embed.add_field(name='__Processed__', value=processed)
 
         embed.set_author(name='Chatty#0001', url='https://github.com/ChattyRS/Portables', icon_url='https://i.imgur.com/y1ovBqC.png')
@@ -721,7 +719,7 @@ class Management(commands.Cog):
         Makes the bot say something (Admin+).
         Arguments: channel_mention, message
         '''
-        addCommand()
+        increment_command_counter()
         msg = ctx.message
         if not msg.channel_mentions:
             channel = msg.channel
@@ -747,7 +745,7 @@ class Management(commands.Cog):
         Sends an embed. (Admin+)
         Arguments: title, channel (optional), message
         '''
-        addCommand()
+        increment_command_counter()
 
         c = ctx.channel
         if any(chan.mention == channel for chan in ctx.guild.text_channels):
@@ -776,7 +774,7 @@ class Management(commands.Cog):
         '''
         Evaluates code
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         env = {
@@ -830,7 +828,7 @@ class Management(commands.Cog):
     @is_owner()
     async def load(self, ctx, *, module):
         """Loads a module."""
-        addCommand()
+        increment_command_counter()
         try:
             self.bot.load_extension(f'cogs.{module}')
         except:
@@ -842,7 +840,7 @@ class Management(commands.Cog):
     @is_owner()
     async def unload(self, ctx, *, module):
         """Unloads a module."""
-        addCommand()
+        increment_command_counter()
         try:
             self.bot.unload_extension(f'cogs.{module}')
         except:
@@ -854,7 +852,7 @@ class Management(commands.Cog):
     @is_owner()
     async def reload(self, ctx, *, module):
         """Reloads a module."""
-        addCommand()
+        increment_command_counter()
         try:
             self.bot.reload_extension(f'cogs.{module}')
         except:
@@ -880,7 +878,7 @@ class Management(commands.Cog):
     @is_owner()
     async def repl(self, ctx):
         """Launches an interactive REPL session."""
-        addCommand()
+        increment_command_counter()
 
         variables = {
             'ctx': ctx,
@@ -973,7 +971,7 @@ class Management(commands.Cog):
         '''
         Uptime statistics
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         events = await Uptime.query.order_by(Uptime.time.asc()).gino.all()
@@ -1050,7 +1048,7 @@ class Management(commands.Cog):
         '''
         Add an item to the OSRS item database by ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(id):
@@ -1123,7 +1121,7 @@ class Management(commands.Cog):
         '''
         Remove an item from the OSRS item database by ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(id):
@@ -1144,7 +1142,7 @@ class Management(commands.Cog):
         '''
         Add an item to the RS3 item database by ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(id):
@@ -1190,7 +1188,7 @@ class Management(commands.Cog):
         members = True if item_data['item']['members'] == 'true' else False
         
         prices = []
-        for time, price in graph_data['daily'].items():
+        for _, price in graph_data['daily'].items():
             prices.append(price)
         
         current = prices[len(prices) - 1]
@@ -1217,7 +1215,7 @@ class Management(commands.Cog):
         '''
         Remove an item from the RS3 item database by ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(id):
@@ -1238,7 +1236,7 @@ class Management(commands.Cog):
         '''
         Return a list of the top-10 servers by size.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         guilds = sorted(self.bot.guilds, key=lambda g: g.member_count, reverse=True)
@@ -1257,7 +1255,7 @@ class Management(commands.Cog):
         '''
         Debugging command to simulate a command being invoked from a different context.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not key:
             raise commands.CommandError(message=f'Required argument missing: \'key\'.')

@@ -9,14 +9,14 @@ config = config_load()
 
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-eventsLogged = 0
+events_logged = 0
 
-def logEvent():
-    global eventsLogged
-    eventsLogged += 1
+def log_event():
+    global events_logged
+    events_logged += 1
 
-def getEventsLogged():
-    return eventsLogged
+def get_events_logged():
+    return events_logged
 
 class Logs(commands.Cog):
     def __init__(self, bot):
@@ -50,17 +50,17 @@ class Logs(commands.Cog):
                 channel = member.guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        logEvent()
+        log_event()
         title = f'**Member Joined**'
         colour = 0x00e400
         timestamp = datetime.utcnow()
         id = f'User ID: {member.id}'
-        creationTime = member.created_at
-        min = creationTime.minute
+        creation_time = member.created_at
+        min = creation_time.minute
         if len(str(min)) == 1:
             min = '0' + str(min)
-        hour = creationTime.hour
-        time = f'{creationTime.day} {months[creationTime.month-1]} {creationTime.year}, {hour}:{min}'
+        hour = creation_time.hour
+        time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {hour}:{min}'
         txt = (f'{member.mention} {member.name}#{member.discriminator}\n'
                f'Account creation: {time}')
         url = member.display_avatar.url
@@ -91,7 +91,7 @@ class Logs(commands.Cog):
                     return
         except discord.Forbidden:
             pass
-        logEvent()
+        log_event()
         title = f'**Member Left**'
         colour = 0xff0000
         timestamp = datetime.utcnow()
@@ -118,7 +118,7 @@ class Logs(commands.Cog):
                 channel = guild.get_channel(g.log_channel_id)
         if not channel:
             return
-        logEvent()
+        log_event()
         title = f'**Member Banned**'
         colour = 0xff0000
         timestamp = datetime.utcnow()
@@ -145,7 +145,7 @@ class Logs(commands.Cog):
                 channel = guild.get_channel(g.log_channel_id)
         if not channel:
             return
-        logEvent()
+        log_event()
         title = f'**Member Unbanned**'
         colour = 0xff7b1f
         timestamp = datetime.utcnow()
@@ -174,7 +174,7 @@ class Logs(commands.Cog):
             return
         if guild.log_bots == False and message.author.bot:
             return
-        logEvent()
+        log_event()
         
         txt = (f'By: {message.author.mention} {message.author.name}#{message.author.discriminator}\n'
                f'In: {message.channel.mention}')
@@ -205,7 +205,7 @@ class Logs(commands.Cog):
                 channel = messages[0].guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        logEvent()
+        log_event()
 
         txt = f'{len(messages)} messages deleted in {messages[0].channel.mention}'
         embed = discord.Embed(title='**Bulk delete**', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
@@ -234,7 +234,7 @@ class Logs(commands.Cog):
         if member.bot or before.embeds or after.embeds: # don't log edits for bots or embeds
             return
         if after.content != before.content:
-            logEvent()
+            log_event()
             title = f'**Message Edited**'
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
@@ -274,13 +274,13 @@ class Logs(commands.Cog):
                 logChannel = channel.guild.get_channel(guild.log_channel_id)
         if not logChannel:
             return
-        logEvent()
+        log_event()
         title = f'**Channel Deleted**'
         colour = 0xff0000
         timestamp = datetime.utcnow()
         id = f'Channel ID: {channel.id}'
-        creationTime = channel.created_at
-        time = f'{creationTime.day} {months[creationTime.month-1]} {creationTime.year}, {creationTime.hour}:{creationTime.minute}'
+        creation_time = channel.created_at
+        time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{creation_time.minute}'
         txt = (f'**{channel.name}** was deleted\n'
                f'Channel creation: {time}.')
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
@@ -296,13 +296,13 @@ class Logs(commands.Cog):
             guild = await Guild.get(channel.guild.id)
         except:
             return
-        logChannel = None
+        log_channel = None
         if guild:
             if guild.log_channel_id:
-                logChannel = channel.guild.get_channel(guild.log_channel_id)
-        if not logChannel:
+                log_channel = channel.guild.get_channel(guild.log_channel_id)
+        if not log_channel:
             return
-        logEvent()
+        log_event()
         title = f'**Channel Created**'
         colour = 0x00e400
         timestamp = datetime.utcnow()
@@ -311,7 +311,7 @@ class Logs(commands.Cog):
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         try:
-            await logChannel.send(embed=embed)
+            await log_channel.send(embed=embed)
         except discord.Forbidden:
             return
 
@@ -329,7 +329,7 @@ class Logs(commands.Cog):
             return
 
         if before.nick != after.nick:
-            logEvent()
+            log_event()
             title = f'**Nickname Changed**'
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
@@ -337,14 +337,14 @@ class Logs(commands.Cog):
             txt = f'{after.mention} {after.name}#{after.discriminator}'
             url = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
-            beforeNick = before.nick
-            if not beforeNick:
-                beforeNick = 'N/A'
-            afterNick = after.nick
-            if not afterNick:
-                afterNick = 'N/A'
-            embed.add_field(name='Before', value=beforeNick, inline=False)
-            embed.add_field(name='After', value=afterNick, inline=False)
+            before_nick = before.nick
+            if not before_nick:
+                before_nick = 'N/A'
+            after_nick = after.nick
+            if not after_nick:
+                after_nick = 'N/A'
+            embed.add_field(name='Before', value=before_nick, inline=False)
+            embed.add_field(name='After', value=after_nick, inline=False)
             embed.set_footer(text=id)
             embed.set_thumbnail(url=url)
             try:
@@ -353,15 +353,15 @@ class Logs(commands.Cog):
             except discord.Forbidden:
                 return
         elif set(before.roles) != set(after.roles):
-            logEvent()
-            addedRoles = []
-            removedRoles = []
+            log_event()
+            added_roles = []
+            removed_roles = []
             for r in before.roles:
                 if not r in after.roles:
-                    removedRoles.append(r)
+                    removed_roles.append(r)
             for r in after.roles:
                 if not r in before.roles:
-                    addedRoles.append(r)
+                    added_roles.append(r)
             title = f'**Roles Changed**'
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
@@ -370,21 +370,21 @@ class Logs(commands.Cog):
             url = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             added = ""
-            if addedRoles:
+            if added_roles:
                 count = 0
-                for role in addedRoles:
+                for role in added_roles:
                     count += 1
                     added += role.name
-                    if count < len(addedRoles):
+                    if count < len(added_roles):
                         added += ", "
                 embed.add_field(name='Added', value=added, inline=False)
             removed = ""
-            if removedRoles:
+            if removed_roles:
                 count = 0
-                for role in removedRoles:
+                for role in removed_roles:
                     count += 1
                     removed += role.name
-                    if count < len(removedRoles):
+                    if count < len(removed_roles):
                         removed += ", "
                 embed.add_field(name='Removed', value=removed, inline=False)
             embed.set_footer(text=id)
@@ -393,39 +393,6 @@ class Logs(commands.Cog):
                 await channel.send(embed=embed)
             except discord.Forbidden:
                 return
-            '''
-            if after.guild == self.bot.get_guild(config['portablesServer']):
-                for r in after.guild.roles:
-                    if r.id == config['rankRole']:
-                        rankRole = r
-                if 'Smiley' in added and not 'Rank' in removed and not rankRole in before.roles:
-                    smileyChannel = self.bot.get_channel(config['smileyChannel'])
-                    locChannel = self.bot.get_channel(config['locChannel'])
-                    msg = (f'Welcome to {smileyChannel.mention}, {after.mention}!\n'
-                           f'Please use this channel for any FC related discussions, questions, and issues.\n\n'
-                           f'Please check the pinned messages in this channel and in {locChannel.mention}, where you’ll be able to edit our sheets by updating locations, for important posts and details.')
-                    try:
-                        await smileyChannel.send(msg)
-                    except discord.Forbidden:
-                        return
-                elif 'Rank' in added:
-                    rankChannel = self.bot.get_channel(config['rankChannel'])
-                    msg = (f'Welcome {after.mention}, and congratulations on your rank!\n'
-                           f'If you have any questions, feel free to ask for help here in {rankChannel.mention}, or DM an Admin+.')
-                    try:
-                        await rankChannel.send(msg)
-                    except discord.Forbidden:
-                        return
-                elif 'Moderator' in added and not 'Admin' in removed:
-                    modChannel = self.bot.get_channel(config['modChannel'])
-                    msg = (f'Welcome {after.mention}, and congratulations on your promotion!\n\n'
-                           f'As a Moderator, you now have the ability to ban players from the FC. To do so, head over to the \'Bans\' tab on the sheets, and in a new row enter all the necessary information and set the status to \'Pending\'. Then send a message here in {modChannel.mention} along the lines of \"[player] to be banned\", and a Leader will apply the ban for you.\n\n'
-                           f'If you have any questions, or if you\'re ever unsure about banning someone, feel free to discuss it here, or DM an Admin+ for advice.')
-                    try:
-                        await modChannel.send(msg)
-                    except discord.Forbidden:
-                        return
-            '''
 
     @Cog.listener()
     async def on_guild_update(self, before, after):
@@ -440,7 +407,7 @@ class Logs(commands.Cog):
         if not channel:
             return
         if before.name != after.name:
-            logEvent()
+            log_event()
             owner = after.owner
             title = f'**Server Name Changed**'
             colour = 0x00b2ff
@@ -449,14 +416,14 @@ class Logs(commands.Cog):
             txt = f'Owner: {owner.mention} {owner.name}#{owner.discriminator}'
             url = after.icon.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
-            beforeName = before.name
-            if not beforeName:
-                beforeName = 'N/A'
-            afterName = after.name
-            if not afterName:
-                afterName = 'N/A'
-            embed.add_field(name='Before', value=beforeName, inline=False)
-            embed.add_field(name='After', value=afterName, inline=False)
+            before_name = before.name
+            if not before_name:
+                before_name = 'N/A'
+            after_name = after.name
+            if not after_name:
+                after_name = 'N/A'
+            embed.add_field(name='Before', value=before_name, inline=False)
+            embed.add_field(name='After', value=after_name, inline=False)
             embed.set_footer(text=id)
             embed.set_thumbnail(url=url)
             try:
@@ -476,7 +443,7 @@ class Logs(commands.Cog):
                 channel = role.guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        logEvent()
+        log_event()
         title = f'**Role Created**'
         colour = 0x00e400
         timestamp = datetime.utcnow()
@@ -510,7 +477,7 @@ class Logs(commands.Cog):
                 channel = role.guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        logEvent()
+        log_event()
         title = f'**Role Deleted**'
         colour = 0xff0000
         timestamp = datetime.utcnow()
@@ -536,7 +503,7 @@ class Logs(commands.Cog):
         if not channel:
             return
         if before.name != after.name:
-            logEvent()
+            log_event()
             title = f'**Role Name Changed**'
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
@@ -568,9 +535,9 @@ class Logs(commands.Cog):
             return
 
         if len(before) != len(after):
-            logEvent()
+            log_event()
             added = False
-            newEmoji = None
+            new_emoji = None
             animated = False
             if len(before) > len(after):
                 title = f'Emoji Deleted'
@@ -588,7 +555,7 @@ class Logs(commands.Cog):
                     if not e in before:
                         name = e.name
                         added = True
-                        newEmoji = e
+                        new_emoji = e
                         animated = e.animated
                         break
                 if animated:
@@ -599,11 +566,11 @@ class Logs(commands.Cog):
             txt = ''
             if added:
                 try:
-                    new_emoji_fetched = await guild.fetch_emoji(newEmoji.id)
+                    new_emoji_fetched = await guild.fetch_emoji(new_emoji.id)
                     txt = f'Added by {new_emoji_fetched.user.mention}:\n'
                 except:
                     pass
-                txt += f'{newEmoji} `{name}`\n'
+                txt += f'{new_emoji} `{name}`\n'
             else:
                 txt = f'`{name}`'
             length = 0
@@ -625,30 +592,30 @@ class Logs(commands.Cog):
                 return
             except discord.Forbidden:
                 return
-        beforeNames = []
+        before_names = []
         for e in before:
-            beforeNames.append(e.name)
-        afterNames = []
+            before_names.append(e.name)
+        after_names = []
         for e in after:
-            afterNames.append(e.name)
-        oldName = ''
-        newName = ''
-        for name in beforeNames:
-            if not name in afterNames:
-                oldName = name
-        for name in afterNames:
-            if not name in beforeNames:
-                newName = name
+            after_names.append(e.name)
+        old_name = ''
+        new_name = ''
+        for name in before_names:
+            if not name in after_names:
+                old_name = name
+        for name in after_names:
+            if not name in before_names:
+                new_name = name
                 for e in after:
                     if e.name == name:
                         afterEmoji = e
                         break
-        if oldName and newName:
-            logEvent()
+        if old_name and new_name:
+            log_event()
             title = f'Emoji name changed'
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
-            txt = f'Before: {oldName}\nAfter: {newName}\n{str(afterEmoji)}'
+            txt = f'Before: {old_name}\nAfter: {new_name}\n{str(afterEmoji)}'
             id = f'Server ID: {guild.id}'
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             embed.set_footer(text=id)

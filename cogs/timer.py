@@ -1,17 +1,13 @@
 import asyncio
 import discord
 from discord.ext import commands
-import os
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, User
+from main import increment_command_counter, User
 from datetime import datetime, timedelta
-import html
-import re
-from utils import timeDiffToString
+from utils import time_diff_to_string
 import pytz
 from utils import countries, is_int
-from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, portables_only
 
 def string_to_timezone(timezone):
     if timezone.upper() == 'USA':
@@ -81,7 +77,7 @@ class Timer(commands.Cog):
         Please note that timers will be lost if the bot is restarted or goes down unexpectedly.
         Don't forget to surround your inputs with "quotation marks" if they contains spaces.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not time:
             raise commands.CommandError(message=f'Required argument missing: `time`.')
@@ -137,7 +133,7 @@ class Timer(commands.Cog):
         if time < 1 or time > 86400:
             raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
 
-        timeStr = timeDiffToString(timedelta(seconds=time))
+        timeStr = time_diff_to_string(timedelta(seconds=time))
 
         await ctx.send(f'You have set a timer for **{timeStr}**.')
 
@@ -157,7 +153,7 @@ class Timer(commands.Cog):
         '''
         Check the time in a given timezone.
         '''
-        addCommand()
+        increment_command_counter()
 
         timezone = string_to_timezone(timezone)
 
@@ -173,7 +169,7 @@ class Timer(commands.Cog):
         '''
         Convert a given time in UTC to several timezones across the world.
         '''
-        addCommand()
+        increment_command_counter()
 
         input = ' '.join(time).upper()
         time = input
@@ -234,7 +230,7 @@ class Timer(commands.Cog):
         Set your personal timezone.
         This timezone will be shown (among others) when you use the `worldtime` command.
         '''
-        addCommand()
+        increment_command_counter()
 
         input = ' '.join(tz_or_loc).upper()
 

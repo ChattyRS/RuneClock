@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, Poll
+from main import config_load, increment_command_counter, Poll
 import random
 from pyowm.owm import OWM
 from datetime import datetime, timedelta
@@ -15,7 +15,7 @@ import validators
 config = config_load()
 
 rps = ['Rock', 'Paper', 'Scissors']
-rpsUpper = ['ROCK', 'PAPER', 'SCISSORS']
+rps_upper = ['ROCK', 'PAPER', 'SCISSORS']
 
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -94,7 +94,7 @@ class General(commands.Cog):
         '''
         Flips a coin.
         '''
-        addCommand()
+        increment_command_counter()
         
         i = random.randint(0,1)
         result = ''
@@ -110,7 +110,7 @@ class General(commands.Cog):
         '''
         Rolls a dice.
         '''
-        addCommand()
+        increment_command_counter()
         
         if is_int(num):
             num = int(num)
@@ -137,9 +137,9 @@ class General(commands.Cog):
         '''
         Play rock, paper, scissors.
         '''
-        addCommand()
+        increment_command_counter()
         
-        if not choice.upper() in rpsUpper:
+        if not choice.upper() in rps_upper:
             raise commands.CommandError(message=f'Invalid argument: `{choice}`.')
         
         for x in rps:
@@ -166,7 +166,7 @@ class General(commands.Cog):
         '''
         Get the weather forecast for a location
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         
         location = ' '.join(location)
@@ -196,7 +196,7 @@ class General(commands.Cog):
         '''
         Get info on a server
         '''
-        addCommand()
+        increment_command_counter()
 
         guild = ctx.guild
         title = f'Server info for: **{guild.name}**'
@@ -219,7 +219,7 @@ class General(commands.Cog):
         '''
         Get info on a member.
         '''
-        addCommand()
+        increment_command_counter()
         
         msg = ctx.message
         member = ''
@@ -265,35 +265,35 @@ class General(commands.Cog):
             embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.display_avatar.url)
             embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name='Status', value=f'{str(member.status)[0].upper() + str(member.status)[1:]}')
-        joinTime = member.joined_at
-        min = joinTime.minute
+        join_time = member.joined_at
+        min = join_time.minute
         if min == 0:
             min = '00'
-        time = f'{joinTime.day} {months[joinTime.month-1]} {joinTime.year}, {joinTime.hour}:{min}'
+        time = f'{join_time.day} {months[join_time.month-1]} {join_time.year}, {join_time.hour}:{min}'
         embed.add_field(name='Joined', value=time)
-        joinList = sorted(ctx.guild.members, key=attrgetter('joined_at'))
-        joinPos = joinList.index(member)+1
-        embed.add_field(name='Join Position', value=str(joinPos))
-        creationTime = member.created_at
-        min = creationTime.minute
+        join_list = sorted(ctx.guild.members, key=attrgetter('joined_at'))
+        join_pos = join_list.index(member)+1
+        embed.add_field(name='Join Position', value=str(join_pos))
+        creation_time = member.created_at
+        min = creation_time.minute
         if min == 0:
             min = '00'
-        time = f'{creationTime.day} {months[creationTime.month-1]} {creationTime.year}, {creationTime.hour}:{min}'
+        time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{min}'
         embed.add_field(name='Registered', value=time)
         roles = member.roles
-        roleStr = ''
+        role_str = ''
         for i, r in enumerate(roles):
             if i == 0:
                 continue
-            roleStr += r.mention + ' '
-        roleStr = roleStr.strip()
-        if roleStr:
-            embed.add_field(name=f'Roles ({len(member.roles)-1})', value=roleStr, inline=False)
+            role_str += r.mention + ' '
+        role_str = role_str.strip()
+        if role_str:
+            embed.add_field(name=f'Roles ({len(member.roles)-1})', value=role_str, inline=False)
         else:
             embed.add_field(name=f'Roles (0)', value='None', inline=False)
-        permStr = perm_string(member.guild_permissions)
-        if permStr:
-            embed.add_field(name=f'Permissions', value=permStr)
+        perm_str = perm_string(member.guild_permissions)
+        if perm_str:
+            embed.add_field(name=f'Permissions', value=perm_str)
         embed.set_footer(text=f'ID: {member.id}')
 
         await ctx.send(embed=embed)
@@ -303,7 +303,7 @@ class General(commands.Cog):
         '''
         Quotes a message from a given message ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not msg_id:
@@ -345,7 +345,7 @@ class General(commands.Cog):
         '''
         Generate random Lorem Ipsum text.
         '''
-        addCommand()
+        increment_command_counter()
 
         # Verify that both the number of words and paragraphs are positive
         if words < 1:
@@ -406,7 +406,7 @@ class General(commands.Cog):
         '''
         Shorten a URL.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not url:
@@ -429,7 +429,7 @@ class General(commands.Cog):
         It is best to provide a mention to ensure the right object is found.
         Supports: channels, roles, members, emojis, messages, guild.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not input:
@@ -543,7 +543,7 @@ class General(commands.Cog):
         Poll duration can vary from 1 hour to 1 week (168 hours).
         Options must be separated by commas.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not is_int(hours):
             options = [hours] + list(options)
@@ -583,7 +583,7 @@ class General(commands.Cog):
         '''
         Close a poll by giving its message ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(msg_id):

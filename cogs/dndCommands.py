@@ -3,10 +3,10 @@ from discord.ext import commands, tasks
 import sys
 import copy
 sys.path.append('../')
-from main import config_load, addCommand, districts
+from main import config_load, increment_command_counter, districts
 from datetime import datetime, timedelta
-from utils import timeDiffToString
-from utils import itemEmojis
+from utils import time_diff_to_string
+from utils import item_emojis
 import json
 
 config = config_load()
@@ -139,7 +139,7 @@ class DNDCommands(commands.Cog):
 
             txt = ''
             for item in items:
-                for e in itemEmojis:
+                for e in item_emojis:
                     if item == e[0]:
                         txt += config[e[1]] + ' '
                         break
@@ -186,21 +186,21 @@ class DNDCommands(commands.Cog):
         '''
         Returns the time until all future events.
         '''
-        addCommand()
+        increment_command_counter()
 
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
 
         msg = (f'Future:\n'
-               f'{config["warbandsEmoji"]} **Wilderness warbands** will begin in {timeDiffToString(self.bot.next_warband - now)}.\n'
-               f'{config["vosEmoji"]} **Voice of Seren** will change in {timeDiffToString(self.bot.next_vos - now)}.\n'
-               f'{config["cacheEmoji"]} **Guthixian caches** will begin in {timeDiffToString(self.bot.next_cache - now)}.\n'
-               f'{config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {timeDiffToString(self.bot.next_yews48 - now)}.\n'
-               f'{config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {timeDiffToString(self.bot.next_yews140 - now)}.\n'
-               f'{config["goebiesEmoji"]} **Goebies supply run** will begin in {timeDiffToString(self.bot.next_goebies - now)}.\n'
-               f'{config["sinkholeEmoji"]} **Sinkhole** will spawn in {timeDiffToString(self.bot.next_sinkhole - now)}.\n'
-               f'{config["merchantEmoji"]} **Travelling merchant** stock will refresh in {timeDiffToString(self.bot.next_merchant - now)}.\n'
-               f'{config["spotlightEmoji"]} **Minigame spotlight** will change in {timeDiffToString(self.bot.next_spotlight - now)}.')
+               f'{config["warbandsEmoji"]} **Wilderness warbands** will begin in {time_diff_to_string(self.bot.next_warband - now)}.\n'
+               f'{config["vosEmoji"]} **Voice of Seren** will change in {time_diff_to_string(self.bot.next_vos - now)}.\n'
+               f'{config["cacheEmoji"]} **Guthixian caches** will begin in {time_diff_to_string(self.bot.next_cache - now)}.\n'
+               f'{config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {time_diff_to_string(self.bot.next_yews48 - now)}.\n'
+               f'{config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {time_diff_to_string(self.bot.next_yews140 - now)}.\n'
+               f'{config["goebiesEmoji"]} **Goebies supply run** will begin in {time_diff_to_string(self.bot.next_goebies - now)}.\n'
+               f'{config["sinkholeEmoji"]} **Sinkhole** will spawn in {time_diff_to_string(self.bot.next_sinkhole - now)}.\n'
+               f'{config["merchantEmoji"]} **Travelling merchant** stock will refresh in {time_diff_to_string(self.bot.next_merchant - now)}.\n'
+               f'{config["spotlightEmoji"]} **Minigame spotlight** will change in {time_diff_to_string(self.bot.next_spotlight - now)}.')
         
         await ctx.send(msg)
 
@@ -209,12 +209,12 @@ class DNDCommands(commands.Cog):
         '''
         Returns the current Voice of Seren.
         '''
-        addCommand()
+        increment_command_counter()
 
         now = datetime.utcnow()
         now = now.replace(second=0, microsecond=0)
         time_to_vos = self.bot.next_vos - now
-        time_to_vos = timeDiffToString(time_to_vos)
+        time_to_vos = time_diff_to_string(time_to_vos)
 
         current = self.bot.vos['vos']
         next_vos = self.bot.vos['next']
@@ -235,14 +235,14 @@ class DNDCommands(commands.Cog):
         '''
         Returns the current travelling merchant stock.
         '''
-        addCommand()
+        increment_command_counter()
 
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
 
         embed = discord.Embed(title='Traveling Merchant\'s Shop', colour=0x00b2ff, timestamp=datetime.utcnow(), url='https://runescape.wiki/w/Travelling_Merchant%27s_Shop', description=self.bot.merchant)
         embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
-        embed.set_footer(text=f'Reset in {timeDiffToString(self.bot.next_merchant - now)}.')
+        embed.set_footer(text=f'Reset in {time_diff_to_string(self.bot.next_merchant - now)}.')
         
         await ctx.send(embed=embed)
 
@@ -251,12 +251,12 @@ class DNDCommands(commands.Cog):
         '''
         Returns the time until wilderness warbands starts.
         '''
-        addCommand()
+        increment_command_counter()
         
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
         
-        msg = config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + timeDiffToString(self.bot.next_warband - now) + "."
+        msg = config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + time_diff_to_string(self.bot.next_warband - now) + "."
         
         await ctx.send(msg)
 
@@ -265,12 +265,12 @@ class DNDCommands(commands.Cog):
         '''
         Returns the time until the next Guthixian cache.
         '''
-        addCommand()
+        increment_command_counter()
         
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
         
-        msg = config['cacheEmoji'] + " **Guthixian caches** will begin in " + timeDiffToString(self.bot.next_cache - now) + "."
+        msg = config['cacheEmoji'] + " **Guthixian caches** will begin in " + time_diff_to_string(self.bot.next_cache - now) + "."
         
         await ctx.send(msg)
 
@@ -279,12 +279,12 @@ class DNDCommands(commands.Cog):
         '''
         Returns the time until the next divine yews event.
         '''
-        addCommand()
+        increment_command_counter()
 
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
         
-        msg = config['yewsEmoji'] + " **Divine yews** will begin in " + timeDiffToString(self.bot.next_yews48 - now) + " in w48 bu, and in " + timeDiffToString(self.bot.next_yews140 - now) + " in w140 bu."
+        msg = config['yewsEmoji'] + " **Divine yews** will begin in " + time_diff_to_string(self.bot.next_yews48 - now) + " in w48 bu, and in " + time_diff_to_string(self.bot.next_yews140 - now) + " in w140 bu."
         
         await ctx.send(msg)
 
@@ -293,12 +293,12 @@ class DNDCommands(commands.Cog):
         '''
         Returns the time until the next goebies supply run.
         '''
-        addCommand()
+        increment_command_counter()
         
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
         
-        msg = config['goebiesEmoji'] + " **Goebies supply run** will begin in " + timeDiffToString(self.bot.next_goebies - now) + "."
+        msg = config['goebiesEmoji'] + " **Goebies supply run** will begin in " + time_diff_to_string(self.bot.next_goebies - now) + "."
         
         await ctx.send(msg)
 
@@ -307,12 +307,12 @@ class DNDCommands(commands.Cog):
         '''
         Returns the time until the next sinkhole.
         '''
-        addCommand()
+        increment_command_counter()
         
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
         
-        msg = config['sinkholeEmoji'] + " **Sinkhole** will spawn in " + timeDiffToString(self.bot.next_sinkhole - now) + "."
+        msg = config['sinkholeEmoji'] + " **Sinkhole** will spawn in " + time_diff_to_string(self.bot.next_sinkhole - now) + "."
         
         await ctx.send(msg)
 
@@ -321,13 +321,13 @@ class DNDCommands(commands.Cog):
         '''
         Returns the current and next minigame spotlight.
         '''
-        addCommand()
+        increment_command_counter()
         
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
         
         embed = discord.Embed(title='Minigame Spotlight', colour=0x00b2ff, description=self.bot.spotlight)
-        embed.set_footer(text=timeDiffToString(self.bot.next_spotlight - now))
+        embed.set_footer(text=time_diff_to_string(self.bot.next_spotlight - now))
         
         await ctx.send(embed=embed)
 

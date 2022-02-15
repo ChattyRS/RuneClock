@@ -1,9 +1,8 @@
-import asyncio
 import discord
 from discord.ext import commands
 import sys
 sys.path.append('../')
-from main import config_load, addCommand
+from main import config_load, increment_command_counter
 import math
 import re
 import cmath
@@ -13,7 +12,6 @@ import sympy
 from utils import is_int, is_float
 from forex_python.converter import CurrencyRates
 from utils import units, unit_aliases
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 import io
 import multiprocessing
 
@@ -311,7 +309,7 @@ class Mathematics(commands.Cog):
         Sum: sum(start, end, f(x)) (start and end inclusive)
         Product: product(start, end, f(x)) (start and end inclusive)
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         
         formula = ''
@@ -364,7 +362,7 @@ class Mathematics(commands.Cog):
         Constants: pi, e, phi, tau, etc...
         Example: graph -10 10 x
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         formula = ''
         for f in formulas:
@@ -438,7 +436,7 @@ class Mathematics(commands.Cog):
         Trigonometry: sin(), cos(), tan() (in radians)
         Complex/imaginary numbers: i
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         
         formula = ''
@@ -495,7 +493,7 @@ class Mathematics(commands.Cog):
         Converts given unit to new unit.
         Default value = 1
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not value or not unit:
@@ -563,7 +561,7 @@ class Mathematics(commands.Cog):
         '''
         List of units supported by convert command.
         '''
-        addCommand()
+        increment_command_counter()
 
         txt = ''
         prev = [None]
@@ -583,7 +581,7 @@ class Mathematics(commands.Cog):
         '''
         Convert a number literal to scientific notation and vice versa.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not number:

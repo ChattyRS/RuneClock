@@ -1,26 +1,22 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import json
 import logging
 from pathlib import Path
 import sys
-import re
 import discord
 from discord.ext import commands
 import codecs
-from oauth2client.service_account import ServiceAccountCredentials
 import utils
 import string
-import copy
 import aiohttp
 import gspread_asyncio
 import feedparser
 import traceback
 from github import Github
 from difflib import SequenceMatcher
-from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem
+from database import Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem
 from database import setup as database_setup
-from database import close_connection as close_database
 import io
 import html
 import oauthlib
@@ -41,15 +37,15 @@ twitter_client = oauthlib.oauth1.Client(
     resource_owner_key = config['access_token_key'],
     resource_owner_secret = config['access_token_secret'])
 
-commandsAnswered = 0 # int to track how many commands have been processed since startup
+command_counter = 0 # int to track how many commands have been processed since startup
 
 # variable used for VOS notifications
 districts = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
 
 # variable used for role management
-notifRoles = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'PinkSkirts']
+notif_roles = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'PinkSkirts']
 for d in districts:
-    notifRoles.append(d)
+    notif_roles.append(d)
 
 '''
 Used for plagiarism check for smiley applications
@@ -71,15 +67,15 @@ def split(txt, seps):
 '''
 Increment global commands counter
 '''
-def addCommand():
-    global commandsAnswered
-    commandsAnswered += 1
+def increment_command_counter():
+    global command_counter
+    command_counter += 1
 
 '''
 Return value of global commands counter
 '''
-def getCommandsAnswered():
-    return commandsAnswered
+def get_command_counter():
+    return command_counter
 
 async def run():
     '''
@@ -318,11 +314,11 @@ class Bot(commands.AutoShardedBot):
             except discord.Forbidden:
                 return
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
-        notifEmojis = []
-        for r in notifRoles:
-            emojiID = config[f'{r.lower()}EmojiID']
-            e = self.get_emoji(emojiID)
-            notifEmojis.append(e)
+        notif_emojis = []
+        for r in notif_roles:
+            emoji_id = config[f'{r.lower()}EmojiID']
+            e = self.get_emoji(emoji_id)
+            notif_emojis.append(e)
             msg += str(e) + ' ' + r + '\n'
         msg += "\nIf you wish to stop receiving notifications, simply remove your reaction. If your reaction isn't there anymore, then you can add a new one and remove it."
         for c in channels:
@@ -334,7 +330,7 @@ class Bot(commands.AutoShardedBot):
                     await c.send(msg)
                     try:
                         async for message in c.history(limit=1):
-                            for e in notifEmojis:
+                            for e in notif_emojis:
                                 await message.add_reaction(e)
                     except Exception as e:
                         print(f'Exception: {e}')
@@ -406,11 +402,11 @@ class Bot(commands.AutoShardedBot):
 
         if guild.role_channel_id == channel.id:
             emoji = payload.emoji
-            roleName = emoji.name
-            if emoji.name in notifRoles:
-                role = discord.utils.get(channel.guild.roles, name=roleName)
+            role_name = emoji.name
+            if emoji.name in notif_roles:
+                role = discord.utils.get(channel.guild.roles, name=role_name)
             elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
-                role = discord.utils.get(channel.guild.roles, name=roleName)
+                role = discord.utils.get(channel.guild.roles, name=role_name)
                 
             if role:
                 try:
@@ -484,11 +480,11 @@ class Bot(commands.AutoShardedBot):
             return
 
         emoji = payload.emoji
-        roleName = emoji.name
-        if emoji.name in notifRoles:
-            role = discord.utils.get(channel.guild.roles, name=roleName)
+        role_name = emoji.name
+        if emoji.name in notif_roles:
+            role = discord.utils.get(channel.guild.roles, name=role_name)
         elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
-            role = discord.utils.get(channel.guild.roles, name=roleName)
+            role = discord.utils.get(channel.guild.roles, name=role_name)
 
         if role:
             try:
@@ -548,9 +544,9 @@ class Bot(commands.AutoShardedBot):
         '''
         if message.guild.id == config['portablesServer'] and not '!' == prefix:
             if message.content.upper().startswith('!PORTABLE'):
-                locChannel = self.bot.get_channel(config['locChannel'])
-                if message.channel != locChannel:
-                    await message.channel.send(f'Please use this command in {locChannel.mention}.')
+                loc_channel = self.bot.get_channel(config['locChannel'])
+                if message.channel != loc_channel:
+                    await message.channel.send(f'Please use this command in {loc_channel.mention}.')
                 else:
                     portables_command = self.get_command('portables')
                     context = await self.get_context(message=message)
@@ -583,61 +579,61 @@ class Bot(commands.AutoShardedBot):
         channel = self.get_channel(config['testNotificationChannel'])
         
         if not channel:
-            logChannel = self.get_channel(config['testChannel'])
+            log_channel = self.get_channel(config['testChannel'])
             msg = f'Sorry, I was unable to retrieve any notification channels. Notifications are down.'
             print(msg)
             logging.critical(msg)
             try:
-                await logChannel.send(msg)
+                await log_channel.send(msg)
                 return
             except discord.Forbidden:
                 return
-        notifiedThisHourWarbands = False
-        notifiedThisHourVOS = False
-        notifiedThisHourCache = False
-        notifiedThisHourYews48 = False
-        notifiedThisHourYews140 = False
-        notifiedThisHourGoebies = False
-        notifiedThisHourSinkhole = False
-        notifiedThisHourPinkSkirts = False
-        notifiedThisDayMerchant = False
-        notifiedThisDaySpotlight = False
+        notified_this_hour_warbands = False
+        notified_this_hour_vos = False
+        notified_this_hour_cache = False
+        notified_this_hour_yews_48 = False
+        notified_this_hour_yews_140 = False
+        notified_this_hour_goebies = False
+        notified_this_hour_sinkhole = False
+        notified_this_hour_pinkskirts = False
+        notified_this_day_merchant = False
+        notified_this_day_spotlight = False
         reset = False
-        currentTime = datetime.utcnow()
+        current_time = datetime.utcnow()
         async for m in channel.history(limit=100):
-            if m.created_at.day == currentTime.day:
+            if m.created_at.day == current_time.day:
                 if 'Merchant' in m.content:
-                    notifiedThisDayMerchant = True
+                    notified_this_day_merchant = True
                     continue
                 if 'spotlight' in m.content:
-                    notifiedThisDaySpotlight = True
+                    notified_this_day_spotlight = True
                     continue
-                if m.created_at.hour == currentTime.hour:
+                if m.created_at.hour == current_time.hour:
                     if 'Warbands' in m.content:
-                        notifiedThisHourWarbands = True
+                        notified_this_hour_warbands = True
                         continue
                     if any(d in m.content for d in districts):
-                        if currentTime.minute <= 1:
+                        if current_time.minute <= 1:
                             reset = True
-                        notifiedThisHourVOS = True
+                        notified_this_hour_vos = True
                         continue
                     if 'Cache' in m.content:
-                        notifiedThisHourCache = True
+                        notified_this_hour_cache = True
                         continue
                     if 'yew' in m.content:
                         if '48' in m.content:
-                            notifiedThisHourYews48 = True
+                            notified_this_hour_yews_48 = True
                         elif '140' in m.content:
-                            notifiedThisHourYews140 = True
+                            notified_this_hour_yews_140 = True
                         continue
                     if 'Goebies' in m.content:
-                        notifiedThisHourGoebies = True
+                        notified_this_hour_goebies = True
                         continue
                     if 'Sinkhole' in m.content:
-                        notifiedThisHourSinkhole = True
+                        notified_this_hour_sinkhole = True
                         continue
                     if 'Pink' in m.content and 'Skirt' in m.content:
-                        notifiedThisHourPinkSkirts = True
+                        notified_this_hour_pinkskirts = True
                         continue
             else:
                 break
@@ -650,7 +646,7 @@ class Bot(commands.AutoShardedBot):
         while True:
             try:
                 now = datetime.utcnow()
-                if not notifiedThisDayMerchant and now.hour <= 2:
+                if not notified_this_day_merchant and now.hour <= 2:
                     if self.bot.next_merchant > now + timedelta(hours=1):
                         txt = self.bot.merchant
 
@@ -674,9 +670,9 @@ class Bot(commands.AutoShardedBot):
                                 await c.send(f'{role}\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{txt}')
                             except discord.Forbidden:
                                 pass
-                        notifiedThisDayMerchant = True
+                        notified_this_day_merchant = True
 
-                if not notifiedThisDaySpotlight and now.hour <= 1:
+                if not notified_this_day_spotlight and now.hour <= 1:
                     if self.bot.next_spotlight > now + timedelta(days=2, hours=1):
                         minigame = self.bot.spotlight
                         emoji = config['spotlightEmoji']
@@ -702,8 +698,8 @@ class Bot(commands.AutoShardedBot):
                                 await c.send(msg)
                             except discord.Forbidden:
                                 continue
-                        notifiedThisDaySpotlight = True
-                if not notifiedThisHourVOS and now.minute <= 1:
+                        notified_this_day_spotlight = True
+                if not notified_this_hour_vos and now.minute <= 1:
                     if self.bot.next_vos > now + timedelta(minutes=1):
                         channels = []
                         guilds = await Guild.query.gino.all()
@@ -726,12 +722,12 @@ class Bot(commands.AutoShardedBot):
                                     role = role.mention
                                 msg += config[msgName] + role + '\n'
                             if msg:
-                                notifiedThisHourVOS = True
+                                notified_this_hour_vos = True
                                 try:
                                     await c.send(msg)
                                 except discord.Forbidden:
                                     continue
-                if not notifiedThisHourWarbands and now.minute >= 45 and now.minute <= 46:
+                if not notified_this_hour_warbands and now.minute >= 45 and now.minute <= 46:
                     if self.bot.next_warband - now <= timedelta(minutes=15):
                         channels = []
                         guilds = await Guild.query.gino.all()
@@ -752,9 +748,9 @@ class Bot(commands.AutoShardedBot):
                                 await c.send(config['msgWarbands'] + role)
                             except discord.Forbidden:
                                 continue
-                            notifiedThisHourWarbands = True
+                            notified_this_hour_warbands = True
                             
-                if not notifiedThisHourCache and now.minute >= 55 and now.minute <= 56:
+                if not notified_this_hour_cache and now.minute >= 55 and now.minute <= 56:
                     channels = []
                     guilds = await Guild.query.gino.all()
                     for guild in guilds:
@@ -775,8 +771,8 @@ class Bot(commands.AutoShardedBot):
                             await c.send(config['msgCache'] + role)
                         except discord.Forbidden:
                             continue
-                    notifiedThisHourCache = True
-                if not notifiedThisHourYews48 and now.hour == 23 and now.minute >= 45 and now.minute <= 46:
+                    notified_this_hour_cache = True
+                if not notified_this_hour_yews_48 and now.hour == 23 and now.minute >= 45 and now.minute <= 46:
                     channels = []
                     guilds = await Guild.query.gino.all()
                     for guild in guilds:
@@ -797,8 +793,8 @@ class Bot(commands.AutoShardedBot):
                             await c.send(config['msgYews48'] + role)
                         except discord.Forbidden:
                             continue
-                    notifiedThisHourYews48 = True
-                if not notifiedThisHourYews140 and now.hour == 16 and now.minute >= 45 and now.minute <= 46:
+                    notified_this_hour_yews_48 = True
+                if not notified_this_hour_yews_140 and now.hour == 16 and now.minute >= 45 and now.minute <= 46:
                     channels = []
                     guilds = await Guild.query.gino.all()
                     for guild in guilds:
@@ -819,8 +815,8 @@ class Bot(commands.AutoShardedBot):
                             await c.send(config['msgYews140'] + role)
                         except discord.Forbidden:
                             continue
-                    notifiedThisHourYews140 = True
-                if not notifiedThisHourGoebies and now.hour in [11, 23] and now.minute >= 45 and now.minute <= 46:
+                    notified_this_hour_yews_140 = True
+                if not notified_this_hour_goebies and now.hour in [11, 23] and now.minute >= 45 and now.minute <= 46:
                     channels = []
                     guilds = await Guild.query.gino.all()
                     for guild in guilds:
@@ -841,8 +837,8 @@ class Bot(commands.AutoShardedBot):
                             await c.send(config['msgGoebies'] + role)
                         except discord.Forbidden:
                             continue
-                    notifiedThisHourGoebies = True
-                if not notifiedThisHourSinkhole and now.minute >= 25 and now.minute <= 26:
+                    notified_this_hour_goebies = True
+                if not notified_this_hour_sinkhole and now.minute >= 25 and now.minute <= 26:
                     channels = []
                     guilds = await Guild.query.gino.all()
                     for guild in guilds:
@@ -863,10 +859,10 @@ class Bot(commands.AutoShardedBot):
                             await c.send(config['msgSinkhole'] + role)
                         except discord.Forbidden:
                             continue
-                    notifiedThisHourSinkhole = True
+                    notified_this_hour_sinkhole = True
                 
                 # Notify of Pink Skirts events
-                if not notifiedThisHourPinkSkirts and i == 0:
+                if not notified_this_hour_pinkskirts and i == 0:
                     ps_tweets = []
 
                     uri = 'https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=PinkSkirtsRS&count=10'
@@ -920,24 +916,24 @@ class Bot(commands.AutoShardedBot):
                             except discord.Forbidden:
                                 continue
 
-                        notifiedThisHourPinkSkirts = True
+                        notified_this_hour_pinkskirts = True
                         break
 
 
                 if now.minute > 1 and reset:
                     reset = False
                 if now.minute == 0 and not reset:
-                    notifiedThisHourWarbands = False
-                    notifiedThisHourVOS = False
-                    notifiedThisHourCache = False
-                    notifiedThisHourYews48 = False
-                    notifiedThisHourYews140 = False
-                    notifiedThisHourGoebies = False
-                    notifiedThisHourSinkhole = False
-                    notifiedThisHourPinkSkirts = False
+                    notified_this_hour_warbands = False
+                    notified_this_hour_vos = False
+                    notified_this_hour_cache = False
+                    notified_this_hour_yews_48 = False
+                    notified_this_hour_yews_140 = False
+                    notified_this_hour_goebies = False
+                    notified_this_hour_sinkhole = False
+                    notified_this_hour_pinkskirts = False
                     if now.hour == 0:
-                        notifiedThisDayMerchant = False
-                        notifiedThisDaySpotlight = False
+                        notified_this_day_merchant = False
+                        notified_this_day_spotlight = False
                     reset = True
                 await asyncio.sleep(15)
                 i = (i + 1) % 4
@@ -946,7 +942,7 @@ class Bot(commands.AutoShardedBot):
                 logging.critical(error)
                 print(error)
                 try:
-                    await logChannel.send(error)
+                    await log_channel.send(error)
                 except:
                     pass
                 await asyncio.sleep(5)
@@ -1001,8 +997,8 @@ class Bot(commands.AutoShardedBot):
                 logging.critical(error)
                 print(error)
                 try:
-                    logChannel = self.get_channel(config['testChannel'])
-                    await logChannel.send(error)
+                    log_channel = self.get_channel(config['testChannel'])
+                    await log_channel.send(error)
                 except:
                     pass
                 await asyncio.sleep(30)
@@ -1175,8 +1171,8 @@ class Bot(commands.AutoShardedBot):
                 print(error)
                 try:
                     config = config_load()
-                    logChannel = self.get_channel(config['testChannel'])
-                    await logChannel.send(error)
+                    log_channel = self.get_channel(config['testChannel'])
+                    await log_channel.send(error)
                 except:
                     pass
                 await asyncio.sleep(900)

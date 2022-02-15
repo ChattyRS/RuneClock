@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, Poll, Guild
+from main import config_load, increment_command_counter, Poll, Guild
 from datetime import datetime, timedelta, timezone
 import re
 import copy
@@ -283,7 +283,7 @@ class Cozy(commands.Cog):
         Promotes a rank on the Cozy CC clan roster and on Discord if applicable.
         Arguments: names (separated by commas)
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         names = ' '.join(names).strip()
@@ -422,7 +422,7 @@ class Cozy(commands.Cog):
         Demotes a rank on the Cozy CC clan roster and on Discord if applicable.
         Arguments: names (separated by commas)
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         admin_role = ctx.guild.get_role(config['cozy_admin_role_id'])
@@ -567,7 +567,7 @@ class Cozy(commands.Cog):
         Sheet will be updated as well as discord.
         Arguments: old_name, new_name (separated by a comma)
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         names = ' '.join(names).strip()
@@ -670,7 +670,7 @@ class Cozy(commands.Cog):
         '''
         Shows top-10 for the current SOTW
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         global cozy_sotw_url
@@ -738,7 +738,7 @@ class Cozy(commands.Cog):
         '''
         Shows top-10 for the current BOTW
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         global cozy_botw_url
@@ -806,7 +806,7 @@ class Cozy(commands.Cog):
         '''
         Shows this week's planned events for Cozy Corner CC.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         calendar = GoogleCalendar(config['cozy_calendar'], credentials_path='data/calendar_credentials.json')
@@ -862,7 +862,7 @@ class Cozy(commands.Cog):
         '''
         Add a member to the Cozy Corner wiseoldman group.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not name:
@@ -891,7 +891,7 @@ class Cozy(commands.Cog):
         '''
         Remove a member from the Cozy Corner wiseoldman group.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not name:
@@ -921,7 +921,7 @@ class Cozy(commands.Cog):
         '''
         Posts a poll for the next SOTW competition.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         agc = await self.bot.agcm.authorize()
@@ -980,7 +980,7 @@ class Cozy(commands.Cog):
         '''
         Posts a poll for the next BOTW competition.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         agc = await self.bot.agcm.authorize()
@@ -1039,7 +1039,7 @@ class Cozy(commands.Cog):
         '''
         Creates a SOTW competition on wiseoldman.net.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not num:
@@ -1083,7 +1083,7 @@ class Cozy(commands.Cog):
         '''
         Creates a BOTW competition on wiseoldman.net.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not num:
@@ -1127,7 +1127,7 @@ class Cozy(commands.Cog):
         '''
         Creates polls for Cozy Of The Week
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         agc = await self.bot.agcm.authorize()
@@ -1235,7 +1235,7 @@ class Cozy(commands.Cog):
         '''
         Records votes on a SOTW poll and logs them to the SOTW sheet.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(msg_id):
@@ -1314,7 +1314,7 @@ class Cozy(commands.Cog):
         '''
         Records votes on a BOTW poll and logs them to the BOTW sheet.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(msg_id):
@@ -1393,7 +1393,7 @@ class Cozy(commands.Cog):
         '''
         Returns the list of compliments in a conveniently formatted text file
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         agc = await self.bot.agcm.authorize()
@@ -1458,7 +1458,7 @@ class Cozy(commands.Cog):
         Arguments: user (mention, id, etc.), notes (optional)
         This attempts to add the new member to the roster, set their discord display name to their RSN, and finally promote them in discord.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.message.delete()
         await ctx.channel.trigger_typing()
 
