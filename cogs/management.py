@@ -105,7 +105,7 @@ class Management(commands.Cog):
         self.sessions = set()
         commands.Bot.remove_command(self.bot, 'help')
         self.uptime_tracking.start()
-    
+
     def cog_unload(self):
         self.uptime_tracking.cancel()
 
@@ -443,8 +443,8 @@ class Management(commands.Cog):
         increment_command_counter()
         await ctx.send(f'`{int(self.bot.latency*1000)} ms`')
 
-    @bot.slash_command(name='ping2', guild_ids=[299191370030252042])
-    async def ping2(self, ctx):
+    @slash_command(name='ping')
+    async def ping_slash(self, ctx):
         '''
         Pings the bot to check latency.
         '''
@@ -833,6 +833,7 @@ class Management(commands.Cog):
         increment_command_counter()
         try:
             self.bot.load_extension(f'cogs.{module}')
+            await self.bot.sync_commands()
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:
@@ -845,6 +846,7 @@ class Management(commands.Cog):
         increment_command_counter()
         try:
             self.bot.unload_extension(f'cogs.{module}')
+            await self.bot.sync_commands()
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:
@@ -857,6 +859,7 @@ class Management(commands.Cog):
         increment_command_counter()
         try:
             self.bot.reload_extension(f'cogs.{module}')
+            await self.bot.sync_commands()
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:

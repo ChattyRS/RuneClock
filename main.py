@@ -234,17 +234,16 @@ class Bot(commands.AutoShardedBot):
                 discord_msg += f'Failed to load extension: {error}\n'
         print('-' * 10)
         logging.critical(msg)
+
+        # manually register slash commands
+        # these somehow are not automatically synced by pycord
+        await self.bot.sync_commands()
+
         try:
             if 'Failed' in msg:
                 await channel.send(discord_msg)
         except discord.Forbidden:
             return
-
-    async def on_ready(self):
-        '''
-        This event is called every time the bot connects or resumes connection.
-        '''
-        print('Ready: all guilds loaded.')
 
     async def check_guilds(self):
         '''
