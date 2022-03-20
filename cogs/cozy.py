@@ -48,18 +48,18 @@ wom_metrics = [# Skills
 class Cozy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.update_sotw_url.start()
         self.get_updated_calendar_events.start()
         self.cozy_event_reminders.start()
-        self.wom_update_all.start()
+        self.update_sotw_url.start()
         self.update_botw_url.start()
+        self.wom_update_all.start()
 
     def cog_unload(self):
-        self.update_sotw_url.cancel()
         self.get_updated_calendar_events.cancel()
         self.cozy_event_reminders.cancel()
-        self.wom_update_all.cancel()
+        self.update_sotw_url.cancel()
         self.update_botw_url.cancel()
+        self.wom_update_all.cancel()
     
     @tasks.loop(seconds=60)
     async def get_updated_calendar_events(self):
@@ -228,9 +228,35 @@ class Cozy(commands.Cog):
             async with self.bot.aiohttp.post(url, json=payload) as r:
                 if r.status != 200:
                     print(f'Error updating wiseoldman group.\nStatus: {r.status}.')
-                    return
                 data = await r.json()
                 print(f'Wiseoldman group updated.\nResponse: {data["message"]}')
+        # On sunday, update all on botw and sotw competitions every hour for the last 6 hours of the competition
+        if time.weekday() == 6 and time.hour >= 18 and time.minute >= 55:
+            global cozy_sotw_url
+            url = cozy_sotw_url
+            if 'wiseoldman' in url:
+                api_url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+                update_url = api_url + '/update-all'
+                print(f'WOM SOTW update URL: {update_url}')
+                payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
+                async with self.bot.aiohttp.post(update_url, json=payload) as r:
+                    if r.status != 200:
+                        print(f'Error updating wiseoldman SOTW competition.\nStatus: {r.status}.')
+                    data = await r.json()
+                    print(f'Wiseoldman group updated.\nResponse: {data["message"]}')
+            global cozy_botw_url
+            url = cozy_botw_url
+            if 'wiseoldman' in url:
+                api_url = "https://api.wiseoldman" + url.split('wiseoldman')[1]
+                update_url = api_url + '/update-all'
+                print(f'WOM BOTW update URL: {update_url}')
+                payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
+                async with self.bot.aiohttp.post(update_url, json=payload) as r:
+                    if r.status != 200:
+                        print(f'Error updating wiseoldman BOTW competition.\nStatus: {r.status}.')
+                    data = await r.json()
+                    print(f'Wiseoldman group updated.\nResponse: {data["message"]}')
+
     
     @Cog.listener()
     async def on_user_update(self, before, after):
