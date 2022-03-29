@@ -1526,5 +1526,5 @@ class Cozy(commands.Cog):
         await ctx.send(f'`{member.display_name}`\'s application has been accepted.')
 
 
-def setup(bot):
-    bot.add_cog(Cozy(bot))
+async def setup(bot):
+    await bot.add_cog(Cozy(bot))

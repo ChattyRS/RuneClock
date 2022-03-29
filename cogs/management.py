@@ -1,7 +1,6 @@
 import asyncio
 import discord
 from discord.ext import commands, tasks
-from discord.commands import slash_command
 import os
 import sys
 sys.path.append('../')
@@ -25,8 +24,6 @@ from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 w = wmi.WMI(namespace="root\OpenHardwareMonitor", privileges=["Security"])
-
-bot = commands.Bot()
 
 # to expose to the eval command
 from collections import Counter
@@ -105,7 +102,7 @@ class Management(commands.Cog):
         self.sessions = set()
         commands.Bot.remove_command(self.bot, 'help')
         self.uptime_tracking.start()
-
+        
     def cog_unload(self):
         self.uptime_tracking.cancel()
 
@@ -442,14 +439,6 @@ class Management(commands.Cog):
         '''
         increment_command_counter()
         await ctx.send(f'`{int(self.bot.latency*1000)} ms`')
-
-    @slash_command(name='ping')
-    async def ping_slash(self, ctx):
-        '''
-        Pings the bot to check latency.
-        '''
-        increment_command_counter()
-        await ctx.respond(f'`{int(self.bot.latency*1000)} ms`')
     
     @commands.command(aliases=['donate'])
     async def patreon(self, ctx):
@@ -856,7 +845,7 @@ class Management(commands.Cog):
         """Reloads a module."""
         increment_command_counter()
         try:
-            self.bot.reload_extension(f'cogs.{module}')
+            await self.bot.reload_extension(f'cogs.{module}')
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:
@@ -870,7 +859,7 @@ class Management(commands.Cog):
         Reloads the sheets extension.
         '''
         try:
-            self.bot.reload_extension(f'cogs.sheets')
+            await self.bot.reload_extension(f'cogs.sheets')
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:
@@ -1305,5 +1294,5 @@ class Management(commands.Cog):
                 args = args[:num_params]
                 await cmd.callback(self, ctx, *args)
 
-def setup(bot):
-    bot.add_cog(Management(bot))
+async def setup(bot):
+    await bot.add_cog(Management(bot))

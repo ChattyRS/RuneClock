@@ -130,11 +130,13 @@ class Bot(commands.AutoShardedBot):
         self.start_time = None
         self.app_info = None
         self.bot = self
-        self.loop.create_task(self.track_start())
-        self.loop.create_task(self.initialize())
         self.aiohttp = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
         self.twitter_client = twitter_client
+    
+    async def setup_hook(self):
+        await self.track_start()
+        self.loop.create_task(self.initialize())
 
     async def track_start(self):
         '''
@@ -157,7 +159,7 @@ class Bot(commands.AutoShardedBot):
         channel = self.get_channel(config['testChannel'])
         self.app_info = await self.application_info()
         msg = (f'Logged in to Discord as: {self.user.name}\n'
-            f'Using Pycord version: {discord.__version__}\n'
+            f'Using Discord.py version: {discord.__version__}\n'
             f'Owner: {self.app_info.owner}\n'
             f'Time: {str(self.start_time)} UTC')
         print(msg)
@@ -219,7 +221,7 @@ class Bot(commands.AutoShardedBot):
         for extension in cogs:
             try:
                 print(f'Loading {extension}...')
-                self.load_extension(f'cogs.{extension}')
+                await self.load_extension(f'cogs.{extension}')
                 print(f'Loaded extension: {extension}')
                 msg += f'Loaded extension: {extension}\n'
             except commands.ExtensionAlreadyLoaded:

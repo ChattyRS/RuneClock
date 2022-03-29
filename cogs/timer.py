@@ -256,5 +256,5 @@ class Timer(commands.Cog):
             await ctx.send(f'{ctx.author.mention} your timezone has been removed.')
 
 
-def setup(bot):
-    bot.add_cog(Timer(bot))
+async def setup(bot):
+    await bot.add_cog(Timer(bot))

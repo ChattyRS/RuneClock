@@ -692,5 +692,5 @@ class ModCommands(commands.Cog):
         await guild.update(hall_of_fame_channel_id=channel.id, hall_of_fame_react_num=react_num).apply()
         await ctx.send(f'Set the hall of fame channel for this server to {channel.mention}. The number of :star2: reactions required has been set to `{react_num}`.')
 
-def setup(bot):
-    bot.add_cog(ModCommands(bot))
+async def setup(bot):
+    await bot.add_cog(ModCommands(bot))

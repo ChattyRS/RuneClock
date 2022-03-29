@@ -778,5 +778,5 @@ class Notifications(commands.Cog):
                     pass
                 await online_notification.delete()
 
-def setup(bot):
-    bot.add_cog(Notifications(bot))
+async def setup(bot):
+    await bot.add_cog(Notifications(bot))

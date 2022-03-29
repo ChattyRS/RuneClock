@@ -1645,5 +1645,5 @@ class Runescape(commands.Cog):
 
         await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
-def setup(bot):
-    bot.add_cog(Runescape(bot))
+async def setup(bot):
+    await bot.add_cog(Runescape(bot))

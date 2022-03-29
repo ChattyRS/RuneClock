@@ -624,5 +624,5 @@ class Logs(commands.Cog):
             except discord.Forbidden:
                 return
 
-def setup(bot):
-    bot.add_cog(Logs(bot))
+async def setup(bot):
+    await bot.add_cog(Logs(bot))

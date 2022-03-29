@@ -336,5 +336,5 @@ class Roles(commands.Cog):
                 await ctx.send(f'```{msg}```')
 
 
-def setup(bot):
-    bot.add_cog(Roles(bot))
+async def setup(bot):
+    await bot.add_cog(Roles(bot))

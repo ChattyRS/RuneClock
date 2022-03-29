@@ -1639,5 +1639,5 @@ class Sheets(commands.Cog):
         await ctx.send(f'**{name}** has been noted as active on sheets for **{timestamp}** **{datetime.utcnow().strftime("%b")}**.')
 
 
-def setup(bot):
-    bot.add_cog(Sheets(bot))
+async def setup(bot):
+    await bot.add_cog(Sheets(bot))

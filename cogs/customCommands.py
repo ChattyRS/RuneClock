@@ -385,5 +385,5 @@ class CustomCommands(commands.Cog):
             custom_command.aliases = await get_aliases()
             commands.Bot.add_command(self.bot, custom_command)
 
-def setup(bot):
-    bot.add_cog(CustomCommands(bot))
+async def setup(bot):
+    await bot.add_cog(CustomCommands(bot))

@@ -641,5 +641,5 @@ class Mathematics(commands.Cog):
             raise commands.CommandError(message=f'Error: output exceeds character limit.')
 
 
-def setup(bot):
-    bot.add_cog(Mathematics(bot))
+async def setup(bot):
+    await bot.add_cog(Mathematics(bot))
