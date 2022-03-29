@@ -1,25 +1,21 @@
 import asyncio
 import discord
 from discord.ext import commands
-import os
-from sys import exit
-from subprocess import call
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, Mute, Guild
-from datetime import datetime, timedelta, timezone
-import html
+from main import config_load, increment_command_counter, Mute, Guild
+from datetime import datetime, timedelta
 import re
-from utils import timeDiffToString, is_int, RoleConverter
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
+from utils import is_int, RoleConverter
+from utils import is_admin
 
 config = config_load()
 
 pattern = re.compile('[\W_]+')
 
-def isName(memberName, member):
+def isName(member_name, member):
     name = member.display_name.upper()
-    if memberName.upper() in pattern.sub('', name).upper():
+    if member_name.upper() in pattern.sub('', name).upper():
         return True
     else:
         return False
@@ -39,7 +35,7 @@ class ModCommands(commands.Cog):
         public: channel mention
         private: channel mention
         '''
-        addCommand()
+        increment_command_counter()
 
         if not public and not private:
             guild = await Guild.get(ctx.guild.id)
@@ -75,7 +71,7 @@ class ModCommands(commands.Cog):
             if not guild.modmail_public is None and not guild.modmail_private is None:
                 if message.channel.id == guild.modmail_public or (message.guild.id == config['cozy_guild_id'] and message.channel.id == config['cozy_compliments_channel_id']):
                     embed = discord.Embed(description=f'In: {message.channel.mention}\n“{message.content}”', colour=0x00b2ff, timestamp=message.created_at)
-                    embed.set_author(name=f'{message.author.display_name}#{message.author.discriminator}', icon_url=message.author.avatar_url)
+                    embed.set_author(name=f'{message.author.display_name}#{message.author.discriminator}', icon_url=message.author.display_avatar.url)
                     embed.set_footer(text=f'ID: {message.id}')
 
                     txt = message.clean_content
@@ -182,7 +178,7 @@ class ModCommands(commands.Cog):
         duration: [number][unit], where unit in {d, h, m} (optional)
         reason: string (optional)
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         
         msg = ctx.message
@@ -304,7 +300,7 @@ class ModCommands(commands.Cog):
         '''
         Get a list of temp mutes for this server. (Admin+)
         '''
-        addCommand()
+        increment_command_counter()
 
         msg = 'User ID             Expiration date      Reason'
         mutes = await Mute.query.where(Mute.guild_id==ctx.guild.id).gino.all()
@@ -323,7 +319,7 @@ class ModCommands(commands.Cog):
         Unmute a member. (Admin+)
         member: name, nickname, id, mention
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         
         msg = ctx.message
@@ -386,7 +382,7 @@ class ModCommands(commands.Cog):
         Kicks the given user (Admin+).
         Arguments: member
         '''
-        addCommand()
+        increment_command_counter()
 
         if member.top_role >= ctx.author.top_role and member.id != config['owner']:
             raise commands.CommandError(message=f'You have insufficient permissions to kick this user.')
@@ -404,7 +400,7 @@ class ModCommands(commands.Cog):
         Bans the given user (Admin+).
         Arguments: member
         '''
-        addCommand()
+        increment_command_counter()
 
         if member.top_role >= ctx.author.top_role and member.id != config['owner']:
             raise commands.CommandError(message=f'You have insufficient permissions to ban this user.')
@@ -423,7 +419,7 @@ class ModCommands(commands.Cog):
         Arguments: integer.
         Constraints: You can delete up to 100 messages at a time.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not isinstance(num, int):
             if is_int(num):
@@ -452,7 +448,7 @@ class ModCommands(commands.Cog):
         Toggles the given role for the given user (Admin+).
         Arguments: role, member
         '''
-        addCommand()
+        increment_command_counter()
 
         if member.top_role >= ctx.author.top_role and member.id != config['owner']:
             raise commands.CommandError(message=f'You have insufficient permissions to edit this user\'s roles.')
@@ -472,294 +468,32 @@ class ModCommands(commands.Cog):
             except discord.Forbidden:
                 raise commands.CommandError(message=f'I have insufficient permissions to remove this role from this user.')
 
-    @commands.command(pass_context=True, aliases=['promo'], hidden=True)
-    @portables_admin()
-    @portables_only()
-    async def promote(self, ctx, *memberNames):
-        '''
-        Promotes the given user(s) (Admin+) (Portables only).
-        Arguments: member(s)
-        Members can be either one name or one or more mentions.
-        '''
-        addCommand()
-        await ctx.channel.trigger_typing()
-
-        msg = ctx.message
-        user = ctx.author
-        roles = user.roles
-        guild = ctx.guild
-
-        if len(msg.mentions) < 1 and not memberNames:
-            raise commands.CommandError(message=f'Required argument missing: `user`.')
-
-        members = msg.mentions
-        if not members:
-            if memberNames:
-                memberName = ''
-                for part in memberNames:
-                    memberName += part + ' '
-                memberName = memberName.strip()
-                memberName = pattern.sub('', memberName).upper()
-                member = discord.utils.find(lambda m: isName(memberName, m), guild.members)
-                if not member:
-                    raise commands.CommandError(message=f'Could not find user: `{memberName}`.')
-                members.append(member)
-        isLeader = False
-        for r in roles:
-            if r.id == config['leaderRole'] or user.id == config['owner']:
-                isLeader = True
-                break
-        txt = ""
-        for r in guild.roles:
-            if r.id == config['smileyRole']:
-                smileyRole = r
-            if r.id == config['rankRole']:
-                rankRole = r
-            if r.id == config['editorRole']:
-                editorRole = r
-            if r.id == config['modRole']:
-                modRole = r
-            if r.id == config['adminRole']:
-                adminRole = r
-        for m in members:
-            name = m.display_name
-            if m.top_role < smileyRole:
-                await m.add_roles(smileyRole)
-                txt += f'**{name}** has been promoted to **Smiley**.\n'
-            elif m.top_role < rankRole:
-                await m.add_roles(rankRole, editorRole)
-                txt += f'**{name}** has been promoted to **Editor**.\n'
-            elif m.top_role < modRole:
-                await m.add_roles(modRole)
-                txt += f'**{name}** has been promoted to **Moderator**.\n'
-            elif m.top_role < adminRole:
-                if isLeader:
-                    await m.add_roles(adminRole)
-                    txt += f'**{name}** has been promoted to **Admin**.\n'
-                else:
-                    raise commands.CommandError(message=f'Missing permissions: `Admin`.')
-            else:
-                raise commands.CommandError(message=f'Missing permissions: `Admin`.')
-        if txt:
-            await ctx.send(txt)
-
-    @commands.command(pass_context=True, aliases=['demo'], hidden=True)
-    @portables_admin()
-    @portables_only()
-    async def demote(self, ctx, *memberNames):
-        '''
-        Demotes the given user(s) (Admin+) (Portables only).
-        Arguments: member(s)
-        Members can be either one name or one or more mentions.
-        '''
-        addCommand()
-        await ctx.channel.trigger_typing()
-
-        msg = ctx.message
-        user = ctx.author
-        roles = user.roles
-        guild = ctx.guild
-
-        if len(msg.mentions) < 1 and not memberNames:
-            raise commands.CommandError(message=f'Required argument missing: `user`.')
-
-        members = msg.mentions
-        if not members:
-            if memberNames:
-                memberName = ''
-                for part in memberNames:
-                    memberName += part + ' '
-                memberName = memberName.strip()
-                memberName = pattern.sub('', memberName).upper()
-                member = discord.utils.find(lambda m: isName(memberName, m), guild.members)
-                if not member:
-                    raise commands.CommandError(message=f'Could not find user: `{memberName}`.')
-                members.append(member)
-
-        isLeader = False
-        for r in roles:
-            if r.id == config['leaderRole'] or user.id == config['owner']:
-                isLeader = True
-                break
-
-        txt = ""
-        for r in guild.roles:
-            if r.id == config['smileyRole']:
-                smileyRole = r
-            if r.id == config['vetRole']:
-                vetRole = r
-            if r.id == config['rankRole']:
-                rankRole = r
-            if r.id == config['editorRole']:
-                editorRole = r
-            if r.id == config['modRole']:
-                modRole = r
-            if r.id == config['adminRole']:
-                adminRole = r
-            if r.id == config['leaderRole']:
-                leaderRole = r
-        for m in members:
-            roles = m.roles[1:] #get all except first role, because first role is always @everyone
-            name = m.display_name
-            if m.top_role >= leaderRole:
-                raise commands.CommandError(message=f'Insufficient permissions.')
-            elif m.top_role >= adminRole:
-                if isLeader:
-                    try:
-                        await m.remove_roles(adminRole)
-                        txt += f'**{name}** has been demoted to **Moderator**.\n'
-                    except discord.Forbidden:
-                        raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-                else:
-                    raise commands.CommandError(message=f'Missing permissions: `Admin`.')
-            elif m.top_role >= modRole:
-                try:
-                    await m.remove_roles(modRole)
-                    txt += f'**{name}** has been demoted to **Editor**.\n'
-                except discord.Forbidden:
-                    raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-            elif m.top_role >= rankRole:
-                try:
-                    await m.remove_roles(rankRole, editorRole)
-                    txt += f'**{name}** has been demoted to **Smiley**.\n'
-                except discord.Forbidden:
-                    raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-            elif m.top_role >= smileyRole:
-                try:
-                    if vetRole in roles:
-                        await m.remove_roles(smileyRole, vetRole)
-                    else:
-                        await m.remove_roles(smileyRole)
-                    txt += f'**{name}** has been deranked.\n'
-                except discord.Forbidden:
-                    raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-            else:
-                raise commands.CommandError(message=f'Error: `{name}` cannot be demoted any further.')
-        if txt:
-            await ctx.send(txt)
-
-    @commands.command(pass_context=True, hidden=True)
-    @portables_admin()
-    @portables_only()
-    async def derank(self, ctx, *memberNames):
-        '''
-        Deranks the given user(s) (Admin+) (Portables only).
-        Arguments: members
-        Members can be either one name or one or more mentions.
-        '''
-        addCommand()
-        await ctx.channel.trigger_typing()
-
-        msg = ctx.message
-        user = ctx.author
-        roles = user.roles
-        guild = ctx.guild
-
-        if len(msg.mentions) < 1 and not memberNames:
-            raise commands.CommandError(message=f'Required argument missing: `user`.')
-
-        members = msg.mentions
-        if not members:
-            if memberNames:
-                memberName = ''
-                for part in memberNames:
-                    memberName += part + ' '
-                memberName = memberName.strip()
-                memberName = pattern.sub('', memberName).upper()
-                member = discord.utils.find(lambda m: isName(memberName, m), guild.members)
-                if not member:
-                    raise commands.CommandError(message=f'Could not find user: `{memberName}`.')
-                members.append(member)
-
-        isLeader = False
-        for r in roles:
-            if r.id == config['leaderRole'] or user.id == config['owner']:
-                isLeader = True
-                break
-
-        txt = ""
-        for r in guild.roles:
-            if r.id == config['smileyRole']:
-                smileyRole = r
-            if r.id == config['vetRole']:
-                vetRole = r
-            if r.id == config['rankRole']:
-                rankRole = r
-            if r.id == config['editorRole']:
-                editorRole = r
-            if r.id == config['modRole']:
-                modRole = r
-            if r.id == config['adminRole']:
-                adminRole = r
-            if r.id == config['leaderRole']:
-                leaderRole = r
-        for m in members:
-            roles = m.roles[1:] #get all except first role, because first role is always @everyone
-            name = m.display_name
-            if m.top_role >= leaderRole:
-                await ctx.send(f'Sorry, I do not have sufficient permissions to derank **{name}**.')
-                raise commands.CommandError(message=f'Insufficient permissions.')
-            elif m.top_role >= adminRole:
-                if isLeader:
-                    try:
-                        await m.remove_roles(adminRole, modRole, editorRole, rankRole)
-                        txt += f'{name} has been deranked.\n'
-                    except discord.Forbidden:
-                        raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-                else:
-                    raise commands.CommandError(message=f'Missing permissions: `Admin`.')
-            elif m.top_role >= modRole:
-                try:
-                    await m.remove_roles(modRole, editorRole, rankRole)
-                    txt += f'**{name}** has been deranked.\n'
-                except discord.Forbidden:
-                    raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-            elif m.top_role >= rankRole:
-                try:
-                    await m.remove_roles(editorRole, rankRole)
-                    txt += f'**{name}** has been deranked.\n'
-                except discord.Forbidden:
-                    raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-            elif m.top_role >= smileyRole:
-                try:
-                    if vetRole in roles:
-                        await m.remove_roles(smileyRole, vetRole)
-                    else:
-                        await m.remove_roles(smileyRole)
-                    txt += f'**{name}** has been deranked.\n'
-                except discord.Forbidden:
-                    raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
-            else:
-                raise commands.CommandError(message=f'Error: `{name}` cannot be deranked any further.')
-        if txt:
-            await ctx.send(txt)
-
     @commands.command(pass_context=True, aliases=['mention'])
     @is_admin()
-    async def mentionable(self, ctx, roleName=""):
+    async def mentionable(self, ctx, role_name=""):
         '''
         Toggles mentionable for the given role (Admin+).
         Arguments: role
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         guild = ctx.guild
 
-        if not roleName:
+        if not role_name:
             raise commands.CommandError(message=f'Required argument missing: `role`.')
         role = ""
         for r in guild.roles:
-            if roleName.upper() == r.name.upper():
+            if role_name.upper() == r.name.upper():
                 role = r
                 break
         if not role:
             for r in guild.roles:
-                if roleName.upper() in r.name.upper():
+                if role_name.upper() in r.name.upper():
                     role = r
                     break
         if not role:
-            raise commands.CommandError(message=f'Could not find role: `{roleName}`.')
+            raise commands.CommandError(message=f'Could not find role: `{role_name}`.')
         else:
             mentionable = role.mentionable
             emoji = ""
@@ -779,28 +513,28 @@ class ModCommands(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rolecolor'])
     @is_admin()
-    async def rolecolour(self, ctx, roleName="", colour=""):
+    async def rolecolour(self, ctx, role_name="", colour=""):
         '''
         Changes the colour of the given role to the given colour (Admin+).
         Arguments: role, #hexcode
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
-        if not roleName or not colour:
+        if not role_name or not colour:
             raise commands.CommandError(message=f'Required argument(s) missing: `role/colour`.')
 
         guild = ctx.guild
         roles = guild.roles
-        roleExists = False
+        role_exists = False
         role = False
         for r in roles:
-            if r.name.upper() == roleName.upper():
+            if r.name.upper() == role_name.upper():
                 role = r
-                roleExists = True
+                role_exists = True
                 break
-        if not roleExists:
-            raise commands.CommandError(message=f'Could not find role: `{roleName}`.')
+        if not role_exists:
+            raise commands.CommandError(message=f'Could not find role: `{role_name}`.')
         match = re.search(r'^#(?:[0-9a-fA-F]{3}){1,2}$', colour)
         if not match:
             raise commands.CommandError(message=f'Invalid argument: `{colour}`.')
@@ -816,18 +550,18 @@ class ModCommands(commands.Cog):
             raise commands.CommandError(message=f'Missing permissions: `edit_role`.')
 
     @commands.command(pass_context=True, aliases=['changenick', 'nick'])
-    async def setnick(self, ctx, *userName):
+    async def setnick(self, ctx, *username):
         '''
         Changes the user's nickname.
         Arguments: nickname
         If no nickname is given, your nickname will be removed.
         Constraints: nickname must be a valid RSN
         '''
-        addCommand()
+        increment_command_counter()
 
         user = ctx.author
         input = ''
-        for word in userName:
+        for word in username:
             input += word + ' '
         input = input.replace('_', ' ')
         input = input.strip()
@@ -870,7 +604,7 @@ class ModCommands(commands.Cog):
         Deletes all messages that will be sent in the given channel. (Admin+)
         Arguments: channel (mention, name, or id)
         '''
-        addCommand()
+        increment_command_counter()
 
         if not channel:
             raise commands.CommandError(message=f'Required argument missing: `channel`.')
@@ -919,7 +653,7 @@ class ModCommands(commands.Cog):
         Arguments: channel (mention, name, or id), react_num (int)
         After [react_num] reactions with the :star2: emoji, messages will be shown in the hall of fame channel.
         '''
-        addCommand()
+        increment_command_counter()
 
         guild = await Guild.get(ctx.guild.id)
 
@@ -958,5 +692,5 @@ class ModCommands(commands.Cog):
         await guild.update(hall_of_fame_channel_id=channel.id, hall_of_fame_react_num=react_num).apply()
         await ctx.send(f'Set the hall of fame channel for this server to {channel.mention}. The number of :star2: reactions required has been set to `{react_num}`.')
 
-def setup(bot):
-    bot.add_cog(ModCommands(bot))
+async def setup(bot):
+    await bot.add_cog(ModCommands(bot))

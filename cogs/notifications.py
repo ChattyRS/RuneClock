@@ -1,11 +1,10 @@
 import discord
 from discord.ext import commands
-from main import config_load, addCommand, Guild, Notification, OnlineNotification
+from main import config_load, increment_command_counter, Guild, Notification, OnlineNotification
 import sys
 sys.path.append('../')
-import json
 from datetime import datetime, timedelta
-from utils import is_int, is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
+from utils import is_int, is_admin
 
 config = config_load()
 
@@ -25,7 +24,7 @@ class Notifications(commands.Cog):
         Arguments: channel
         If no channel is given, RS3 news messages will be disabled.
         '''
-        addCommand()
+        increment_command_counter()
 
         guild = await Guild.get(ctx.guild.id)
 
@@ -67,7 +66,7 @@ class Notifications(commands.Cog):
         Arguments: channel
         If no channel is given, OSRS news messages will be disabled.
         '''
-        addCommand()
+        increment_command_counter()
 
         guild = await Guild.get(ctx.guild.id)
 
@@ -108,7 +107,7 @@ class Notifications(commands.Cog):
         Arguments: channel.
         If no channel is given, notifications will no longer be sent.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if ctx.message.channel_mentions:
@@ -133,11 +132,11 @@ class Notifications(commands.Cog):
 
         permissions = discord.Permissions.none()
         colour = discord.Colour.default()
-        roleNames = []
+        role_names = []
         for role in ctx.guild.roles:
-            roleNames.append(role.name.upper())
+            role_names.append(role.name.upper())
         for rank in ranks:
-            if not rank.upper() in roleNames:
+            if not rank.upper() in role_names:
                 try:
                     await ctx.guild.create_role(name=rank, permissions=permissions, colour=colour, hoist=False, mentionable=True)
                 except discord.Forbidden:
@@ -159,7 +158,7 @@ class Notifications(commands.Cog):
         interval: HH:MM, [num][unit]* where unit in {d, h, m}, 0 (one time only notification)
         message: string
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         guild = ctx.guild
@@ -378,7 +377,7 @@ class Notifications(commands.Cog):
         '''
         Returns list of custom notifications for this server.
         '''
-        addCommand()
+        increment_command_counter()
 
         notifications = await Notification.query.where(Notification.guild_id==ctx.guild.id).order_by(Notification.notification_id.asc()).gino.all()
         if not notifications:
@@ -404,7 +403,7 @@ class Notifications(commands.Cog):
         Removes a custom notification by ID. (Admin+)
         To get the ID of the notification that you want to remove, use the command "notifications".
         '''
-        addCommand()
+        increment_command_counter()
 
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
@@ -438,7 +437,7 @@ class Notifications(commands.Cog):
         interval: HH:MM, [num][unit]* where unit in {d, h, m}, 0 (one time only notification)
         message: string
         '''
-        addCommand()
+        increment_command_counter()
 
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
@@ -651,7 +650,7 @@ class Notifications(commands.Cog):
         Type 4: notify when member goes offline
         Type 1-3 also trigger when the member sends a message
         '''
-        addCommand()
+        increment_command_counter()
 
         if not member:
             raise commands.CommandError(message=f'Required argument missing: `member`.')
@@ -782,5 +781,5 @@ class Notifications(commands.Cog):
                     pass
                 await online_notification.delete()
 
-def setup(bot):
-    bot.add_cog(Notifications(bot))
+async def setup(bot):
+    await bot.add_cog(Notifications(bot))

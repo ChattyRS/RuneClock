@@ -2,28 +2,25 @@ import discord
 from discord.ext import commands
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, Poll
-import math
+from main import config_load, increment_command_counter, Poll
 import random
-import re
-import pyowm
-from datetime import datetime, timedelta, timezone
+from pyowm.owm import OWM
+from datetime import datetime, timedelta
 from operator import attrgetter
-import cmath
-from utils import is_int, is_float
+from utils import is_int
 import codecs
 import json
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
 import validators
 
 config = config_load()
 
 rps = ['Rock', 'Paper', 'Scissors']
-rpsUpper = ['ROCK', 'PAPER', 'SCISSORS']
+rps_upper = ['ROCK', 'PAPER', 'SCISSORS']
 
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-owm = pyowm.OWM(config['weatherAPI'])
+owm = OWM(config['weatherAPI'])
+owm_manager = owm.weather_manager()
 
 num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
@@ -97,7 +94,7 @@ class General(commands.Cog):
         '''
         Flips a coin.
         '''
-        addCommand()
+        increment_command_counter()
         
         i = random.randint(0,1)
         result = ''
@@ -113,7 +110,7 @@ class General(commands.Cog):
         '''
         Rolls a dice.
         '''
-        addCommand()
+        increment_command_counter()
         
         if is_int(num):
             num = int(num)
@@ -140,9 +137,9 @@ class General(commands.Cog):
         '''
         Play rock, paper, scissors.
         '''
-        addCommand()
+        increment_command_counter()
         
-        if not choice.upper() in rpsUpper:
+        if not choice.upper() in rps_upper:
             raise commands.CommandError(message=f'Invalid argument: `{choice}`.')
         
         for x in rps:
@@ -165,35 +162,32 @@ class General(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['forecast'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def weather(self, ctx, *locations):
+    async def weather(self, ctx, *location):
         '''
         Get the weather forecast for a location
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         
-        location = ''
-        for l in locations:
-            location += l + ' '
-        location = location.strip()
+        location = ' '.join(location)
         if not location:
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
         try:
-            observation = owm.weather_at_place(location)
-        except:
+            observation = owm_manager.weather_at_place(location)
+        except Exception as e:
             raise commands.CommandError(message=f'Error: could not find location: `{location}`.')
-        w = observation.get_weather()
-        temperature = w.get_temperature('celsius')
-        wind = w.get_wind('meters_sec')
+        w = observation.weather
+        temperature = w.temperature('celsius')
+        wind = w.wind('meters_sec')
 
-        title = f'Weather for: {observation.get_location().get_name()}, {observation.get_location().get_country()}'
+        title = f'Weather for: {observation.location.name}, {observation.location.country}'
         colour = 0x00b2ff
         timestamp = datetime.utcnow()
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
-        embed.add_field(name='Condition:', value=f'{w.get_status()}')
-        embed.add_field(name='Temperature:', value=f'Current: {temperature["temp"]}°C\nMax: {temperature["temp_max"]}°C\nMin: {temperature["temp_min"]}°C')
-        embed.add_field(name='Wind speed:', value=f'{wind["speed"]*3.6} km/h')
+        embed.add_field(name='Condition:', value=f'{w.status}')
+        embed.add_field(name='Temperature:', value=f'Current: {round(temperature["temp"])}°C\nMax: {round(temperature["temp_max"])}°C\nMin: {round(temperature["temp_min"])}°C')
+        embed.add_field(name='Wind speed:', value=f'{round(wind["speed"]*3.6)} km/h')
         
         await ctx.send(embed=embed)
 
@@ -202,7 +196,7 @@ class General(commands.Cog):
         '''
         Get info on a server
         '''
-        addCommand()
+        increment_command_counter()
 
         guild = ctx.guild
         title = f'Server info for: **{guild.name}**'
@@ -210,11 +204,10 @@ class General(commands.Cog):
         timestamp = datetime.utcnow()
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
         embed.add_field(name='Owner', value=f'{guild.owner.name}#{guild.owner.discriminator}')
-        embed.add_field(name='Region', value=f'{guild.region}')
         embed.add_field(name='Channels', value=f'{len(guild.channels)}')
         embed.add_field(name='Members', value=f'{guild.member_count}')
         embed.add_field(name='Roles', value=f'{len(guild.roles)}')
-        icon = guild.icon_url
+        icon = guild.icon.url
         if icon:
             embed.set_thumbnail(url=icon)
         embed.set_footer(text=f'ID: {guild.id}')
@@ -226,7 +219,7 @@ class General(commands.Cog):
         '''
         Get info on a member.
         '''
-        addCommand()
+        increment_command_counter()
         
         msg = ctx.message
         member = ''
@@ -268,42 +261,39 @@ class General(commands.Cog):
         colour = 0x00b2ff
         timestamp = datetime.utcnow()
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
-        if member.avatar_url:
-            embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.avatar_url)
-            embed.set_thumbnail(url=member.avatar_url)
-        else:
-            embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.default_avatar_url)
-            embed.set_thumbnail(url=member.default_avatar_url)
+        if member.display_avatar.url:
+            embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.display_avatar.url)
+            embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name='Status', value=f'{str(member.status)[0].upper() + str(member.status)[1:]}')
-        joinTime = member.joined_at
-        min = joinTime.minute
+        join_time = member.joined_at
+        min = join_time.minute
         if min == 0:
             min = '00'
-        time = f'{joinTime.day} {months[joinTime.month-1]} {joinTime.year}, {joinTime.hour}:{min}'
+        time = f'{join_time.day} {months[join_time.month-1]} {join_time.year}, {join_time.hour}:{min}'
         embed.add_field(name='Joined', value=time)
-        joinList = sorted(ctx.guild.members, key=attrgetter('joined_at'))
-        joinPos = joinList.index(member)+1
-        embed.add_field(name='Join Position', value=str(joinPos))
-        creationTime = member.created_at
-        min = creationTime.minute
+        join_list = sorted(ctx.guild.members, key=attrgetter('joined_at'))
+        join_pos = join_list.index(member)+1
+        embed.add_field(name='Join Position', value=str(join_pos))
+        creation_time = member.created_at
+        min = creation_time.minute
         if min == 0:
             min = '00'
-        time = f'{creationTime.day} {months[creationTime.month-1]} {creationTime.year}, {creationTime.hour}:{min}'
+        time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{min}'
         embed.add_field(name='Registered', value=time)
         roles = member.roles
-        roleStr = ''
+        role_str = ''
         for i, r in enumerate(roles):
             if i == 0:
                 continue
-            roleStr += r.mention + ' '
-        roleStr = roleStr.strip()
-        if roleStr:
-            embed.add_field(name=f'Roles ({len(member.roles)-1})', value=roleStr, inline=False)
+            role_str += r.mention + ' '
+        role_str = role_str.strip()
+        if role_str:
+            embed.add_field(name=f'Roles ({len(member.roles)-1})', value=role_str, inline=False)
         else:
             embed.add_field(name=f'Roles (0)', value='None', inline=False)
-        permStr = perm_string(member.guild_permissions)
-        if permStr:
-            embed.add_field(name=f'Permissions', value=permStr)
+        perm_str = perm_string(member.guild_permissions)
+        if perm_str:
+            embed.add_field(name=f'Permissions', value=perm_str)
         embed.set_footer(text=f'ID: {member.id}')
 
         await ctx.send(embed=embed)
@@ -313,7 +303,7 @@ class General(commands.Cog):
         '''
         Quotes a message from a given message ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not msg_id:
@@ -344,7 +334,7 @@ class General(commands.Cog):
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`.')
 
         embed = discord.Embed(description=f'In: {chan.mention}\n“{msg.content}”', colour=0x00b2ff, timestamp=msg.created_at)
-        embed.set_author(name=f'{msg.author.display_name}#{msg.author.discriminator}', icon_url=msg.author.avatar_url)
+        embed.set_author(name=f'{msg.author.display_name}#{msg.author.discriminator}', icon_url=msg.author.display_avatar.url)
         embed.set_footer(text=f'ID: {msg.id}')
 
         await ctx.message.delete()
@@ -355,7 +345,7 @@ class General(commands.Cog):
         '''
         Generate random Lorem Ipsum text.
         '''
-        addCommand()
+        increment_command_counter()
 
         # Verify that both the number of words and paragraphs are positive
         if words < 1:
@@ -416,7 +406,7 @@ class General(commands.Cog):
         '''
         Shorten a URL.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not url:
@@ -439,7 +429,7 @@ class General(commands.Cog):
         It is best to provide a mention to ensure the right object is found.
         Supports: channels, roles, members, emojis, messages, guild.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not input:
@@ -553,7 +543,7 @@ class General(commands.Cog):
         Poll duration can vary from 1 hour to 1 week (168 hours).
         Options must be separated by commas.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not is_int(hours):
             options = [hours] + list(options)
@@ -593,7 +583,7 @@ class General(commands.Cog):
         '''
         Close a poll by giving its message ID.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not is_int(msg_id):
@@ -650,5 +640,5 @@ class General(commands.Cog):
         await ctx.send(embed=embed)
 
 
-def setup(bot):
-    bot.add_cog(General(bot))
+async def setup(bot):
+    await bot.add_cog(General(bot))

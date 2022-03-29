@@ -1,10 +1,7 @@
 import codecs
 import json
-from datetime import datetime, timedelta, timezone
 import re
 from oauth2client.service_account import ServiceAccountCredentials
-import asyncio
-import discord
 from discord.ext import commands
 import math
 
@@ -152,10 +149,10 @@ def get_gspread_creds():
       ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/spreadsheets'])
 
-def is_name(memberName, member):
+def is_name(member_name, member):
     pattern = re.compile('[\W_]+')
     name = member.display_name.upper()
-    if memberName.upper() in pattern.sub('', name):
+    if member_name.upper() in pattern.sub('', name):
         return True
     else:
         return False
@@ -671,7 +668,7 @@ for unit, val in vol.items():
             units[unit][unit_2] = 1 / val * val_2
 
 
-itemEmojis = [['Uncharted island map', 'uncharted_island_map'],
+item_emojis = [['Uncharted island map', 'uncharted_island_map'],
               ['Livid plant', 'livid_plant'],
               ['Crystal triskelion', 'crystal_triskelion'],
               ['Deathtouched dart', 'deathtouched_dart'],
@@ -975,7 +972,7 @@ def is_float(num):
 Function to convert timedelta to a string of the form:
 x day(s), x hour(s), x minute(s), x second(s)
 '''
-def timeDiffToString(time):
+def time_diff_to_string(time):
     seconds = time.seconds
     days = time.days
     hours = seconds // 3600

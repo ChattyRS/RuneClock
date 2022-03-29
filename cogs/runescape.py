@@ -2,9 +2,9 @@ import discord
 from discord.ext import commands, tasks
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, User, NewsPost, RS3Item, OSRSItem
+from main import config_load, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import praw
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
@@ -12,17 +12,14 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 import math
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-from lxml import html
-import json
 from utils import is_int, is_float, draw_num, xp_to_level, combat_level, draw_outline_osrs, draw_outline_rs3
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only, level_to_xp
-from utils import timeDiffToString
+from utils import level_to_xp, time_diff_to_string
 import io
 import imageio
 import copy
 import numpy as np
 import random
+from youtubesearchpython import Playlist, playlist_from_channel_id
 
 config = config_load()
 
@@ -32,11 +29,11 @@ reddit = praw.Reddit(client_id=config['redditID'],
                      user_agent=config['user_agent'],
                      username=config['redditName'])
 
-graphCache07 = {}
+graph_cache_07 = {}
 
-graphCacheRS3 = {}
+graph_cache_rs3 = {}
 
-skills07 = ['Overall', 'Attack', 'Defence', 'Strength', 'Hitpoints', 'Ranged',
+skills_07 = ['Overall', 'Attack', 'Defence', 'Strength', 'Hitpoints', 'Ranged',
             'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
             'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
             'Thieving', 'Slayer', 'Farming', 'Runecraft', 'Hunter', 'Construction']
@@ -46,7 +43,7 @@ osrs_skill_emojis = ['<:Attack_icon:624387168982269952>', '<:Defence_icon:624387
             '<:Firemaking_icon:624387169011630120>', '<:Crafting_icon:624387169003503616>', '<:Smithing_icon:624387168898383903>', '<:Mining_icon:624387168785137669>', '<:Herblore_icon:624387169053704195>', '<:Agility_icon:624387168609239048>',
             '<:Thieving_icon:624387169015955475>', '<:Slayer_icon:624387168822886435>', '<:Farming_icon:624387168990658570>', '<:Runecraft_icon:624387169041121290>', '<:Hunter_icon:624387169070350336>', '<:Construction_icon:624387168995115041>', '<:Stats_icon:624389156344430594>']
 '''
-skillsRS3 = ['Overall', 'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged',
+skills_rs3 = ['Overall', 'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged',
             'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
             'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
             'Thieving', 'Slayer', 'Farming', 'Runecrafting', 'Hunter', 'Construction',
@@ -61,7 +58,7 @@ white = [255, 255, 255, 255]
 green = [0, 221, 0, 255]
 red = [221, 0, 0, 255]
 
-def translateAge(age):
+def translate_age(age):
     age = age.replace('dagen', 'days')
     age = age.replace('dag', 'day')
     age = age.replace('weken', 'weeks')
@@ -71,44 +68,6 @@ def translateAge(age):
     age = age.replace('jaar', 'year')
     age = age.replace('geleden', 'ago')
     return age
-
-# https://github.com/mirror12k/python-youtube-videos-lister/blob/master/youtube_api.py
-async def channelVideos(aiohttp_session, channel):
-    videoURL = 'https://www.youtube.com/' + channel + '/videos'
-    for attempt_number in range(3):
-        r = await aiohttp_session.get(videoURL, headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/321 (KHTML, like Gecko) Chrome/62.0.3202.9 Safari/537.36'})
-        async with r:
-            match = re.search(r'window\["ytInitialData"\]\s*=\s*(.*);\s*window\["ytInitialPlayerResponse"\]', await r.text(), re.MULTILINE)
-            if match:
-                json_data = match.group(1)
-                data = json.loads(json_data)
-                tabs = data['contents']['twoColumnBrowseResultsRenderer']['tabs']
-                videos_tab = ''
-                for tab in tabs:
-                    if tab.get('tabRenderer') is not None and tab['tabRenderer']['title'].upper() == "VIDEO'S":
-                        videos_tab = tab
-                        break
-                if not videos_tab:
-                    raise Exception('no video tab found in ytInitialData')
-
-                video_items = videos_tab['tabRenderer']['content']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['gridRenderer']['items']
-
-                videos = []
-                for video_item in video_items:
-
-                    title = video_item['gridVideoRenderer']['title']['simpleText']
-                    if video_item['gridVideoRenderer'].get('publishedTimeText') is not None:
-                        age = video_item['gridVideoRenderer']['publishedTimeText']['simpleText']
-                    else:
-                        age = '?'
-                    url = video_item['gridVideoRenderer']['navigationEndpoint']['commandMetadata']['webCommandMetadata']['url']
-                    link = urljoin(videoURL, url)
-
-                    if age != '?':
-                        videos.append({ 'link': link, 'title': title, 'age': age })
-
-                return videos
-    raise Exception('failed to find ytInitialData')
 
 vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.utcnow(), description='Today\'s vis wax combo has not been released yet.')
 vis_wax_combo = []
@@ -134,11 +93,11 @@ def get_rotation(t, rotation_count, interval, offset):
 
 def araxxor(t):
     rotation, next = get_rotation(t, 3, 4, 9)
-    return (['Path 1 (Minions)', 'Path 2 (Acid)', 'Path 3 (Darkness)'][rotation], timeDiffToString(next))
+    return (['Path 1 (Minions)', 'Path 2 (Acid)', 'Path 3 (Darkness)'][rotation], time_diff_to_string(next))
 
 def vorago(t):
     rotation, next = get_rotation(t, 6, 7, 6)
-    return (['Ceiling collapse', 'Scopulus', 'Vitalis', 'Green bomb', 'Team split', 'The end'][rotation], timeDiffToString(next))
+    return (['Ceiling collapse', 'Scopulus', 'Vitalis', 'Green bomb', 'Team split', 'The end'][rotation], time_diff_to_string(next))
 
 def rots(t):
     rotations = [
@@ -165,7 +124,7 @@ def rots(t):
     ]
 
     rotation, next = get_rotation(t, 20, 1, 0)
-    return (rotations[rotation], timeDiffToString(next))
+    return (rotations[rotation], time_diff_to_string(next))
 
 class Runescape(commands.Cog):
     def __init__(self, bot):
@@ -264,7 +223,7 @@ class Runescape(commands.Cog):
         '''
         Sets your Runescape 3 RSN.
         '''
-        addCommand()
+        increment_command_counter()
 
         name = ' '.join(rsn)
 
@@ -296,7 +255,7 @@ class Runescape(commands.Cog):
         '''
         Sets your Old School Runescape RSN.
         '''
-        addCommand()
+        increment_command_counter()
 
         name = ' '.join(rsn)
 
@@ -325,14 +284,14 @@ class Runescape(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def alog(self, ctx, *userName):
+    async def alog(self, ctx, *username):
         '''
         Get the last 20 activities on a player's adventurer's log.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
-        name = ' '.join(userName)
+        name = ' '.join(username)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -380,7 +339,7 @@ class Runescape(commands.Cog):
         '''
         Get top 5 hot posts from r/2007scape.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         submissions = reddit.subreddit('2007scape').hot(limit=5)
@@ -400,7 +359,7 @@ class Runescape(commands.Cog):
         '''
         Get top 5 hot posts from r/runescape.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         submissions = reddit.subreddit('runescape').hot(limit=5)
@@ -420,7 +379,7 @@ class Runescape(commands.Cog):
         '''
         Get top 5 results for a search on OSRS Wiki.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         search = ''
@@ -463,7 +422,7 @@ class Runescape(commands.Cog):
         '''
         Get top 5 results for a search on RS Wiki.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         search = ''
@@ -505,7 +464,7 @@ class Runescape(commands.Cog):
         '''
         Get 5 latest OSRS news posts.
         '''
-        addCommand()
+        increment_command_counter()
 
         news_posts = await NewsPost.query.where(NewsPost.game=='osrs').order_by(NewsPost.time.desc()).gino.all()
 
@@ -523,7 +482,7 @@ class Runescape(commands.Cog):
         '''
         Get 5 latest RS news posts.
         '''
-        addCommand()
+        increment_command_counter()
 
         news_posts = await NewsPost.query.where(NewsPost.game=='rs3').order_by(NewsPost.time.desc()).gino.all()
 
@@ -542,7 +501,7 @@ class Runescape(commands.Cog):
         Get the OSRS GE price for an item.
         Argument "days" is optional, default is 30.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if is_int(days):
@@ -673,7 +632,7 @@ class Runescape(commands.Cog):
         Get the RS3 GE price for an item.
         Argument "days" is optional, default is 30.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if is_int(days):
@@ -804,7 +763,7 @@ class Runescape(commands.Cog):
         '''
         Get OSRS hiscores info by username.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         name = ' '.join(userName)
@@ -831,7 +790,7 @@ class Runescape(commands.Cog):
 
         lines = data.split('\n')
         try:
-            lines = lines[:len(skills07)]
+            lines = lines[:len(skills_07)]
         except:
             raise commands.CommandError(message=f'Error accessing hiscores, please try again later.')
 
@@ -891,7 +850,7 @@ class Runescape(commands.Cog):
         E.g.: `-07compare "Player 1" "Player 2"`
         If you have set your username via `-set07rsn`, you can give only 1 username to compare a player to yourself.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not name_1:
@@ -922,7 +881,7 @@ class Runescape(commands.Cog):
                 data = await r.text()
 
             lines = data.split('\n')
-            lines = lines[:len(skills07)]
+            lines = lines[:len(skills_07)]
 
             levels = []
 
@@ -1003,7 +962,7 @@ class Runescape(commands.Cog):
         '''
         Get OSRS gains by username.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         name = ' '.join(userName)
@@ -1088,7 +1047,7 @@ class Runescape(commands.Cog):
         msg += '|-' + '-'*skill_chars + '|-' + '-'*today_chars + '|-' + '-'*yday_chars + '|-' + '-'*week_chars + '|\n'
 
         for i, col in enumerate(cols):
-            msg += '| ' + skills07[i] + ' '*(skill_chars-len(skills07[i])) + '| ' + ' '*(today_chars-len(col[4])-1) + col[4] + ' | ' + ' '*(yday_chars-len(col[5])-1) + col[5] + ' | ' + ' '*(week_chars-len(col[6])-1) + col[6] + ' |\n'
+            msg += '| ' + skills_07[i] + ' '*(skill_chars-len(skills_07[i])) + '| ' + ' '*(today_chars-len(col[4])-1) + col[4] + ' | ' + ' '*(yday_chars-len(col[5])-1) + col[5] + ' | ' + ' '*(week_chars-len(col[6])-1) + col[6] + ' |\n'
 
         msg += "'" + '-'*(width-2) + "'"
 
@@ -1106,7 +1065,7 @@ class Runescape(commands.Cog):
         Get RS3 hiscores info by username.
         '''
 
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
         
         name = ' '.join(userName)
@@ -1132,7 +1091,7 @@ class Runescape(commands.Cog):
             data = await r.text()
 
         lines = data.split('\n')
-        lines = lines[:len(skillsRS3)]
+        lines = lines[:len(skills_rs3)]
 
         levels = []
         xp_list = []
@@ -1207,7 +1166,7 @@ class Runescape(commands.Cog):
         E.g.: `-compare "Player 1" "Player 2"`
         If you have set your username via `-setrsn`, you can give only 1 username to compare a player to yourself.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if not name_1:
@@ -1239,7 +1198,7 @@ class Runescape(commands.Cog):
                 data = await r.text()
 
             lines = data.split('\n')
-            lines = lines[:len(skillsRS3)]
+            lines = lines[:len(skills_rs3)]
 
             levels = []
             xp_list = []
@@ -1333,7 +1292,7 @@ class Runescape(commands.Cog):
         '''
         Get RS3 gains by username.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         name = ' '.join(userName)
@@ -1421,7 +1380,7 @@ class Runescape(commands.Cog):
         msg += '|-' + '-'*skill_chars + '|-' + '-'*today_chars + '|-' + '-'*yday_chars + '|-' + '-'*week_chars + '|\n'
 
         for i, col in enumerate(cols):
-            msg += '| ' + skillsRS3[i] + ' '*(skill_chars-len(skillsRS3[i])) + '| ' + ' '*(today_chars-len(col[4])-1) + col[4] + ' | ' + ' '*(yday_chars-len(col[5])-1) + col[5] + ' | ' + ' '*(week_chars-len(col[6])-1) + col[6] + ' |\n'
+            msg += '| ' + skills_rs3[i] + ' '*(skill_chars-len(skills_rs3[i])) + '| ' + ' '*(today_chars-len(col[4])-1) + col[4] + ' | ' + ' '*(yday_chars-len(col[5])-1) + col[5] + ' | ' + ' '*(week_chars-len(col[6])-1) + col[6] + ' |\n'
 
         msg += "'" + '-'*(width-2) + "'"
 
@@ -1437,7 +1396,7 @@ class Runescape(commands.Cog):
         '''
         Get current RuneScape game time.
         '''
-        addCommand()
+        increment_command_counter()
 
         time = datetime.utcnow()
         time = time.strftime('%H:%M')
@@ -1450,11 +1409,12 @@ class Runescape(commands.Cog):
         '''
         Get latest videos from RuneScape 3 youtube channel.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         try:
-            videos = await channelVideos(self.bot.aiohttp, 'runescape')
+            playlist = Playlist(playlist_from_channel_id('UCGpr8LIrdwrEak3GuZLQPwg'))
+            videos = playlist.videos
         except:
             raise commands.CommandError(message=f'Error fetching videos.')
 
@@ -1467,9 +1427,7 @@ class Runescape(commands.Cog):
             if i >= 5:
                 break
             else:
-                age = vid['age']
-                age = translateAge(age)
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+age, inline=False)
+                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
 
         await ctx.send(embed=embed)
 
@@ -1479,11 +1437,12 @@ class Runescape(commands.Cog):
         '''
         Get latest videos from OSRS youtube channel.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         try:
-            videos = await channelVideos(self.bot.aiohttp, 'OldSchoolRSCommunity')
+            playlist = Playlist(playlist_from_channel_id('UC0j1MpbiTFHYrUjOTwifW_w'))
+            videos = playlist.videos
         except:
             raise commands.CommandError(message=f'Error fetching videos.')
 
@@ -1496,9 +1455,7 @@ class Runescape(commands.Cog):
             if i >= 5:
                 break
             else:
-                age = vid['age']
-                age = translateAge(age)
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+age, inline=False)
+                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
 
         await ctx.send(embed=embed)
     
@@ -1507,7 +1464,7 @@ class Runescape(commands.Cog):
         '''
         Get today's rune combination for the Rune Goldberg machine, used to make vis wax.
         '''
-        addCommand()
+        increment_command_counter()
 
         global vis_wax_embed
         await ctx.send(embed=vis_wax_embed)
@@ -1517,7 +1474,7 @@ class Runescape(commands.Cog):
         '''
         Calculate xp required for given level.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not lvl:
             raise commands.CommandError(message=f'Required argument missing: `level`')
@@ -1537,7 +1494,7 @@ class Runescape(commands.Cog):
         '''
         Calculate level from xp or xp difference between two levels.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not lvl_start_or_xp:
             raise commands.CommandError(message=f'Required argument missing: `level`')
@@ -1580,7 +1537,7 @@ class Runescape(commands.Cog):
         '''
         Calculate hours/actions required to reach a level / xp at a certain xp rate.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not lvl_start or not lvl_end or not xp_rate:
             raise commands.CommandError(message=f'Required argument missing.')
@@ -1625,7 +1582,7 @@ class Runescape(commands.Cog):
         '''
         Calculate rotations for Araxxor, Vorago, and Barrows: Rise Of The Six.
         '''
-        addCommand()
+        increment_command_counter()
 
         araxxor_rotation, next_araxxor = araxxor(datetime.utcnow())
         vorago_rotation, next_vorago = vorago(datetime.utcnow())
@@ -1658,7 +1615,7 @@ class Runescape(commands.Cog):
         - 0.001
         Formula used: (1-p)^k * 100
         '''
-        addCommand()
+        increment_command_counter()
 
         if not droprate:
             raise commands.CommandError(message=f'Required argument missing: `droprate`')
@@ -1688,5 +1645,5 @@ class Runescape(commands.Cog):
 
         await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
-def setup(bot):
-    bot.add_cog(Runescape(bot))
+async def setup(bot):
+    await bot.add_cog(Runescape(bot))

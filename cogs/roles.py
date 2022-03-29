@@ -1,11 +1,10 @@
 import discord
 from discord.ext import commands
-from main import config_load, addCommand, Guild, Role
+from main import config_load, increment_command_counter, Guild, Role
 import sys
 sys.path.append('../')
 import random
-from datetime import datetime, timedelta, timezone
-from utils import is_owner, is_admin, portables_admin, is_mod, is_rank, portables_only
+from utils import is_admin
 
 config = config_load()
 
@@ -25,7 +24,7 @@ class Roles(commands.Cog):
         Arguments: channel.
         If no channel is given, roles will no longer be managed.
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
         if ctx.message.channel_mentions:
@@ -50,22 +49,22 @@ class Roles(commands.Cog):
 
         permissions = discord.Permissions.none()
         colour = discord.Colour.default()
-        roleNames = []
+        role_names = []
         for role in ctx.guild.roles:
-            roleNames.append(role.name.upper())
+            role_names.append(role.name.upper())
         for rank in ranks:
-            if not rank.upper() in roleNames:
+            if not rank.upper() in role_names:
                 try:
                     await ctx.guild.create_role(name=rank, permissions=permissions, colour=colour, hoist=False, mentionable=True)
                 except discord.Forbidden:
                     raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
 
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
-        notifEmojis = []
+        notif_emojis = []
         for r in ranks:
             emojiID = config[f'{r.lower()}EmojiID']
             e = self.bot.get_emoji(emojiID)
-            notifEmojis.append(e)
+            notif_emojis.append(e)
             msg += str(e) + ' ' + r + '\n'
         '''
         if ctx.guild.id == config['portablesServer']:
@@ -78,7 +77,7 @@ class Roles(commands.Cog):
         msg += "\nIf you wish to stop receiving notifications, simply remove your reaction. If your reaction isn't there anymore, then you can add a new one and remove it."
         try:
             message = await channel.send(msg)
-            for e in notifEmojis:
+            for e in notif_emojis:
                 await message.add_reaction(e)
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `send_message / add_reaction`.')
@@ -95,19 +94,18 @@ class Roles(commands.Cog):
         Arguments: rank
         Constraints: You can only assign yourself the ranks as shown by the `ranks` command.
         '''
-        addCommand()
+        increment_command_counter()
 
-        guild = ctx.guild
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
         rank = ' '.join(rank)
-        validRank = False
+        valid_rank = False
         rank = rank[0].upper() + rank[1:].lower()
         for r in ranks:
             if rank in r:
-                validRank = True
+                valid_rank = True
                 break
-        if not validRank:
+        if not valid_rank:
             db_role = await Role.query.where(Role.guild_id==ctx.guild.id).where(Role.name==rank.lower()).gino.first()
             if not db_role:
                 raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
@@ -138,7 +136,7 @@ class Roles(commands.Cog):
         If an existing role is given, the role will be made joinable.
         Otherwise, a joinable role with the given name will be created.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
@@ -169,7 +167,7 @@ class Roles(commands.Cog):
         Arguments: rank
         Note: the role will not be removed, it just won't be joinable anymore.
         '''
-        addCommand()
+        increment_command_counter()
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
@@ -188,7 +186,7 @@ class Roles(commands.Cog):
         '''
         Get the list of joinable ranks.
         '''
-        addCommand()
+        increment_command_counter()
 
         db_roles = await Role.query.where(Role.guild_id==ctx.guild.id).gino.all()
         if not db_roles:
@@ -225,7 +223,7 @@ class Roles(commands.Cog):
         '''
         Generates a random hex colour.
         '''
-        addCommand()
+        increment_command_counter()
 
         r = lambda: random.randint(0,255)
         r1 = r()
@@ -239,65 +237,65 @@ class Roles(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def addrole(self, ctx, *roleName):
+    async def addrole(self, ctx, *role_name):
         '''
         Add a role to the server. (Admin+)
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
-        if not roleName:
+        if not role_name:
             raise commands.CommandError(message=f'Required argument missing: `role_name`.')
-        roleName = ' '.join(roleName)
+        role_name = ' '.join(role_name)
         
         for r in ctx.guild.roles:
-            if r.name.upper() == roleName.upper():
-                raise commands.CommandError(message=f'Role already exists: `{roleName}`.')
+            if r.name.upper() == role_name.upper():
+                raise commands.CommandError(message=f'Role already exists: `{role_name}`.')
         
         try:
-            await ctx.guild.create_role(name=roleName)
-            await ctx.send(f'Created role **{roleName}**.')
+            await ctx.guild.create_role(name=role_name)
+            await ctx.send(f'Created role **{role_name}**.')
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
 
     @commands.command(pass_context=True, aliases=['removerole'])
     @is_admin()
-    async def delrole(self, ctx, *roleName):
+    async def delrole(self, ctx, *role_name):
         '''
         Delete a role from the server. (Admin+)
         '''
-        addCommand()
+        increment_command_counter()
         await ctx.channel.trigger_typing()
 
-        if not roleName:
+        if not role_name:
             raise commands.CommandError(message=f'Required argument missing: `role`.')
-        roleName = ' '.join(roleName)
+        role_name = ' '.join(role_name)
         
-        role = discord.utils.find(lambda r: r.name.upper() == roleName.upper(), ctx.guild.roles)
+        role = discord.utils.find(lambda r: r.name.upper() == role_name.upper(), ctx.guild.roles)
         if not role:
-            raise commands.CommandError(message=f'Could not find role: `{roleName}`.')
+            raise commands.CommandError(message=f'Could not find role: `{role_name}`.')
         try:
             await role.delete()
-            await ctx.send(f'Deleted role **{roleName}**.')
+            await ctx.send(f'Deleted role **{role_name}**.')
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `delete_roles`.')
 
     @commands.command(pass_context=True)
-    async def members(self, ctx, *roleName):
+    async def members(self, ctx, *role_name):
         '''
         List members in a role.
         '''
-        addCommand()
+        increment_command_counter()
 
-        if not roleName:
+        if not role_name:
             raise commands.CommandError(message=f'Required argument missing: `role`.')
-        roleName = ' '.join(roleName)
+        role_name = ' '.join(role_name)
         
-        role = discord.utils.find(lambda r: r.name.upper() == roleName.upper(), ctx.guild.roles)
+        role = discord.utils.find(lambda r: r.name.upper() == role_name.upper(), ctx.guild.roles)
         if not role:
-            role = discord.utils.find(lambda r: roleName.upper() in r.name.upper(), ctx.guild.roles)
+            role = discord.utils.find(lambda r: role_name.upper() in r.name.upper(), ctx.guild.roles)
         if not role:
-            raise commands.CommandError(message=f'Could not find role: `{roleName}`.')
+            raise commands.CommandError(message=f'Could not find role: `{role_name}`.')
 
         txt = ''
         for m in role.members:
@@ -308,7 +306,7 @@ class Roles(commands.Cog):
                 txt += m.mention + '\n'
         txt = txt.strip()
 
-        embed = discord.Embed(title=f'Members in {roleName} ({len(role.members)})', colour=0x00b2ff, description=txt)
+        embed = discord.Embed(title=f'Members in {role_name} ({len(role.members)})', colour=0x00b2ff, description=txt)
 
         await ctx.send(embed=embed)
 
@@ -317,16 +315,16 @@ class Roles(commands.Cog):
         '''
         Get a list of roles and member counts.
         '''
-        addCommand()
+        increment_command_counter()
 
         msg = ''
         chars = max([len(role.name) for role in ctx.guild.roles])+1
         counts = [len(role.members) for role in ctx.guild.roles]
-        countChars = max([len(str(i)) for i in counts])+1
+        count_chars = max([len(str(i)) for i in counts])+1
 
         for i, role in enumerate(ctx.guild.roles):
             count = counts[i]
-            msg += role.name + (chars - len(role.name))*' ' + str(count) + (countChars - len(str(count)))*' ' + 'members\n'
+            msg += role.name + (chars - len(role.name))*' ' + str(count) + (count_chars - len(str(count)))*' ' + 'members\n'
         msg = msg.strip()
 
         if len(msg) <= 1994:
@@ -338,5 +336,5 @@ class Roles(commands.Cog):
                 await ctx.send(f'```{msg}```')
 
 
-def setup(bot):
-    bot.add_cog(Roles(bot))
+async def setup(bot):
+    await bot.add_cog(Roles(bot))

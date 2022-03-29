@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, addCommand, Guild, purge_guild
+from main import config_load, increment_command_counter, Guild, purge_guild
 
 config = config_load()
 
@@ -21,5 +21,5 @@ class Servers(commands.Cog):
         if guild:
             await purge_guild(guild)
 
-def setup(bot):
-    bot.add_cog(Servers(bot))
+async def setup(bot):
+    await bot.add_cog(Servers(bot))
