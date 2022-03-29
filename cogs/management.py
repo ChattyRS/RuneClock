@@ -1,7 +1,7 @@
 import asyncio
 import discord
 from discord.ext import commands, tasks
-from discord.commands import slash_command, Option
+from discord.commands import slash_command
 import os
 import sys
 sys.path.append('../')
@@ -434,20 +434,6 @@ class Management(commands.Cog):
         await guild.update(prefix=prefix).apply()
         
         await ctx.send(f'The command prefix for server **{ctx.guild.name}** has been set to `{prefix}`.')
-
-    @slash_command(name='prefix', guild_ids=[299191370030252042])
-    @is_admin()
-    async def prefix_slash(self, ctx, prefix: Option(str, 'New prefix')):
-        '''
-        Changes server's command prefix (default "-"). (Admin+)
-        Arguments: prefix
-        '''
-        increment_command_counter()
-
-        guild = await Guild.get(ctx.guild.id)
-        await guild.update(prefix=prefix).apply()
-        
-        await ctx.respond(f'The command prefix for server **{ctx.guild.name}** has been set to `{prefix}`.')
 
     @commands.command(pass_context=True, aliases=['latency', 'delay'])
     async def ping(self, ctx):

@@ -235,10 +235,6 @@ class Bot(commands.AutoShardedBot):
         print('-' * 10)
         logging.critical(msg)
 
-        # manually register slash commands
-        # these somehow are not automatically synced by pycord
-        await self.bot.sync_commands()
-
         try:
             if 'Failed' in msg:
                 await channel.send(discord_msg)
