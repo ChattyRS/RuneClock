@@ -263,9 +263,9 @@ class Management(commands.Cog):
                         embed.add_field(name=f'{category}', value=val, inline=False)
                         embed_short.add_field(name=f'{category}', value=val_short, inline=False)
 
-        embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'])
+        embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
         embed.set_footer(text=f'{len(self.bot.commands)} commands • {len(self.bot.extensions)} extensions')
-        embed_short.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'])
+        embed_short.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
         embed_short.set_footer(text=f'{len(self.bot.commands)} commands • {len(self.bot.extensions)} extensions')
 
         try:
@@ -662,9 +662,9 @@ class Management(commands.Cog):
         processed = f'**Commands:** {get_command_counter()}\n**Events:** {get_events_logged()}\n**Notifications:** {notifications}'
         embed.add_field(name='__Processed__', value=processed)
 
-        embed.set_author(name='Chatty#0001', url='https://github.com/ChattyRS/Portables', icon_url='https://i.imgur.com/y1ovBqC.png')
+        embed.set_author(name='Chatty#0001', url='https://github.com/ChattyRS/Portables', icon_url=config['profile_picture_url'])
 
-        embed.set_thumbnail(url='https://i.imgur.com/Hccdnts.png')
+        embed.set_thumbnail(url=ctx.guild.me.display_avatar.url)
 
         if not 'OK' in txt:
             embed.add_field(name='__Details__', value=f'{gspread_status}', inline=False)
