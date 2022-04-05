@@ -264,6 +264,8 @@ class Logs(commands.Cog):
 
     @Cog.listener()
     async def on_guild_channel_delete(self, channel):
+        if channel.guild is None:
+            return
         try:
             guild = await Guild.get(channel.guild.id)
         except:
@@ -292,6 +294,8 @@ class Logs(commands.Cog):
 
     @Cog.listener()
     async def on_guild_channel_create(self, channel):
+        if channel.guild is None:
+            return
         try:
             guild = await Guild.get(channel.guild.id)
         except:

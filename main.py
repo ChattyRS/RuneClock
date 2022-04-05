@@ -379,7 +379,7 @@ class Bot(commands.AutoShardedBot):
         '''
         channel = self.get_channel(payload.channel_id)
 
-        if not channel:
+        if not channel or not channel.guild:
             return
 
         user = await channel.guild.fetch_member(payload.user_id)
@@ -456,7 +456,7 @@ class Bot(commands.AutoShardedBot):
         '''
         channel = self.get_channel(payload.channel_id)
 
-        if not channel:
+        if not channel or not channel.guild:
             return
 
         user = await channel.guild.fetch_member(payload.user_id)
@@ -503,12 +503,9 @@ class Bot(commands.AutoShardedBot):
         if message.author.bot:
             return  # ignore all bots
 
-        if isinstance(message.channel, discord.abc.PrivateChannel):
-            try:
-                await message.channel.send(f'Sorry, I don\'t support DMs. If you have any questions, please join the support server: {config["support_server"]}.')
-                return
-            except:
-                return
+        # For now, ignore messages that were not sent from guilds, because this might break certain commands
+        if message.guild is None:
+            return
         try:
             guild = await Guild.get(message.guild.id)
         except:
