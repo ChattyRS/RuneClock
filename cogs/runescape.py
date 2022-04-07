@@ -1309,7 +1309,7 @@ class Runescape(commands.Cog):
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
             data = await r.text()
 
-        for i in range(100, 1, -1):
+        for i in range(150, 0, -1):
             data = data.replace(f'+{i}', '')
 
         try:
