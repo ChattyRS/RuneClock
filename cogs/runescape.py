@@ -1008,16 +1008,8 @@ class Runescape(commands.Cog):
 
         msg = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
         width = len(msg)
-        msg += ' \n'
 
-        whitespace = float((width - len(f'OSRS GAINS FOR {name.upper()}') - 2) / 2)
-        if whitespace.is_integer():
-            whitespace = int(whitespace)
-            msg += '|' + ' '*whitespace + f'OSRS GAINS FOR {name.upper()}' + ' '*whitespace + '|\n'
-        else:
-            msg += '|' + ' '*math.floor(whitespace) + f'OSRS GAINS FOR {name.upper()}' + ' '*math.ceil(whitespace) + '|\n'
-
-        msg += '|' + '-'*(width-2) + '|\n'
+        msg = '.' + '-'*(width-2) + '.\n'
 
         skill_whitespace = float((skill_chars-len('Skill'))/2)
         if skill_whitespace.is_integer():
@@ -1051,12 +1043,12 @@ class Runescape(commands.Cog):
 
         msg += "'" + '-'*(width-2) + "'"
 
-        msg = f'```{msg}```'
+        msg = f'```\n{msg}\n```'
 
-        if len(msg) > 2000:
-            raise commands.CommandError(message=f'No response from Runeclan.com. Please try again in a minute.')
+        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=url)
+        embed.set_author(name=f'Runeclan', url=url)
 
-        await ctx.send(msg)
+        await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['rs3stats'])
     @commands.cooldown(1, 10, commands.BucketType.user)
@@ -1341,16 +1333,8 @@ class Runescape(commands.Cog):
 
         msg = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
         width = len(msg)
-        msg += ' \n'
 
-        whitespace = float((width - len(f'RS3 GAINS FOR {name.upper()}') - 2) / 2)
-        if whitespace.is_integer():
-            whitespace = int(whitespace)
-            msg += '|' + ' '*whitespace + f'RS3 GAINS FOR {name.upper()}' + ' '*whitespace + '|\n'
-        else:
-            msg += '|' + ' '*math.floor(whitespace) + f'RS3 GAINS FOR {name.upper()}' + ' '*math.ceil(whitespace) + '|\n'
-
-        msg += '|' + '-'*(width-2) + '|\n'
+        msg = '.' + '-'*(width-2) + '.\n'
 
         skill_whitespace = float((skill_chars-len('Skill'))/2)
         if skill_whitespace.is_integer():
@@ -1384,12 +1368,12 @@ class Runescape(commands.Cog):
 
         msg += "'" + '-'*(width-2) + "'"
 
-        msg = f'```{msg}```'
+        msg = f'```\n{msg}\n```'
 
-        if len(msg) > 2000:
-            raise commands.CommandError(message=f'No response from Runeclan.com. Please try again in a minute.')
+        embed = discord.Embed(title=f'RS3 gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=url)
+        embed.set_author(name=f'Runeclan', url=url)
 
-        await ctx.send(msg)
+        await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['gametime'])
     async def time(self, ctx):
