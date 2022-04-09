@@ -766,7 +766,14 @@ class Runescape(commands.Cog):
         increment_command_counter()
         await ctx.channel.trigger_typing()
 
-        name = ' '.join(userName)
+        name = None
+        if ctx.message.mentions:
+            name = ctx.message.mentions[0].display_name
+            user = await User.get(ctx.message.mentions[0].id)
+            if user:
+                name = user.osrs_rsn
+        else:
+            name = ' '.join(userName)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -965,7 +972,14 @@ class Runescape(commands.Cog):
         increment_command_counter()
         await ctx.channel.trigger_typing()
 
-        name = ' '.join(userName)
+        name = None
+        if ctx.message.mentions:
+            name = ctx.message.mentions[0].display_name
+            user = await User.get(ctx.message.mentions[0].id)
+            if user:
+                name = user.osrs_rsn
+        else:
+            name = ' '.join(userName)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -1060,7 +1074,14 @@ class Runescape(commands.Cog):
         increment_command_counter()
         await ctx.channel.trigger_typing()
         
-        name = ' '.join(userName)
+        name = None
+        if ctx.message.mentions:
+            name = ctx.message.mentions[0].display_name
+            user = await User.get(ctx.message.mentions[0].id)
+            if user:
+                name = user.rsn
+        else:
+            name = ' '.join(userName)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -1287,7 +1308,14 @@ class Runescape(commands.Cog):
         increment_command_counter()
         await ctx.channel.trigger_typing()
 
-        name = ' '.join(userName)
+        name = None
+        if ctx.message.mentions:
+            name = ctx.message.mentions[0].display_name
+            user = await User.get(ctx.message.mentions[0].id)
+            if user:
+                name = user.rsn
+        else:
+            name = ' '.join(userName)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -1309,7 +1337,7 @@ class Runescape(commands.Cog):
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
             data = await r.text()
 
-        for i in range(150, 0, -1):
+        for i in range(3000, 0, -1):
             data = data.replace(f'+{i}', '')
 
         try:
