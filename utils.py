@@ -371,6 +371,14 @@ def xp_to_level(xp):
 def combat_level(attack, strength, defence, constitution, magic, ranged, prayer, summoning):
     return (13/10 * max(attack + strength, 2 * magic, 2 * ranged) + defence + constitution + math.floor(1/2 * prayer) + math.floor(1/2 * summoning)) / 4
 
+def osrs_combat_level(attack, strength, defence, hitpoints, magic, ranged, prayer):
+    base = (defence + hitpoints + math.floor(prayer / 2)) / 4
+    melee = 13 / 40 * (attack + strength)
+    _range = 13 / 40 * math.floor(ranged * 3 / 2)
+    mage = 13 / 40 * math.floor(magic * 3 / 2)
+    final = math.floor(base + max(melee, _range, mage))
+    return final
+
 unit_aliases = {    # distance
                     'millimeters': 'mm', 'millimetres': 'mm',
                     'centimeters': 'cm', 'centimetres': 'cm',

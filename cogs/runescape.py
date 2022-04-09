@@ -13,7 +13,7 @@ from matplotlib.dates import DateFormatter
 import math
 from bs4 import BeautifulSoup
 from utils import is_int, is_float, draw_num, xp_to_level, combat_level, draw_outline_osrs, draw_outline_rs3
-from utils import level_to_xp, time_diff_to_string
+from utils import level_to_xp, time_diff_to_string, osrs_combat_level
 import io
 import imageio
 import copy
@@ -37,20 +37,29 @@ skills_07 = ['Overall', 'Attack', 'Defence', 'Strength', 'Hitpoints', 'Ranged',
             'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
             'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
             'Thieving', 'Slayer', 'Farming', 'Runecraft', 'Hunter', 'Construction']
-'''
+
 osrs_skill_emojis = ['<:Attack_icon:624387168982269952>', '<:Defence_icon:624387168655114263>', '<:Strength_icon:624387169145847808>', '<:Hitpoints_icon:624387169058029568>', '<:Ranged_icon:624387169028538378>',
             '<:Prayer_icon:624387169129332743>', '<:Magic_icon:624387168726548495>', '<:Cooking_icon:624387169066287104>', '<:Woodcutting_icon:624387168844120065>', '<:Fletching_icon:624387168885800981>', '<:Fishing_icon:624387169024213008>',
             '<:Firemaking_icon:624387169011630120>', '<:Crafting_icon:624387169003503616>', '<:Smithing_icon:624387168898383903>', '<:Mining_icon:624387168785137669>', '<:Herblore_icon:624387169053704195>', '<:Agility_icon:624387168609239048>',
             '<:Thieving_icon:624387169015955475>', '<:Slayer_icon:624387168822886435>', '<:Farming_icon:624387168990658570>', '<:Runecraft_icon:624387169041121290>', '<:Hunter_icon:624387169070350336>', '<:Construction_icon:624387168995115041>', '<:Stats_icon:624389156344430594>']
-'''
+
 skills_rs3 = ['Overall', 'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged',
             'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
             'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
             'Thieving', 'Slayer', 'Farming', 'Runecrafting', 'Hunter', 'Construction',
             'Summoning', 'Dungeoneering', 'Divination', 'Invention', 'Archaeology']
 
+rs3_skill_emojis = ['<:Attack:962315037668696084>', '<:Defence:962315037396074517>', '<:Strength:962315037538668555>', '<:Constitution:962315037601562624>', '<:Ranged:962315037177970769>',
+            '<:Prayer:962315037509300224>', '<:Magic:962315037207318579>', '<:Cooking:962315037563817994>', '<:Woodcutting:962315037593194516>', '<:Fletching:962315037664493568>', '<:Fishing:962315037630951484>',
+            '<:Firemaking:962315037542871070>', '<:Crafting:962315037647732766>', '<:Smithing:962315037530271744>', '<:Mining:962315037526085632>', '<:Herblore:962315037563834398>', '<:Agility:962315037635121162>',
+            '<:Thieving:962315037106634753>', '<:Slayer:962315037278609419>', '<:Farming:962315037484130324>', '<:Runecrafting:962315037538676736>', '<:Hunter:962315037261848607>', '<:Construction:962315037626761226>',
+            '<:Summoning:962315037559631892>', '<:Dungeoneering:962315037815492648>', '<:Divination:962315037727412245>', '<:Invention:962315037723222026>', '<:Archaeology:962315037509316628>']
+  
 indices = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21]
 indices_rs3 = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23, 24, 25, 26, 27]
+
+cb_indices_rs3 = [0, 2, 1, 3, 6, 4, 5, 23]
+cb_indices_osrs = [0, 2, 1, 3, 6, 4, 5]
 
 yellow = [255, 255, 0, 255]
 orange = [255, 140, 0, 255]
@@ -759,7 +768,7 @@ class Runescape(commands.Cog):
     
     @commands.command(name='07stats', pass_context=True, aliases=['osrsstats'])
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def _07stats(self, ctx, *userName):
+    async def _07stats(self, ctx, *username):
         '''
         Get OSRS hiscores info by username.
         '''
@@ -773,7 +782,7 @@ class Runescape(commands.Cog):
             if user:
                 name = user.osrs_rsn
         else:
-            name = ' '.join(userName)
+            name = ' '.join(username)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -965,7 +974,7 @@ class Runescape(commands.Cog):
 
     @commands.command(name='07gainz', pass_context=True, aliases=['07gains', 'osrsgainz', 'osrsgains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07gainz(self, ctx, *userName):
+    async def _07gainz(self, ctx, *username):
         '''
         Get OSRS gains by username.
         '''
@@ -979,7 +988,7 @@ class Runescape(commands.Cog):
             if user:
                 name = user.osrs_rsn
         else:
-            name = ' '.join(userName)
+            name = ' '.join(username)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -1066,7 +1075,7 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rs3stats'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def stats(self, ctx, *userName):
+    async def stats(self, ctx, *username):
         '''
         Get RS3 hiscores info by username.
         '''
@@ -1081,7 +1090,7 @@ class Runescape(commands.Cog):
             if user:
                 name = user.rsn
         else:
-            name = ' '.join(userName)
+            name = ' '.join(username)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -1301,7 +1310,7 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['gains', 'rs3gainz', 'rs3gains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def gainz(self, ctx, *userName):
+    async def gainz(self, ctx, *username):
         '''
         Get RS3 gains by username.
         '''
@@ -1315,7 +1324,7 @@ class Runescape(commands.Cog):
             if user:
                 name = user.rsn
         else:
-            name = ' '.join(userName)
+            name = ' '.join(username)
 
         if not name:
             user = await User.get(ctx.author.id)
@@ -1656,6 +1665,169 @@ class Runescape(commands.Cog):
         result *= 100
 
         await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
+
+    @commands.command(aliases=['cb', 'rs3cb', 'rs3combat'])
+    async def combat(self, ctx, *username):
+        '''
+        Calculate the combat level of a RS3 player.
+        '''
+        increment_command_counter()
+        await ctx.channel.trigger_typing()
+
+        name = None
+        if ctx.message.mentions:
+            name = ctx.message.mentions[0].display_name
+            user = await User.get(ctx.message.mentions[0].id)
+            if user:
+                name = user.rsn
+        else:
+            name = ' '.join(username)
+
+        if not name:
+            user = await User.get(ctx.author.id)
+            if user:
+                name = user.rsn
+            if not name:
+                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
+
+        if len(name) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
+        if re.match('^[A-z0-9 -]+$', name) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
+
+        url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
+        hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
+
+        r = await self.bot.aiohttp.get(url)
+        async with r:
+            if r.status != 200:
+                raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
+            data = await r.text()
+
+        lines = data.split('\n')
+        lines = lines[:len(skills_rs3)]
+
+        levels = []
+        xp_list = []
+
+        for i, line in enumerate(lines):
+            lines[i] = line.split(',')
+            levels.append(lines[i][1])
+            xp_list.append(lines[i][2])
+
+        attack, strength, defence, constitution, magic, ranged, prayer, summoning = int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24])
+        combat = combat_level(attack, strength, defence, constitution, magic, ranged, prayer, summoning)
+
+        cb_skills = [attack, strength, defence, constitution, magic, ranged, prayer, summoning]
+        original_cb_skills = copy.deepcopy(cb_skills)
+        cb_skill_names = ['Attack', 'Strength', 'Defence', 'Constitution', 'Magic', 'Ranged', 'Prayer', 'Summoning']
+        levels_required = [0, 0, 0, 0, 0, 0, 0, 0]
+
+        description = f'**{name}**\'s combat level is: `{combat}`'
+
+        if combat < 138:
+            for i, cb_skill in enumerate(original_cb_skills):
+                cb_skills = copy.deepcopy(original_cb_skills)
+                while cb_skill < 99:
+                    cb_skill += 1
+                    cb_skills[i] = cb_skill
+                    if (math.floor(combat_level(*cb_skills)) > math.floor(combat)):
+                        levels_required[i] = cb_skill - original_cb_skills[i]
+                        break
+        
+        if (any([lvls_required > 0 for lvls_required in levels_required])):
+            description += '\nYou can level up by getting any of the following levels:'
+
+        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url, description=description)
+        embed.set_author(name=name, icon_url=f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '%20'))
+
+        for i, lvls_required in enumerate(levels_required):
+            if lvls_required > 0:
+                embed.add_field(name=cb_skill_names[i], value=f'{rs3_skill_emojis[cb_indices_rs3[i]]} {lvls_required} levels', inline=True)
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name='07combat', aliases=['07cb', 'osrscb', 'osrscombat'])
+    async def _07combat(self, ctx, *username):
+        '''
+        Calculate the combat level of a OSRS player.
+        '''
+        increment_command_counter()
+        await ctx.channel.trigger_typing()
+
+        name = None
+        if ctx.message.mentions:
+            name = ctx.message.mentions[0].display_name
+            user = await User.get(ctx.message.mentions[0].id)
+            if user:
+                name = user.osrs_rsn
+        else:
+            name = ' '.join(username)
+
+        if not name:
+            user = await User.get(ctx.author.id)
+            if user:
+                name = user.osrs_rsn
+            if not name:
+                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
+
+        if len(name) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
+        if re.match('^[A-z0-9 -]+$', name) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
+
+        url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
+        hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
+
+        r = await self.bot.aiohttp.get(url)
+        async with r:
+            if r.status != 200:
+                raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
+            data = await r.text()
+
+        lines = data.split('\n')
+        try:
+            lines = lines[:len(skills_07)]
+        except:
+            raise commands.CommandError(message=f'Error accessing hiscores, please try again later.')
+
+        levels = []
+
+        for i, line in enumerate(lines):
+            lines[i] = line.split(',')
+            levels.append(lines[i][1])
+
+        attack, strength, defence, hitpoints, magic, ranged, prayer = int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6])
+        combat = osrs_combat_level(attack, strength, defence, hitpoints, magic, ranged, prayer)
+
+        cb_skills = [attack, strength, defence, hitpoints, magic, ranged, prayer]
+        original_cb_skills = copy.deepcopy(cb_skills)
+        cb_skill_names = ['Attack', 'Strength', 'Defence', 'Hitpoints', 'Magic', 'Ranged', 'Prayer']
+        levels_required = [0, 0, 0, 0, 0, 0, 0]
+
+        description = f'**{name}**\'s combat level is: `{combat}`'
+
+        if combat < 126:
+            for i, cb_skill in enumerate(original_cb_skills):
+                cb_skills = copy.deepcopy(original_cb_skills)
+                while cb_skill < 99:
+                    cb_skill += 1
+                    cb_skills[i] = cb_skill
+                    if (math.floor(osrs_combat_level(*cb_skills)) > math.floor(combat)):
+                        levels_required[i] = cb_skill - original_cb_skills[i]
+                        break
+        
+        if (any([lvls_required > 0 for lvls_required in levels_required])):
+            description += '\nYou can level up by getting any of the following levels:'
+
+        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url, description=description)
+        embed.set_author(name=name, icon_url=f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '%20'))
+
+        for i, lvls_required in enumerate(levels_required):
+            if lvls_required > 0:
+                embed.add_field(name=cb_skill_names[i], value=f'{osrs_skill_emojis[cb_indices_osrs[i]]} {lvls_required} levels', inline=True)
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Runescape(bot))
