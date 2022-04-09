@@ -8,8 +8,18 @@ from datetime import datetime, timedelta
 from utils import time_diff_to_string
 from utils import item_emojis
 import json
+import praw
 
 config = config_load()
+
+reddit = praw.Reddit(client_id=config['redditID'],
+                     client_secret=config['redditSecret'],
+                     password=config['redditPW'],
+                     user_agent=config['user_agent'],
+                     username=config['redditName'])
+
+nemi_embed = None
+nemi_time = None
 
 class DNDCommands(commands.Cog):
     def __init__(self, bot):
@@ -329,6 +339,41 @@ class DNDCommands(commands.Cog):
         embed = discord.Embed(title='Minigame Spotlight', colour=0x00b2ff, description=self.bot.spotlight)
         embed.set_footer(text=time_diff_to_string(self.bot.next_spotlight - now))
         
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def nemi(self, ctx):
+        '''
+        Gets the current nemi forest layout from FC Nemi.
+        '''
+        increment_command_counter()
+        await ctx.channel.trigger_typing()
+
+        global nemi_embed
+        global nemi_time
+
+        if nemi_embed and nemi_time and nemi_time < datetime.utcnow() + timedelta(minutes=5):
+            await ctx.send(embed=nemi_embed)
+            return
+
+        submissions = reddit.subreddit('NemiForest').new(limit=5)
+
+        sub = None
+        for s in submissions:
+            if s.url.endswith(('.jpg', '.png', '.gif', '.jpeg')) and s.title.upper().startswith('W'):
+                sub = s
+                break
+
+        if not sub:
+            raise commands.CommandError(message=f'No nemi forest layout found. Please try again later.')
+
+        embed = discord.Embed(title=f'/r/NemiForest', colour=0x00b2ff, timestamp=datetime.utcfromtimestamp(int(sub.created_utc)), url=sub.shortlink, description=sub.title)
+        embed.set_image(url=sub.url)
+        embed.set_author(name=sub.author.name, icon_url=sub.author.icon_img)
+
+        nemi_embed = embed
+        nemi_time = datetime.utcnow()
+
         await ctx.send(embed=embed)
 
 async def setup(bot):
