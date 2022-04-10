@@ -869,6 +869,28 @@ class Runescape(commands.Cog):
         increment_command_counter()
         await ctx.channel.trigger_typing()
 
+        if len(ctx.message.mentions) >= 2:
+            name_1 = ctx.message.mentions[0].display_name
+            name_2 = ctx.message.mentions[1].display_name
+
+            user_1 = await User.get(ctx.message.mentions[0].id)
+            if user_1:
+                name_1 = user_1.osrs_rsn
+            user_2 = await User.get(ctx.message.mentions[1].id)
+            if user_2:
+                name_2 = user_2.osrs_rsn
+        elif ctx.message.mentions:
+            if name_1 == ctx.message.mentions[0].mention:
+                name_1 = ctx.message.mentions[0].display_name
+                user_1 = await User.get(ctx.message.mentions[0].id)
+                if user_1:
+                    name_1 = user_1.osrs_rsn
+            else:
+                name_2 = ctx.message.mentions[0].display_name
+                user_2 = await User.get(ctx.message.mentions[0].id)
+                if user_2:
+                    name_2 = user_2.osrs_rsn
+
         if not name_1:
             raise commands.CommandError(message=f'Required argument missing: `RSN_1`. Please add a username as argument')
         elif not name_2:
@@ -1190,6 +1212,28 @@ class Runescape(commands.Cog):
         '''
         increment_command_counter()
         await ctx.channel.trigger_typing()
+
+        if len(ctx.message.mentions) >= 2:
+            name_1 = ctx.message.mentions[0].display_name
+            name_2 = ctx.message.mentions[1].display_name
+
+            user_1 = await User.get(ctx.message.mentions[0].id)
+            if user_1:
+                name_1 = user_1.rsn
+            user_2 = await User.get(ctx.message.mentions[1].id)
+            if user_2:
+                name_2 = user_2.rsn
+        elif ctx.message.mentions:
+            if name_1 == ctx.message.mentions[0].mention:
+                name_1 = ctx.message.mentions[0].display_name
+                user_1 = await User.get(ctx.message.mentions[0].id)
+                if user_1:
+                    name_1 = user_1.rsn
+            else:
+                name_2 = ctx.message.mentions[0].display_name
+                user_2 = await User.get(ctx.message.mentions[0].id)
+                if user_2:
+                    name_2 = user_2.rsn
 
         if not name_1:
             raise commands.CommandError(message=f'Required argument missing: `RSN_1`. Please add a username as argument')
