@@ -21,6 +21,9 @@ reddit = praw.Reddit(client_id=config['redditID'],
 nemi_embed = None
 nemi_time = None
 
+peng_embed = None
+peng_time = None
+
 class DNDCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -364,8 +367,11 @@ class DNDCommands(commands.Cog):
                 sub = s
                 break
 
-        if not sub:
+        if not sub and not nemi_embed:
             raise commands.CommandError(message=f'No nemi forest layout found. Please try again later.')
+        elif not sub:
+            await ctx.send(embed=nemi_embed)
+            return
 
         embed = discord.Embed(title=f'/r/NemiForest', colour=0x00b2ff, timestamp=datetime.utcfromtimestamp(int(sub.created_utc)), url=sub.shortlink, description=sub.title)
         embed.set_image(url=sub.url)
@@ -375,6 +381,113 @@ class DNDCommands(commands.Cog):
         nemi_time = datetime.utcnow()
 
         await ctx.send(embed=embed)
+    
+    @commands.command(aliases=['w60pengs', 'world60pengs', 'penglocs', 'penguins'])
+    async def pengs(self, ctx):
+        '''
+        Gets this weeks world 60 penguin locations.
+        '''
+        increment_command_counter()
+        await ctx.channel.trigger_typing()
+
+        global peng_embed
+        global peng_time
+
+        if peng_embed and peng_time and ((datetime.utcnow().weekday() != 0 and peng_time < datetime.utcnow() + timedelta(hours=1)) or (datetime.utcnow().weekday() == 0 and peng_time < datetime.utcnow() + timedelta(minutes=5))):
+            await ctx.send(embed=peng_embed)
+            return
+
+        submissions = reddit.subreddit('World60Pengs').new(limit=5)
+
+        sub = None
+        for s in submissions:
+            if s.is_self and s.title.lower().startswith('penguin locations v'):
+                sub = s
+                break
+        
+        if not sub and not peng_embed:
+            raise commands.CommandError(message=f'No penguin locations found. Please try again later.')
+        elif not sub:
+            await ctx.send(embed=peng_embed)
+            return
+
+        text = sub.selftext
+        text = text.split('#Please post locations below as you spy!')[0].strip()
+        text = text.replace('#', '', 1)
+
+        subtitle = ''
+        locations = ''
+        notes = ''
+
+        for line in text.split('\n'):
+            if not line.startswith('>') and not locations:
+                subtitle += '\n' + line
+            elif line.startswith('>'):
+                temp = line.replace('>', '').replace('^[‡]', '‡').replace('[]', '').replace('(#small)', '')
+                temp = temp.replace('(#crate)', '(#crat)').replace('(#toadstool)', '(#toad)').replace('(#cactus)', '(#cact)').replace('(#barrel)', '(#barr)')
+                temp = temp.replace('(#pumpkin)', '(#pump)').replace('(#snowman)', '(#snow)')
+                locations += temp + '\n'
+            else:
+                notes += line + '\n'
+            
+        locations = locations.strip().split('\n')[2:]
+        notes = '\n'.join(notes.strip().split('\n')[1:])
+        notes = notes.replace('__', '').replace('*', '•')
+
+        dangerous = []
+        temp = copy.deepcopy(locations)
+        for i, loc in enumerate(temp):
+            if '(#danger)' in loc:
+                locations[i] = loc.replace('(#danger)', '')
+                dangerous.append(i)
+
+        table = [loc.split('|') for loc in locations]
+        result = copy.deepcopy(table)
+
+        for i, row in enumerate(table):
+            for j, col in enumerate(row):
+                result[i][j] = col.strip()
+
+        table = copy.deepcopy(result)
+        for i, row in enumerate(table):
+            for j, col in enumerate(row):
+                len_dif = max([len(r[j]) for r in table]) - len(col)
+                result[i][j] += len_dif * ' '
+        
+        table = copy.deepcopy(result)
+        for i, row in enumerate(table):
+            temp = row[2].replace('(#rock)', '🪨')
+            temp = temp.replace('(#bush)', '🌳')
+            temp = temp.replace('(#crat)', '📦')
+            temp = temp.replace('(#toad)', '🍄')
+            temp = temp.replace('(#cact)', '🌵')
+            temp = temp.replace('(#barr)', '🛢️')
+            temp = temp.replace('(#pump)', '🎃')
+            temp = temp.replace('(#snow)', '⛄')
+            result[i][2] = temp
+        
+        table = copy.deepcopy(result)
+        for i, row in enumerate(table):
+            if i in dangerous:
+                result[i][3] += ' ☠️'
+        
+        table = []
+        for row in result:
+            table.append(' '.join(row))
+        table = '\n'.join(table)
+
+        description = f'**{sub.title}**\n{subtitle}```{table}```'
+
+        embed = discord.Embed(title=f'World 60 penguin locations', colour=0x00b2ff, timestamp=datetime.utcfromtimestamp(int(sub.created_utc)), url=sub.shortlink, description=description)
+        embed.set_author(name=sub.author.name, icon_url=sub.author.icon_img)
+
+        embed.add_field(name='Notes', value=notes)
+
+        peng_embed = embed
+        peng_time = datetime.utcnow()
+
+        await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(DNDCommands(bot))
