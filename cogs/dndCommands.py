@@ -393,7 +393,7 @@ class DNDCommands(commands.Cog):
         global peng_embed
         global peng_time
 
-        if peng_embed and peng_time and ((datetime.utcnow().weekday() != 0 and peng_time < datetime.utcnow() + timedelta(hours=1)) or (datetime.utcnow().weekday() == 0 and peng_time < datetime.utcnow() + timedelta(minutes=5))):
+        if peng_embed and peng_time and ((datetime.utcnow().weekday() != 2 and peng_time < datetime.utcnow() + timedelta(hours=1)) or (datetime.utcnow().weekday() == 2 and peng_time < datetime.utcnow() + timedelta(minutes=5))):
             await ctx.send(embed=peng_embed)
             return
 
