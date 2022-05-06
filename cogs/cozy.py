@@ -1,3 +1,4 @@
+from tokenize import String
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
@@ -8,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import re
 import copy
 import gspread
-from utils import cozy_council, cozy_only
+from utils import cozy_council, cozy_champions, cozy_only
 from bs4 import BeautifulSoup
 from gcsa.google_calendar import GoogleCalendar
 import math
@@ -39,6 +40,54 @@ wom_metrics = [# Skills
                "theatre_of_blood_hard_mode", "thermonuclear_smoke_devil", "tzkal_zuk", "tztok_jad", "venenatis", "vetion", "vorkath", "wintertodt", "zalcano", "zulrah", 
                # Misc
                "ehp", "ehb"]
+
+application_form_questions = [
+    'RuneScape Username:',
+    'Total Level:',
+    'How long have you played OSRS?:',
+    'Are you an Ironman?:',
+    'Why do you want to join our clan?:',
+    'Time Zone:',
+    'Do you play more in the mornings, evenings, or nights:',
+    'Where did you hear about our clan:',
+    'Would you be able to join voice chat for clan events:',
+    'Favorite in-game activity:'
+]
+
+'''
+Parses a cozy application message
+'''
+def parse_application(message):
+    # Validate template
+    for question in application_form_questions:
+        if not question in message.content:
+            raise ValueError(f'Error: missing application form question: `{question}`.')
+
+    rsn, ironman = '', 'No'
+
+    # Validate answers
+    content = message.content
+    for i, question in enumerate(application_form_questions):
+        # Get answer
+        answer = ' ' + content.split(question)[-1]
+        if i < len(application_form_questions) - 1:
+            answer = answer.split(application_form_questions[i+1])[0].strip()
+        else:
+            answer = answer.strip()
+        # Validate answer
+        if not answer:
+            raise ValueError(f'Missing answer for question: "{question}".')
+        if i == 0: # RSN
+            if len(answer) > 12 or re.match('^[A-z0-9 -]+$', answer) is None:
+                raise ValueError(f'Invalid RuneScape username: "{answer}".')
+            rsn = answer
+        if i == 3: # Ironman
+            ironman = 'Ironman' if 'ye' in answer.lower() else 'No'
+        # Remove answer from content
+        if i < len(application_form_questions) - 1:
+            content = application_form_questions[i+1] + content.split(application_form_questions[i+1])[-1]
+
+    return [rsn, ironman]
 
 class Cozy(commands.Cog):
     def __init__(self, bot):
@@ -300,6 +349,46 @@ class Cozy(commands.Cog):
                                 
                                 if not found:
                                     await channel.send(f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.')
+    
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        '''
+        Listen for applications.
+        Validate application format to match template.
+        Add check mark reaction or red X based on result.
+        On negative result, also mention the applicant with info.
+        '''
+        if message.guild is None or message.guild.id != config['cozy_guild_id']:
+            return
+        if message.channel is None or message.channel.id != config['cozy_applications_channel_id']:
+            return
+        if message.author is None:
+            return
+        
+        application_form_channel = message.guild.get_channel(config['cozy_application_form_channel_id'])
+        cozy_chat_channel = message.guild.get_channel(config['cozy_chat_channel_id'])
+        applicant_role = message.guild.get_role(config['cozy_applicant_role_id'])
+
+        if not applicant_role in message.author.roles:
+            return
+        
+        try:
+            _ = parse_application(message)
+            await message.add_reaction('✅')
+        except Exception as e:
+            await message.add_reaction('❌')
+            txt = (
+                f'{message.author.mention}\nFailed to parse your application for the following reason:\n'
+                f'```\n{e}\n```\n'
+                f'Make sure that you copy the application form from {application_form_channel.mention} without changing anything to the format.\n'
+                f'Please try to submit another application in a new message.\n'
+                f'Your application and this message will be automatically deleted one minute from now.\n'
+                f'If you need any help, feel free to DM a member or staff or send a message in {cozy_chat_channel.mention}.'
+            )
+            msg = await message.channel.send(txt)
+            await message.delete(delay=60)
+            await msg.delete(delay=60)
+
 
     @commands.command(hidden=True)
     @cozy_council()
@@ -941,7 +1030,7 @@ class Cozy(commands.Cog):
             await ctx.send(f'Removed member: {name}')
     
     @commands.command()
-    @cozy_council()
+    @cozy_champions()
     @cozy_only()
     async def sotw_poll(self, ctx):
         '''
@@ -1000,7 +1089,7 @@ class Cozy(commands.Cog):
         await ctx.send(f'Success! Your poll has been created. {ctx.author.mention}')
     
     @commands.command()
-    @cozy_council()
+    @cozy_champions()
     @cozy_only()
     async def botw_poll(self, ctx):
         '''
@@ -1059,7 +1148,7 @@ class Cozy(commands.Cog):
         await ctx.send(f'Success! Your poll has been created. {ctx.author.mention}')
     
     @commands.command()
-    @cozy_council()
+    @cozy_champions()
     @cozy_only()
     async def wom_sotw(self, ctx, num: int, *skill: str):
         '''
@@ -1103,7 +1192,7 @@ class Cozy(commands.Cog):
             await ctx.send(f'Competition created:\n```Title: {data["title"]}\nMetric: {data["metric"]}\nStart: {data["startsAt"]}\nEnd: {data["endsAt"]}```\nhttps://wiseoldman.net/competitions/{data["id"]}/participants')
     
     @commands.command()
-    @cozy_council()
+    @cozy_champions()
     @cozy_only()
     async def wom_botw(self, ctx, num: int, *boss: str):
         '''
@@ -1255,7 +1344,7 @@ class Cozy(commands.Cog):
     
 
     @commands.command()
-    @cozy_council()
+    @cozy_champions()
     @cozy_only()
     async def sotw_votes(self, ctx, msg_id):
         '''
@@ -1334,7 +1423,7 @@ class Cozy(commands.Cog):
     
 
     @commands.command()
-    @cozy_council()
+    @cozy_champions()
     @cozy_only()
     async def botw_votes(self, ctx, msg_id):
         '''
@@ -1513,16 +1602,10 @@ class Cozy(commands.Cog):
             raise commands.CommandError(message=f'Error: missing application form question. Applicants must copy and paste the questions for this command to work.')
         
         # Parse message
-        rsn = message.content.replace('Cozy Application Form', '').replace('RuneScape Username:', '').strip().split('Total Level:')[0].strip()
-        if not rsn:
-            raise commands.CommandError(message=f'Error: could not parse username from message: `{message.id}`.')
-        if len(rsn) > 12:
-            raise commands.CommandError(message=f'Error: invalid RSN: `{rsn}`.')
-        if re.match('^[A-z0-9 -]+$', rsn) is None:
-            raise commands.CommandError(message=f'Error: invalid RSN: `{rsn}`.')
-
-        ironman = message.content.split('Are you an Ironman?:')[1].split('Why do you want to join our clan?:')[0].strip()
-        ironman = 'Ironman' if 'ye' in ironman.lower() else 'No'
+        try:
+            rsn, ironman = parse_application(message)
+        except Exception as e:
+            raise commands.CommandError(message=str(e))
 
         # Update roster
         agc = await self.bot.agcm.authorize()
@@ -1549,7 +1632,8 @@ class Cozy(commands.Cog):
         # await message.delete()
 
         # Send response
-        await ctx.send(f'`{member.display_name}`\'s application has been accepted.')
+        msg = await ctx.send(f'`{member.display_name}`\'s application has been accepted.')
+        await msg.delete(delay=5)
 
 
 async def setup(bot):
