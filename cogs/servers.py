@@ -8,7 +8,7 @@ from main import config_load, increment_command_counter, Guild, purge_guild
 config = config_load()
 
 class Servers(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
     @Cog.listener()

@@ -22,7 +22,7 @@ async def get_aliases():
     return aliases
 
 class CustomCommands(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
         self.bot.loop.create_task(self.refresh_custom_command_aliases())

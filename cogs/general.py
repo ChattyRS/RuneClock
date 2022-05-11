@@ -86,7 +86,7 @@ def get_paragraph_lengths(paragraphs, words):
     return lengths
 
 class General(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
     @commands.command(pass_context=True, aliases=['flip', 'coin', 'coinflip'])
@@ -167,7 +167,7 @@ class General(commands.Cog):
         Get the weather forecast for a location
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
         
         location = ' '.join(location)
         if not location:
@@ -304,7 +304,7 @@ class General(commands.Cog):
         Quotes a message from a given message ID.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not msg_id:
             raise commands.CommandError(message=f'Required argument missing: `message_id`.')
@@ -407,7 +407,7 @@ class General(commands.Cog):
         Shorten a URL.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not url:
             raise commands.CommandError(message='Required argument missing: `url`.')
@@ -430,7 +430,7 @@ class General(commands.Cog):
         Supports: channels, roles, members, emojis, messages, guild.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not input:
             raise commands.CommandError(message='Required argument missing: `input`.')
@@ -584,7 +584,7 @@ class General(commands.Cog):
         Close a poll by giving its message ID.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not is_int(msg_id):
             raise commands.CommandError(message=f'Invalid argument: `{msg_id}`. Must be an integer.')

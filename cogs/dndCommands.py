@@ -25,7 +25,7 @@ peng_embed = None
 peng_time = None
 
 class DNDCommands(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
         # Initialize time values
         self.bot.next_warband = None
@@ -350,7 +350,7 @@ class DNDCommands(commands.Cog):
         Gets the current nemi forest layout from FC Nemi.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         global nemi_embed
         global nemi_time
@@ -388,7 +388,7 @@ class DNDCommands(commands.Cog):
         Gets this weeks world 60 penguin locations.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         global peng_embed
         global peng_time

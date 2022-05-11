@@ -139,10 +139,26 @@ def cozy_champions():
             member = await cozy.fetch_member(ctx.author.id)
             if member:
                 council_role = cozy.get_role(config['cozy_council_role_id'])
+                companion_role = cozy.get_role(config['cozy_companion_role_id'])
                 champion_role = cozy.get_role(config['cozy_champion_role_id'])
-                if council_role in member.roles or champion_role in member.roles:
+                if council_role in member.roles or companion_role in member.roles or champion_role in member.roles:
                     return True
         raise commands.CommandError(message='Insufficient permissions: `Cozy Champion`')
+    return commands.check(predicate)
+
+def cozy_companions():
+    async def predicate(ctx):
+        if ctx.author.id == config['owner']:
+            return True
+        cozy = ctx.bot.get_guild(config['cozy_guild_id'])
+        if cozy:
+            member = await cozy.fetch_member(ctx.author.id)
+            if member:
+                companion_role = cozy.get_role(config['cozy_companion_role_id'])
+                council_role = cozy.get_role(config['cozy_council_role_id'])
+                if council_role in member.roles or companion_role in member.roles:
+                    return True
+        raise commands.CommandError(message='Insufficient permissions: `Cozy Council`')
     return commands.check(predicate)
 
 def cozy_council():

@@ -13,7 +13,7 @@ ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys'
          'Spotlight', 'PinkSkirts']
 
 class Roles(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
     @commands.command(pass_context=True)
@@ -25,7 +25,7 @@ class Roles(commands.Cog):
         If no channel is given, roles will no longer be managed.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if ctx.message.channel_mentions:
             channel = ctx.message.channel_mentions[0]
@@ -242,7 +242,7 @@ class Roles(commands.Cog):
         Add a role to the server. (Admin+)
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not role_name:
             raise commands.CommandError(message=f'Required argument missing: `role_name`.')
@@ -265,7 +265,7 @@ class Roles(commands.Cog):
         Delete a role from the server. (Admin+)
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not role_name:
             raise commands.CommandError(message=f'Required argument missing: `role`.')

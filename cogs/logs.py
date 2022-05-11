@@ -19,7 +19,7 @@ def get_events_logged():
     return events_logged
 
 class Logs(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
     @Cog.listener()

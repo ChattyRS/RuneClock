@@ -466,7 +466,7 @@ def split(txt, seps):
     return [i.strip() for i in txt.split(default_sep)]
 
 class Sheets(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
         self.track_location_updates.start()
 
@@ -645,7 +645,7 @@ class Sheets(commands.Cog):
         Updates the time on the Portables sheet.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
@@ -681,7 +681,7 @@ class Sheets(commands.Cog):
         Constraints: name must be a valid RSN.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -759,7 +759,7 @@ class Sheets(commands.Cog):
         Arguments: name
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -845,7 +845,7 @@ class Sheets(commands.Cog):
         Arguments: name
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -917,7 +917,7 @@ class Sheets(commands.Cog):
         Constraints: name must be a valid RSN.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         leader_role = discord.utils.get(ctx.guild.roles, id=config['leaderRole'])
 
@@ -976,7 +976,7 @@ class Sheets(commands.Cog):
         Surround names containing spaces with quotation marks, e.g.: "name with spaces".
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -1033,7 +1033,7 @@ class Sheets(commands.Cog):
         Constraints: name must be a valid RSN, member must be a rank.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -1122,7 +1122,7 @@ class Sheets(commands.Cog):
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
         increment_command_counter()
-        await ctx.channel.trigger_typing() # send 'typing...' status
+        await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(config['portablesServer'])
         if not portables:
@@ -1208,7 +1208,7 @@ class Sheets(commands.Cog):
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
         increment_command_counter() # increment global commands counter
-        await ctx.channel.trigger_typing() # send 'typing...' status
+        await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(config['portablesServer'])
         if not portables:
@@ -1298,7 +1298,7 @@ class Sheets(commands.Cog):
         Example: `-removeall range` / `-removeall 84 ca`
         '''
         increment_command_counter() # increment global commands counter
-        await ctx.channel.trigger_typing() # send 'typing...' status
+        await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(config['portablesServer'])
         member = await portables.fetch_member(ctx.author.id)
@@ -1376,7 +1376,7 @@ class Sheets(commands.Cog):
         Constraints: This command can only be used in the locations channel. Only approved locations and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         '''
         increment_command_counter() # increment global commands counter
-        await ctx.channel.trigger_typing() # send 'typing...' status
+        await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(config['portablesServer'])
         member = await portables.fetch_member(ctx.author.id)
@@ -1450,7 +1450,7 @@ class Sheets(commands.Cog):
         Constraints: name must be a valid RSN.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -1506,7 +1506,7 @@ class Sheets(commands.Cog):
         Arguments: name
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         user = ctx.author
         username = user.display_name
@@ -1574,7 +1574,7 @@ class Sheets(commands.Cog):
         Arguments: name
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         user = ctx.author
         username = user.display_name

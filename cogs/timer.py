@@ -64,7 +64,7 @@ def string_to_timezone(timezone):
     return timezone
 
 class Timer(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
     @commands.command(pass_context=True, aliases=['reminder', 'remind', 'remindme'])

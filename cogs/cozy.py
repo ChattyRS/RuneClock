@@ -1,19 +1,22 @@
-from tokenize import String
 import discord
+from discord import app_commands, TextStyle
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
+
+from numpy import void
 sys.path.append('../')
 from main import config_load, increment_command_counter, Poll, Guild
 from datetime import datetime, timedelta, timezone
 import re
 import copy
 import gspread
-from utils import cozy_council, cozy_champions, cozy_only
+from utils import cozy_council, cozy_companions, cozy_champions, cozy_only
 from bs4 import BeautifulSoup
 from gcsa.google_calendar import GoogleCalendar
 import math
 from utils import is_int
+import traceback
 
 config = config_load()
 
@@ -41,62 +44,255 @@ wom_metrics = [# Skills
                # Misc
                "ehp", "ehb"]
 
-application_form_questions = [
-    'RuneScape Username:',
-    'Total Level:',
-    'How long have you played OSRS?:',
-    'Are you an Ironman?:',
-    'Why do you want to join our clan?:',
-    'Time Zone:',
-    'Do you play more in the mornings, evenings, or nights:',
-    'Where did you hear about our clan:',
-    'Would you be able to join voice chat for clan events:',
-    'Favorite in-game activity:'
-]
+def is_companion(interaction: discord.Interaction):
+    if interaction.user.id == config['owner']:
+        return True
+    if interaction.guild.id == config['cozy_guild_id']:
+        companion_role = interaction.guild.get_role(config['cozy_companion_role_id'])
+        council_role = interaction.guild.get_role(config['cozy_council_role_id'])
+        if council_role in interaction.user.roles or companion_role in interaction.user.roles:
+            return True
+    return False
 
-'''
-Parses a cozy application message
-'''
-def parse_application(message):
-    # Validate template
-    for question in application_form_questions:
-        if not question in message.content:
-            raise ValueError(f'Error: missing application form question: `{question}`.')
+class ApplicationView(discord.ui.View):
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+        self.value = None
+    
+    @discord.ui.button(label='Decline', style=discord.ButtonStyle.danger)
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Validate permissions
+        if not is_companion(interaction):
+            await interaction.response.send_message('Missing permissions: `Cozy companion`', ephemeral=True)
+            return
+        # Update message
+        embed = interaction.message.embeds[0]
+        embed.set_footer(text=f'Declined by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/cross-mark_274c.png')
+        await interaction.message.edit(embed=embed, view=None)
+        await interaction.response.send_message('Application declined successfully.', ephemeral=True)
+        self.value = False
+        self.stop()
 
-    rsn, ironman = '', 'No'
+    @discord.ui.button(label='Accept', style=discord.ButtonStyle.success)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Validate permissions
+        if not is_companion(interaction):
+            await interaction.response.send_message('Missing permissions: `Cozy companion`', ephemeral=True)
+            return
+        # Handle accept
+        status = await self.accept_handler(interaction)
+        if status != 'success':
+            await interaction.response.send_message(status, ephemeral=True)
+            return
+        # Update message
+        embed = interaction.message.embeds[0]
+        embed.set_footer(text=f'Accepted by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/check-mark-button_2705.png')
+        await interaction.message.edit(embed=embed, view=None)
+        await interaction.response.send_message('Application accepted successfully.', ephemeral=True)
+        self.value = True
+        self.stop()
 
-    # Validate answers
-    content = message.content
-    for i, question in enumerate(application_form_questions):
-        # Get answer
-        answer = ' ' + content.split(question)[-1]
-        if i < len(application_form_questions) - 1:
-            answer = answer.split(application_form_questions[i+1])[0].strip()
+    async def accept_handler(self, interaction: discord.Interaction) -> str:
+        '''
+        Parses data from an accepted application to perform the following actions:
+        - Add the new member to the roster
+        - Set their discord display name to their RSN
+        - Promote them in discord
+        - Add them to WOM
+        '''
+        user_id = int(interaction.message.embeds[0].footer.text.replace('User ID: ', ''))
+        member = await interaction.guild.fetch_member(user_id)
+
+        if not member:
+            return 'Error: applicant not found'
+
+        applicant_role = member.guild.get_role(config['cozy_applicant_role_id'])
+        friends_role = member.guild.get_role(config['cozy_friend_role_id'])
+
+        if (not applicant_role in member.roles) or (friends_role in member.roles):
+            return f'Error: incorrect roles for applicant: `{member.display_name}`. Either they are not an applicant, or they are already a friend.'
+        
+        # Parse message
+        rsn = interaction.message.embeds[0].fields[0].value
+        ironman = interaction.message.embeds[0].fields[2].value
+        if not ironman.upper() in ['NO', 'YES', 'IRONMAN', 'HCIM', 'UIM', 'GIM']:
+            return f'Error invalid value for ironman: `{ironman}`'
         else:
-            answer = answer.strip()
-        # Validate answer
-        if not answer:
-            raise ValueError(f'Missing answer for question: "{question}".')
-        if i == 0: # RSN
-            if len(answer) > 12 or re.match('^[A-z0-9 -]+$', answer) is None:
-                raise ValueError(f'Invalid RuneScape username: "{answer}".')
-            rsn = answer
-        if i == 3: # Ironman
-            ironman = 'Ironman' if 'ye' in answer.lower() else 'No'
-        # Remove answer from content
-        if i < len(application_form_questions) - 1:
-            content = application_form_questions[i+1] + content.split(application_form_questions[i+1])[-1]
+            for i, opt in enumerate(['NO', 'YES', 'IRONMAN', 'HCIM', 'UIM', 'GIM']):
+                if ironman.upper() == opt and i < 3:
+                    if opt == 'YES':
+                        opt = 'IRONMAN'
+                    ironman = opt.capitalize()
+                    break
+                elif ironman.upper() == opt:
+                    ironman = opt
+                    break
 
-    return [rsn, ironman]
+        # Update roster
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['cozy_roster_key'])
+        roster = await ss.worksheet('Roster')
+
+        members_col = await roster.col_values(1)
+        rows = len(members_col)
+
+        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = date_str if not date_str.startswith('0') else date_str[1:]
+        new_row = [rsn, 'Friend', ironman, 'Yes', 'Yes', f'{member.display_name}#{member.discriminator}', '', date_str]
+        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        print(f'writing values:\n{new_row}\nto row {rows+1}')
+        await roster.update_cells(cell_list, nowait=True)
+
+        # Update member nickname and roles
+        roles = member.roles
+        roles.remove(applicant_role)
+        roles.append(friends_role)
+        await member.edit(nick=rsn, roles=roles)
+
+        # Add to WOM
+        url = 'https://api.wiseoldman.net/groups/423/add-members'
+        payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
+        payload['members'] = [{'username': rsn, 'role': 'member'}]
+        async with self.bot.aiohttp.post(url, json=payload) as r:
+            if r.status != 200:
+                data = await r.json()
+                raise commands.CommandError(message=f'Error adding to WOM: {r.status}\n{data}.')
+            data = await r.json()
+        
+        return 'success'
+    
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
+
+
+class CozyPersonalInfoModal(discord.ui.Modal):
+    def __init__(self, bot, data):
+        self.bot = bot
+        self.data = data
+        try:
+            super().__init__(title='Personal information')
+        except Exception as e:
+            print(e)
+
+    motivation = discord.ui.TextInput(label='Why do you want to join our clan?', max_length=200, required=True, style=TextStyle.paragraph)
+    play_time = discord.ui.TextInput(label='When are you most active?', placeholder='Morning / Afternoon / Evening / Night', max_length=200, required=True, style=TextStyle.paragraph)
+    referral = discord.ui.TextInput(label='Where did you hear about our clan?', max_length=200, required=True, style=TextStyle.paragraph)
+    voice_chat = discord.ui.TextInput(label='Would you join voice chat during events?', placeholder='Yes / No', max_length=200, required=True, style=TextStyle.paragraph)
+    fav_activity = discord.ui.TextInput(label='Favourite in-game activity', max_length=200, required=True, style=TextStyle.paragraph)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        self.value = self.data
+        self.value['Why do you want to join our clan?'] = self.motivation.value
+        self.value['When are you most active?'] = self.play_time.value
+        self.value['Where did you hear about our clan?'] = self.referral.value
+        self.value['Would you join voice chat during events?'] = self.voice_chat.value
+        self.value['Favourite in-game activity'] = self.fav_activity.value
+        # Create embed with all data combined
+        embed = discord.Embed(title=f'**Cozy application**', colour=0x00b2ff)
+        print(f'Data: {self.data}')
+        print(f"rsn: {self.data['RuneScape username']}")
+        try:
+            embed.add_field(name='RuneScape username', value=self.data['RuneScape username'], inline=False)
+        except Exception as e:
+            print(e)
+        embed.add_field(name='Total level', value=self.data['Total level'], inline=False)
+        embed.add_field(name='Are you an ironman?', value=self.data['Are you an ironman?'], inline=False)
+        embed.add_field(name='What is your timezone?', value=self.data['What is your timezone?'], inline=False)
+        embed.add_field(name='How long have you played OSRS?', value=self.data['How long have you played OSRS?'], inline=False)
+        embed.add_field(name='Why do you want to join our clan?', value=self.motivation.value, inline=False)
+        embed.add_field(name='When are you most active?', value=self.play_time.value, inline=False)
+        embed.add_field(name='Where did you hear about our clan?', value=self.referral.value, inline=False)
+        embed.add_field(name='Would you join voice chat during events?', value=self.voice_chat.value, inline=False)
+        embed.add_field(name='Favourite in-game activity', value=self.fav_activity.value, inline=False)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f'User ID: {interaction.user.id}')
+        # Send final result
+        view = ApplicationView(self.bot)
+        msg = await interaction.response.send_message(embed=embed, view=view)
+        await view.wait()
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
+
+class OpenPersonalInfoView(discord.ui.View):
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+        self.value = None
+
+    @discord.ui.button(label='Part 2', style=discord.ButtonStyle.primary)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Get data from first modal from message embed
+        data = {}
+        for field in interaction.message.embeds[0].fields:
+            data[field.name] = field.value
+        # Open second form modal
+        modal = CozyPersonalInfoModal(self.bot, data)
+        await interaction.response.send_modal(modal)
+        await modal.wait()
+        if modal.value:
+            self.value = True
+            self.stop()
+        else:
+            self.value = False
+
+class CozyAccountInfoModal(discord.ui.Modal, title='Account information'):
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+
+    rsn = discord.ui.TextInput(label='RuneScape username', min_length=1, max_length=12, required=True, style=TextStyle.short)
+    total = discord.ui.TextInput(label='Total level', min_length=2, max_length=4, required=True, style=TextStyle.short)
+    ironman = discord.ui.TextInput(label='Are you an ironman?', placeholder='(No / Ironman / HCIM / UIM / GIM)', min_length=2, max_length=7, required=True, style=TextStyle.short)
+    timezone = discord.ui.TextInput(label='What is your timezone?', min_length=1, max_length=20, required=True, style=TextStyle.short)
+    experience = discord.ui.TextInput(label='How long have you played OSRS?', max_length=200, required=True, style=TextStyle.paragraph)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Validation
+        if re.match('^[A-z0-9 -]+$', self.rsn.value) is None:
+            await interaction.response.send_message(f'Error: invalid RSN: `{self.rsn.value}`', ephemeral=True)
+            return
+        if not self.ironman.value.upper() in ['NO', 'YES', 'IRONMAN', 'HCIM', 'UIM', 'GIM']:
+            await interaction.response.send_message('Error: ironman value must be one of: `No, Yes, Ironman, HCIM, UIM, GIM`', ephemeral=True)
+            return
+        # Create embed to show data from first form
+        description = 'This is part 1/2 of your application. Please click the button below to move on to the second part when you are ready.'
+        embed = discord.Embed(title=f'**Account information**', colour=0x00b2ff, description=description)
+        embed.add_field(name='RuneScape username', value=self.rsn.value, inline=False)
+        embed.add_field(name='Total level', value=self.total.value, inline=False)
+        embed.add_field(name='Are you an ironman?', value=self.ironman.value, inline=False)
+        embed.add_field(name='What is your timezone?', value=self.timezone.value, inline=False)
+        embed.add_field(name='How long have you played OSRS?', value=self.experience.value, inline=False)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        # Create button to open second form
+        view = OpenPersonalInfoView(self.bot)
+        msg = await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await view.wait()
+        if view.value == True:
+            # message deletion does not work here because the message is ephemeral
+            # await msg.delete()
+            pass
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
 
 class Cozy(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
         self.get_updated_calendar_events.start()
         self.cozy_event_reminders.start()
         self.update_sotw_url.start()
         self.update_botw_url.start()
         self.wom_update_all.start()
+        # Sync guild application commands
+        self.bot.loop.create_task(self.sync_application_commands())
 
     def cog_unload(self):
         self.get_updated_calendar_events.cancel()
@@ -104,6 +300,18 @@ class Cozy(commands.Cog):
         self.update_sotw_url.cancel()
         self.update_botw_url.cancel()
         self.wom_update_all.cancel()
+
+    async def sync_application_commands(self):
+        '''
+        Syncs application commands with Cozy and RuneClock guilds.
+        '''
+        cozy = self.bot.get_guild(config['gozy_guild_id'])
+        if cozy:
+            await self.bot.tree.sync(guild=cozy)
+
+        runeclock_test_guild = self.bot.get_guild(config['test_guild_id'])
+        if runeclock_test_guild:
+            await self.bot.tree.sync(guild=runeclock_test_guild)
     
     @tasks.loop(seconds=60)
     async def get_updated_calendar_events(self):
@@ -399,7 +607,7 @@ class Cozy(commands.Cog):
         Arguments: names (separated by commas)
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         names = ' '.join(names).strip()
         names = names.split(',')
@@ -538,7 +746,7 @@ class Cozy(commands.Cog):
         Arguments: names (separated by commas)
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         admin_role = ctx.guild.get_role(config['cozy_admin_role_id'])
         is_cozy_admin = admin_role in ctx.author.roles or ctx.author.id == config['owner']
@@ -683,7 +891,7 @@ class Cozy(commands.Cog):
         Arguments: old_name, new_name (separated by a comma)
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         names = ' '.join(names).strip()
         names = names.split(',')
@@ -786,7 +994,7 @@ class Cozy(commands.Cog):
         Shows top-10 for the current SOTW
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         global cozy_sotw_url
         url = cozy_sotw_url
@@ -854,7 +1062,7 @@ class Cozy(commands.Cog):
         Shows top-10 for the current BOTW
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         global cozy_botw_url
         url = cozy_botw_url
@@ -922,7 +1130,7 @@ class Cozy(commands.Cog):
         Shows this week's planned events for Cozy Corner CC.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         calendar = GoogleCalendar(config['cozy_calendar'], credentials_path='data/calendar_credentials.json')
 
@@ -978,7 +1186,7 @@ class Cozy(commands.Cog):
         Add a member to the Cozy Corner wiseoldman group.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -1007,7 +1215,7 @@ class Cozy(commands.Cog):
         Remove a member from the Cozy Corner wiseoldman group.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -1037,7 +1245,7 @@ class Cozy(commands.Cog):
         Posts a poll for the next SOTW competition.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         agc = await self.bot.agcm.authorize()
         ss = await agc.open_by_key(config['cozy_sotw_logging_key'])
@@ -1096,7 +1304,7 @@ class Cozy(commands.Cog):
         Posts a poll for the next BOTW competition.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         agc = await self.bot.agcm.authorize()
         ss = await agc.open_by_key(config['cozy_botw_logging_key'])
@@ -1155,7 +1363,7 @@ class Cozy(commands.Cog):
         Creates a SOTW competition on wiseoldman.net.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not num:
             raise commands.CommandError(message=f'Required argument missing: `num`.')
@@ -1199,7 +1407,7 @@ class Cozy(commands.Cog):
         Creates a BOTW competition on wiseoldman.net.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not num:
             raise commands.CommandError(message=f'Required argument missing: `num`.')
@@ -1243,7 +1451,7 @@ class Cozy(commands.Cog):
         Creates polls for Cozy Of The Week
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         agc = await self.bot.agcm.authorize()
         ss = await agc.open_by_key(config['cozy_cotw_nominations_key'])
@@ -1351,7 +1559,7 @@ class Cozy(commands.Cog):
         Records votes on a SOTW poll and logs them to the SOTW sheet.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not is_int(msg_id):
             raise commands.CommandError(message=f'Invalid argument: `{msg_id}`. Must be an integer.')
@@ -1430,7 +1638,7 @@ class Cozy(commands.Cog):
         Records votes on a BOTW poll and logs them to the BOTW sheet.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not is_int(msg_id):
             raise commands.CommandError(message=f'Invalid argument: `{msg_id}`. Must be an integer.')
@@ -1509,7 +1717,7 @@ class Cozy(commands.Cog):
         Returns the list of compliments in a conveniently formatted text file
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         agc = await self.bot.agcm.authorize()
         ss = await agc.open_by_key(config['cozy_roster_key'])
@@ -1563,77 +1771,23 @@ class Cozy(commands.Cog):
             file.write(txt)
         with open('data/compliments.txt', 'rb') as file:
             await ctx.send(file=discord.File(file, 'compliments.txt'))
+
     
-    @commands.command()
-    @cozy_council()
-    @cozy_only()
-    async def accept(self, ctx, member: discord.Member, *, notes = ''):
+    @app_commands.command()
+    @app_commands.guilds(discord.Object(id=config['cozy_guild_id']), discord.Object(id=config['test_guild_id']))
+    async def apply(self, interaction: discord.Interaction):
         '''
-        Accepts a cozy application.
-        Arguments: user (mention, id, etc.), notes (optional)
-        This attempts to add the new member to the roster, set their discord display name to their RSN, and finally promote them in discord.
+        Send a modal with for the application form.
         '''
-        increment_command_counter()
-        await ctx.message.delete()
-        await ctx.channel.trigger_typing()
-
-        applicant_role = member.guild.get_role(config['cozy_applicant_role_id'])
-        friends_role = member.guild.get_role(config['cozy_friend_role_id'])
-
-        # Validation
-        if not notes:
-            notes = ''
-
-        if (not applicant_role in member.roles) or (friends_role in member.roles):
-            raise commands.CommandError(message=f'Error: incorrect roles for member: `{member.display_name}`. Either they are not an applicant, or they are already a friend.')
-
-        message = None
-
-        channel = self.bot.get_channel(config['cozy_applications_channel_id'])
-        async for m in channel.history(limit=10):
-            if m.author == member:
-                message = m
-                break
-
-        if not message:
-            raise commands.CommandError(message=f'Error: could not find application from member: `{member.display_name}`.')
-
-        if not 'Total Level:' in message.content or not 'Are you an Ironman?:' in message.content or not 'Why do you want to join our clan?:' in message.content:
-            raise commands.CommandError(message=f'Error: missing application form question. Applicants must copy and paste the questions for this command to work.')
-        
-        # Parse message
-        try:
-            rsn, ironman = parse_application(message)
-        except Exception as e:
-            raise commands.CommandError(message=str(e))
-
-        # Update roster
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(config['cozy_roster_key'])
-        roster = await ss.worksheet('Roster')
-
-        members_col = await roster.col_values(1)
-        rows = len(members_col)
-
-        date_str = datetime.utcnow().strftime('%d %b %Y')
-        date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row = [rsn, 'Friend', ironman, 'Yes', 'Yes', f'{member.display_name}#{member.discriminator}', notes, date_str]
-        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
-        print(f'writing values:\n{new_row}\nto row {rows+1}')
-        await roster.update_cells(cell_list)#, nowait=True)
-
-        # Update member nickname and roles
-        roles = member.roles
-        roles.remove(applicant_role)
-        roles.append(friends_role)
-        await member.edit(nick=rsn, roles=roles)
-
-        # Delete the application message
-        # await message.delete()
-
-        # Send response
-        msg = await ctx.send(f'`{member.display_name}`\'s application has been accepted.')
-        await msg.delete(delay=5)
+        applicant_role = interaction.guild.get_role(config['cozy_applicant_role_id'])
+        if not applicant_role or not applicant_role in interaction.user.roles:
+            await interaction.response.send_message(f'Must be an applicant to submit an application', ephemeral=True)
+            return
+        application_channel = interaction.guild.get_channel(config['cozy_applications_channel_id'])
+        if not application_channel or not interaction.channel == application_channel:
+            await interaction.response.send_message(f'Applications can only be submitted in the #cozy-applications channel', ephemeral=True)
+            return
+        await interaction.response.send_modal(CozyAccountInfoModal(self.bot))
 
 
 async def setup(bot):

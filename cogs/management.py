@@ -96,7 +96,7 @@ def uptime_fraction(events, year=0, month=0, day=0):
 
 
 class Management(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
         self._last_result = None
         self.sessions = set()
@@ -473,7 +473,7 @@ class Management(commands.Cog):
         Arguments: GitHub repo url, channel
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not repo_url:
             raise commands.CommandError(message=f'Required argument missing: `repo_url`.')
@@ -582,7 +582,7 @@ class Management(commands.Cog):
         Returns the bot's current status.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         now = datetime.utcnow()
         time = now.replace(microsecond=0)
@@ -766,7 +766,7 @@ class Management(commands.Cog):
         Evaluates code
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         env = {
             'bot': self.bot,
@@ -963,7 +963,7 @@ class Management(commands.Cog):
         Uptime statistics
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         events = await Uptime.query.order_by(Uptime.time.asc()).gino.all()
 
@@ -1040,7 +1040,7 @@ class Management(commands.Cog):
         Add an item to the OSRS item database by ID.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
@@ -1113,7 +1113,7 @@ class Management(commands.Cog):
         Remove an item from the OSRS item database by ID.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
@@ -1134,7 +1134,7 @@ class Management(commands.Cog):
         Add an item to the RS3 item database by ID.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
@@ -1207,7 +1207,7 @@ class Management(commands.Cog):
         Remove an item from the RS3 item database by ID.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
@@ -1228,7 +1228,7 @@ class Management(commands.Cog):
         Return a list of the top-10 servers by size.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         guilds = sorted(self.bot.guilds, key=lambda g: g.member_count, reverse=True)
 
@@ -1293,6 +1293,25 @@ class Management(commands.Cog):
             else:
                 args = args[:num_params]
                 await cmd.callback(self, ctx, *args)
+    
+    @commands.command(hidden=True)
+    @is_owner()
+    async def sync(self, ctx, *guild_ids):
+        '''
+        Syncs application commands globally or to the given guild(s).
+        '''
+        increment_command_counter()
+        await ctx.channel.typing()
+
+        if any(guild_ids):
+            for guild_id in guild_ids:
+                guild = self.bot.get_guild(int(guild_id))
+                if guild:
+                    await self.bot.tree.sync(guild=guild)
+                    await ctx.send(f'Synced application commands with guild: `{guild.name}`')
+        else:
+            await self.bot.tree.sync()
+            await ctx.send(f'Synced application commands globally')
 
 async def setup(bot):
     await bot.add_cog(Management(bot))

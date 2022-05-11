@@ -21,7 +21,7 @@ def isName(member_name, member):
         return False
 
 class ModCommands(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
     
     @commands.command()
@@ -179,7 +179,7 @@ class ModCommands(commands.Cog):
         reason: string (optional)
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
         
         msg = ctx.message
         guild = ctx.guild
@@ -320,7 +320,7 @@ class ModCommands(commands.Cog):
         member: name, nickname, id, mention
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
         
         msg = ctx.message
         guild = ctx.guild
@@ -476,7 +476,7 @@ class ModCommands(commands.Cog):
         Arguments: role
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         guild = ctx.guild
 
@@ -519,7 +519,7 @@ class ModCommands(commands.Cog):
         Arguments: role, #hexcode
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not role_name or not colour:
             raise commands.CommandError(message=f'Required argument(s) missing: `role/colour`.')

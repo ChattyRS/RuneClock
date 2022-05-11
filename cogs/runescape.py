@@ -136,7 +136,7 @@ def rots(t):
     return (rotations[rotation], time_diff_to_string(next))
 
 class Runescape(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
         self.vis_wax.start()
 
@@ -298,7 +298,7 @@ class Runescape(commands.Cog):
         Get the last 20 activities on a player's adventurer's log.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         name = ' '.join(username)
 
@@ -349,7 +349,7 @@ class Runescape(commands.Cog):
         Get top 5 hot posts from r/2007scape.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         submissions = reddit.subreddit('2007scape').hot(limit=5)
 
@@ -369,7 +369,7 @@ class Runescape(commands.Cog):
         Get top 5 hot posts from r/runescape.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         submissions = reddit.subreddit('runescape').hot(limit=5)
 
@@ -389,7 +389,7 @@ class Runescape(commands.Cog):
         Get top 5 results for a search on OSRS Wiki.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         search = ''
         for i in query:
@@ -432,7 +432,7 @@ class Runescape(commands.Cog):
         Get top 5 results for a search on RS Wiki.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         search = ''
         for i in query:
@@ -511,7 +511,7 @@ class Runescape(commands.Cog):
         Argument "days" is optional, default is 30.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if is_int(days):
             days = int(days)
@@ -642,7 +642,7 @@ class Runescape(commands.Cog):
         Argument "days" is optional, default is 30.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if is_int(days):
             days = int(days)
@@ -773,7 +773,7 @@ class Runescape(commands.Cog):
         Get OSRS hiscores info by username.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         name = None
         if ctx.message.mentions:
@@ -867,7 +867,7 @@ class Runescape(commands.Cog):
         If you have set your username via `-set07rsn`, you can give only 1 username to compare a player to yourself.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if len(ctx.message.mentions) >= 2:
             name_1 = ctx.message.mentions[0].display_name
@@ -1001,7 +1001,7 @@ class Runescape(commands.Cog):
         Get OSRS gains by username.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         name = None
         if ctx.message.mentions:
@@ -1103,7 +1103,7 @@ class Runescape(commands.Cog):
         '''
 
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
         
         name = None
         if ctx.message.mentions:
@@ -1211,7 +1211,7 @@ class Runescape(commands.Cog):
         If you have set your username via `-setrsn`, you can give only 1 username to compare a player to yourself.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if len(ctx.message.mentions) >= 2:
             name_1 = ctx.message.mentions[0].display_name
@@ -1359,7 +1359,7 @@ class Runescape(commands.Cog):
         Get RS3 gains by username.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         name = None
         if ctx.message.mentions:
@@ -1475,7 +1475,7 @@ class Runescape(commands.Cog):
         Get latest videos from RuneScape 3 youtube channel.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         try:
             playlist = Playlist(playlist_from_channel_id('UCGpr8LIrdwrEak3GuZLQPwg'))
@@ -1503,7 +1503,7 @@ class Runescape(commands.Cog):
         Get latest videos from OSRS youtube channel.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         try:
             playlist = Playlist(playlist_from_channel_id('UC0j1MpbiTFHYrUjOTwifW_w'))
@@ -1716,7 +1716,7 @@ class Runescape(commands.Cog):
         Calculate the combat level of a RS3 player.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         name = None
         if ctx.message.mentions:
@@ -1797,7 +1797,7 @@ class Runescape(commands.Cog):
         Calculate the combat level of a OSRS player.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         name = None
         if ctx.message.mentions:

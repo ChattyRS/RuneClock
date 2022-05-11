@@ -285,7 +285,7 @@ def plot_func(x, input, val):
             return
 
 class Mathematics(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
     @commands.command(pass_context=True)
@@ -310,7 +310,7 @@ class Mathematics(commands.Cog):
         Product: product(start, end, f(x)) (start and end inclusive)
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
         
         formula = ''
         for f in formulas:
@@ -363,7 +363,7 @@ class Mathematics(commands.Cog):
         Example: graph -10 10 x
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
         formula = ''
         for f in formulas:
             formula += f + ' '
@@ -437,7 +437,7 @@ class Mathematics(commands.Cog):
         Complex/imaginary numbers: i
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
         
         formula = ''
         for f in formulas:
@@ -494,7 +494,7 @@ class Mathematics(commands.Cog):
         Default value = 1
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not value or not unit:
             raise commands.CommandError(message=f'Required argument(s) missing: `value/unit`.')
@@ -582,7 +582,7 @@ class Mathematics(commands.Cog):
         Convert a number literal to scientific notation and vice versa.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if not number:
             raise commands.CommandError(message='No input. Please give a number literal as argument.')

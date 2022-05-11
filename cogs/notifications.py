@@ -13,7 +13,7 @@ ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys'
          'Spotlight', 'PinkSkirts']
 
 class Notifications(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
 
     @commands.command(aliases=['rsnewschannel', 'newschannel'])
@@ -108,7 +108,7 @@ class Notifications(commands.Cog):
         If no channel is given, notifications will no longer be sent.
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         if ctx.message.channel_mentions:
             channel = ctx.message.channel_mentions[0]
@@ -159,7 +159,7 @@ class Notifications(commands.Cog):
         message: string
         '''
         increment_command_counter()
-        await ctx.channel.trigger_typing()
+        await ctx.channel.typing()
 
         guild = ctx.guild
         msg = ctx.message

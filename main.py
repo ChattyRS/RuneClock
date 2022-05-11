@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import sys
 import discord
+from discord import app_commands
 from discord.ext import commands
 import codecs
 import utils
@@ -129,10 +130,12 @@ class Bot(commands.AutoShardedBot):
         )
         self.start_time = None
         self.app_info = None
-        self.bot = self
         self.aiohttp = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
         self.twitter_client = twitter_client
+        # command tree instance to register application commands
+        # self.tree = app_commands.CommandTree(self)
+        self.bot = self
     
     async def setup_hook(self):
         await self.track_start()
@@ -194,6 +197,9 @@ class Bot(commands.AutoShardedBot):
             self.loop.create_task(self.git_tracking())
             self.loop.create_task(self.price_tracking_rs3())
             self.loop.create_task(self.price_tracking_osrs())
+        
+        # Sync application commands with discord on startup
+        # await self.tree.sync()
 
     async def get_prefix_(self, bot, message):
         '''
