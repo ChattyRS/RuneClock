@@ -16,7 +16,7 @@ import feedparser
 import traceback
 from github import Github
 from difflib import SequenceMatcher
-from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem
+from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction
 from database import setup as database_setup
 from database import close_connection as close_database
 import io
@@ -133,8 +133,6 @@ class Bot(commands.AutoShardedBot):
         self.aiohttp = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
         self.twitter_client = twitter_client
-        # command tree instance to register application commands
-        # self.tree = app_commands.CommandTree(self)
         self.bot = self
     
     async def setup_hook(self):
@@ -197,9 +195,6 @@ class Bot(commands.AutoShardedBot):
             self.loop.create_task(self.git_tracking())
             self.loop.create_task(self.price_tracking_rs3())
             self.loop.create_task(self.price_tracking_osrs())
-        
-        # Sync application commands with discord on startup
-        # await self.tree.sync()
 
     async def get_prefix_(self, bot, message):
         '''
@@ -261,7 +256,7 @@ class Bot(commands.AutoShardedBot):
 
         # Adds 100 old messages to cache for each channel in Portables
         for guild in self.guilds:
-            if not guild.id == config['portablesServer']:
+            if not guild.id == config['portablesServer'] and not guild.id == config['cozy_guild_id']:
                 continue
             for channel in guild.channels:
                 async for message in channel.history(limit=100):
@@ -465,7 +460,10 @@ class Bot(commands.AutoShardedBot):
         if not channel or not channel.guild:
             return
 
-        user = await channel.guild.fetch_member(payload.user_id)
+        try:
+            user = await channel.guild.fetch_member(payload.user_id)
+        except discord.NotFound:
+            return
 
         if not user:
             return

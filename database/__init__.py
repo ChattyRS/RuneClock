@@ -39,6 +39,7 @@ class Guild(db.Model):
     modmail_private = db.Column(db.BigInteger)
     hall_of_fame_channel_id = db.Column(db.BigInteger)
     hall_of_fame_react_num = db.Column(db.BigInteger)
+    bank_role_id = db.Column(db.BigInteger)
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -165,9 +166,22 @@ class OSRSItem(db.Model):
     day180 = db.Column(db.String)
     graph_data = db.Column(db.JSON)
 
+class ClanBankTransaction(db.Model):
+    __tablename__ = 'clan_bank_transactions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
+    member_id = db.Column(db.BigInteger, nullable=False)
+    time = db.Column(db.DateTime, nullable=False)
+    amount = db.Column(db.BigInteger, nullable=False)
+    description = db.Column(db.String)
+
 async def setup():
+    print('Setting up database connection...')
     config = config_load()
     await db.set_bind(f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}@{config["postgres_ip"]}:{config["postgres_port"]}/gino')
+    await db.gino.create_all()
+    print('Database ready!')
 
 async def close_connection():
     await db.pop_bind().close()

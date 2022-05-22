@@ -52,6 +52,7 @@ $ pip install -r requirements.txt
 * [PyGithub](https://github.com/PyGithub/PyGithub)
 * [Google Calendar Simple API](https://github.com/kuzmoyev/google-calendar-simple-api)
 * [youtube-search-python](https://github.com/alexmercerind/youtube-search-python)
+* [scikit-image](https://scikit-image.org/)
 
 ## License
 

@@ -251,8 +251,8 @@ class Management(commands.Cog):
                         for param in params:
                             param_text += f'[{param}] '
                         param_text = param_text.strip()
-                        val += f'• `{command.name} {param_text}`: {command.short_doc}\n'
-                        val_short += f'• `{command.name} {param_text}`\n'
+                        val += f'• `{(command.name + " " + param_text).strip()}`: {command.short_doc}\n'
+                        val_short += f'• `{(command.name + " " + param_text).strip()}`\n'
                     val = val.strip()
                     val_short = val_short.strip()
                     if category.upper() == 'COZY':
@@ -821,7 +821,7 @@ class Management(commands.Cog):
         """Loads a module."""
         increment_command_counter()
         try:
-            self.bot.load_extension(f'cogs.{module}')
+            await self.bot.load_extension(f'cogs.{module}')
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:
@@ -833,7 +833,7 @@ class Management(commands.Cog):
         """Unloads a module."""
         increment_command_counter()
         try:
-            self.bot.unload_extension(f'cogs.{module}')
+            await self.bot.unload_extension(f'cogs.{module}')
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:

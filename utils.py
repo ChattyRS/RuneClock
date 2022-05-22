@@ -1,6 +1,7 @@
 import codecs
 import json
 import re
+from numpy import number
 from oauth2client.service_account import ServiceAccountCredentials
 from discord.ext import commands
 import math
@@ -14,6 +15,8 @@ def config_load():
         return json.load(doc)
 
 config = config_load()
+
+max_cash = 2147483647
 
 '''
 Check functions used for commands
@@ -175,6 +178,25 @@ def cozy_council():
         raise commands.CommandError(message='Insufficient permissions: `Cozy Council`')
     return commands.check(predicate)
 
+def get_coins_image_name(amount: number):
+    amount = abs(amount)
+    if amount >= 10000:
+        return 'Coins_10000_detail'
+    elif amount >= 1000:
+        return 'Coins_1000_detail'
+    elif amount >= 250:
+        return 'Coins_250_detail'
+    elif amount >= 100:
+        return 'Coins_100_detail'
+    elif amount >= 25:
+        return 'Coins_25_detail'
+    elif amount >= 5:
+        return 'Coins_5_detail'
+    elif amount >= 1 and amount <= 5:
+        return f'Coins_{amount}_detail'
+    else:
+         return 'Coins_1_detail'
+
 def get_gspread_creds():
     return ServiceAccountCredentials.from_json_keyfile_name('data/gspread.json',
       ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive',
@@ -293,7 +315,31 @@ nine_digit =  [[0, 1, 1, 1, 0],
                [0, 0, 0, 0, 1],
                [0, 0, 0, 0, 1],
                [0, 0, 0, 0, 1]]
-digits = [zero_digit, one_digit, two_digit, three_digit, four_digit, five_digit, six_digit, seven_digit, eight_digit, nine_digit]
+k_char =      [[1, 0, 0, 0, 1],
+               [1, 0, 0, 1, 0],
+               [1, 0, 1, 0, 0],
+               [1, 1, 0, 0, 0],
+               [1, 1, 0, 0, 0],
+               [1, 0, 1, 0, 0],
+               [1, 0, 0, 1, 0],
+               [1, 0, 0, 0, 1]]
+m_char =      [[1, 0, 0, 0, 1],
+               [1, 1, 0, 1, 1],
+               [1, 0, 1, 0, 1],
+               [1, 0, 0, 0, 1],
+               [1, 0, 0, 0, 1],
+               [1, 0, 0, 0, 1],
+               [1, 0, 0, 0, 1],
+               [1, 0, 0, 0, 1]]
+minus_char =  [[0, 0, 0, 0, 0],
+               [0, 0, 0, 0, 0],
+               [0, 0, 0, 0, 0],
+               [1, 1, 1, 1, 1],
+               [0, 0, 0, 0, 0],
+               [0, 0, 0, 0, 0],
+               [0, 0, 0, 0, 0],
+               [0, 0, 0, 0, 0]]
+digits = [zero_digit, one_digit, two_digit, three_digit, four_digit, five_digit, six_digit, seven_digit, eight_digit, nine_digit, k_char, m_char, minus_char]
 
 zero_digit_rs3 =  [[0, 0, 1, 0, 0],
                    [0, 1, 0, 1, 0],

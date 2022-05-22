@@ -4,14 +4,13 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 
-from numpy import void
 sys.path.append('../')
 from main import config_load, increment_command_counter, Poll, Guild
 from datetime import datetime, timedelta, timezone
 import re
 import copy
 import gspread
-from utils import cozy_council, cozy_companions, cozy_champions, cozy_only
+from utils import cozy_council, cozy_champions, cozy_only
 from bs4 import BeautifulSoup
 from gcsa.google_calendar import GoogleCalendar
 import math
@@ -44,27 +43,28 @@ wom_metrics = [# Skills
                # Misc
                "ehp", "ehb"]
 
-def is_companion(interaction: discord.Interaction):
+def is_champion_or_companion(interaction: discord.Interaction):
     if interaction.user.id == config['owner']:
         return True
     if interaction.guild.id == config['cozy_guild_id']:
         companion_role = interaction.guild.get_role(config['cozy_companion_role_id'])
+        champion_role = interaction.guild.get_role(config['cozy_champion_role_id'])
         council_role = interaction.guild.get_role(config['cozy_council_role_id'])
-        if council_role in interaction.user.roles or companion_role in interaction.user.roles:
+        if council_role in interaction.user.roles or champion_role in interaction.user.roles or companion_role in interaction.user.roles:
             return True
     return False
 
 class ApplicationView(discord.ui.View):
     def __init__(self, bot):
-        super().__init__()
+        super().__init__(timeout=None)
         self.bot = bot
         self.value = None
     
-    @discord.ui.button(label='Decline', style=discord.ButtonStyle.danger)
+    @discord.ui.button(label='Decline', style=discord.ButtonStyle.danger, custom_id='cozy_app_decline_button')
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Validate permissions
-        if not is_companion(interaction):
-            await interaction.response.send_message('Missing permissions: `Cozy companion`', ephemeral=True)
+        if not is_champion_or_companion(interaction):
+            await interaction.response.send_message('Missing permissions: `Cozy champion or companion`', ephemeral=True)
             return
         # Update message
         embed = interaction.message.embeds[0]
@@ -74,11 +74,11 @@ class ApplicationView(discord.ui.View):
         self.value = False
         self.stop()
 
-    @discord.ui.button(label='Accept', style=discord.ButtonStyle.success)
+    @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='cozy_app_accept_button')
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Validate permissions
-        if not is_companion(interaction):
-            await interaction.response.send_message('Missing permissions: `Cozy companion`', ephemeral=True)
+        if not is_champion_or_companion(interaction):
+            await interaction.response.send_message('Missing permissions: `Cozy champion or companion`', ephemeral=True)
             return
         # Handle accept
         status = await self.accept_handler(interaction)
@@ -101,6 +101,8 @@ class ApplicationView(discord.ui.View):
         - Promote them in discord
         - Add them to WOM
         '''
+        print('Running accept handler')
+
         user_id = int(interaction.message.embeds[0].footer.text.replace('User ID: ', ''))
         member = await interaction.guild.fetch_member(user_id)
 
@@ -157,7 +159,7 @@ class ApplicationView(discord.ui.View):
         async with self.bot.aiohttp.post(url, json=payload) as r:
             if r.status != 200:
                 data = await r.json()
-                raise commands.CommandError(message=f'Error adding to WOM: {r.status}\n{data}.')
+                return f'Error adding to WOM: {r.status}\n{data}'
             data = await r.json()
         
         return 'success'
@@ -221,11 +223,11 @@ class CozyPersonalInfoModal(discord.ui.Modal):
 
 class OpenPersonalInfoView(discord.ui.View):
     def __init__(self, bot):
-        super().__init__()
+        super().__init__(timeout=None)
         self.bot = bot
         self.value = None
 
-    @discord.ui.button(label='Part 2', style=discord.ButtonStyle.primary)
+    @discord.ui.button(label='Part 2', style=discord.ButtonStyle.primary, custom_id='cozy_app_part2_button')
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Get data from first modal from message embed
         data = {}
@@ -291,8 +293,6 @@ class Cozy(commands.Cog):
         self.update_sotw_url.start()
         self.update_botw_url.start()
         self.wom_update_all.start()
-        # Sync guild application commands
-        self.bot.loop.create_task(self.sync_application_commands())
 
     def cog_unload(self):
         self.get_updated_calendar_events.cancel()
@@ -300,18 +300,12 @@ class Cozy(commands.Cog):
         self.update_sotw_url.cancel()
         self.update_botw_url.cancel()
         self.wom_update_all.cancel()
-
-    async def sync_application_commands(self):
-        '''
-        Syncs application commands with Cozy and RuneClock guilds.
-        '''
-        cozy = self.bot.get_guild(config['gozy_guild_id'])
-        if cozy:
-            await self.bot.tree.sync(guild=cozy)
-
-        runeclock_test_guild = self.bot.get_guild(config['test_guild_id'])
-        if runeclock_test_guild:
-            await self.bot.tree.sync(guild=runeclock_test_guild)
+    
+    def cog_load(self):
+        # Register persistent views
+        print('Cozy cog load: registering persistent views...')
+        self.bot.add_view(ApplicationView(self.bot))
+        self.bot.add_view(OpenPersonalInfoView(self.bot))
     
     @tasks.loop(seconds=60)
     async def get_updated_calendar_events(self):
@@ -1777,7 +1771,7 @@ class Cozy(commands.Cog):
     @app_commands.guilds(discord.Object(id=config['cozy_guild_id']), discord.Object(id=config['test_guild_id']))
     async def apply(self, interaction: discord.Interaction):
         '''
-        Send a modal with for the application form.
+        Send a modal with the cozy application form.
         '''
         applicant_role = interaction.guild.get_role(config['cozy_applicant_role_id'])
         if not applicant_role or not applicant_role in interaction.user.roles:
