@@ -85,7 +85,7 @@ class Logs(commands.Cog):
         if not channel:
             return
         try:
-            banlist = await member.guild.bans()
+            banlist = [ban_entry.user async for ban_entry in member.guild.bans()]
             for user in banlist:
                 if user == member:
                     return

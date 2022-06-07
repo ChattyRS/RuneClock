@@ -161,6 +161,10 @@ class ApplicationView(discord.ui.View):
                 data = await r.json()
                 return f'Error adding to WOM: {r.status}\n{data}'
             data = await r.json()
+
+        # Send message in promotions channel
+        channel = interaction.guild.get_channel(config['cozy_promotions_channel_id'])
+        await channel.send(f'`{rsn}`\'s application was accepted by {interaction.user.mention}. Please invite them to the CC in-game and react to this message once done.')
         
         return 'success'
     
@@ -551,46 +555,6 @@ class Cozy(commands.Cog):
                                 
                                 if not found:
                                     await channel.send(f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.')
-    
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        '''
-        Listen for applications.
-        Validate application format to match template.
-        Add check mark reaction or red X based on result.
-        On negative result, also mention the applicant with info.
-        '''
-        if message.guild is None or message.guild.id != config['cozy_guild_id']:
-            return
-        if message.channel is None or message.channel.id != config['cozy_applications_channel_id']:
-            return
-        if message.author is None:
-            return
-        
-        application_form_channel = message.guild.get_channel(config['cozy_application_form_channel_id'])
-        cozy_chat_channel = message.guild.get_channel(config['cozy_chat_channel_id'])
-        applicant_role = message.guild.get_role(config['cozy_applicant_role_id'])
-
-        if not applicant_role in message.author.roles:
-            return
-        
-        try:
-            _ = parse_application(message)
-            await message.add_reaction('✅')
-        except Exception as e:
-            await message.add_reaction('❌')
-            txt = (
-                f'{message.author.mention}\nFailed to parse your application for the following reason:\n'
-                f'```\n{e}\n```\n'
-                f'Make sure that you copy the application form from {application_form_channel.mention} without changing anything to the format.\n'
-                f'Please try to submit another application in a new message.\n'
-                f'Your application and this message will be automatically deleted one minute from now.\n'
-                f'If you need any help, feel free to DM a member or staff or send a message in {cozy_chat_channel.mention}.'
-            )
-            msg = await message.channel.send(txt)
-            await message.delete(delay=60)
-            await msg.delete(delay=60)
-
 
     @commands.command(hidden=True)
     @cozy_council()
@@ -1172,64 +1136,6 @@ class Cozy(commands.Cog):
             msg += f'\n**{time}**: {event.summary}'
         
         await ctx.send(msg.strip())
-
-    @commands.command()
-    @cozy_council()
-    async def wom_add(self, ctx, *name):
-        '''
-        Add a member to the Cozy Corner wiseoldman group.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        if not name:
-            raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ' '.join(name)
-
-        if len(name) > 12:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`. Character limit exceeded.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`. Forbidden character.')
-
-        url = 'https://api.wiseoldman.net/groups/423/add-members'
-
-        payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
-        payload['members'] = [{'username': name, 'role': 'member'}]
-        async with self.bot.aiohttp.post(url, json=payload) as r:
-            if r.status != 200:
-                data = await r.json()
-                raise commands.CommandError(message=f'Error status: {r.status}\n{data}.')
-            data = await r.json()
-            await ctx.send(f'Added member: {name}')
-    
-    @commands.command()
-    @cozy_council()
-    async def wom_remove(self, ctx, *name):
-        '''
-        Remove a member from the Cozy Corner wiseoldman group.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        if not name:
-            raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ' '.join(name)
-
-        if len(name) > 12:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`. Character limit exceeded.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`. Forbidden character.')
-        
-        url = 'https://api.wiseoldman.net/groups/423/remove-members'
-
-        payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
-        payload['members'] = [name]
-        async with self.bot.aiohttp.post(url, json=payload) as r:
-            if r.status != 200:
-                data = await r.json()
-                raise commands.CommandError(message=f'Error status: {r.status}\n{data}.')
-            data = await r.json()
-            await ctx.send(f'Removed member: {name}')
     
     @commands.command()
     @cozy_champions()

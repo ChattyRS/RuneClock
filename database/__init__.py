@@ -40,6 +40,9 @@ class Guild(db.Model):
     hall_of_fame_channel_id = db.Column(db.BigInteger)
     hall_of_fame_react_num = db.Column(db.BigInteger)
     bank_role_id = db.Column(db.BigInteger)
+    wom_role_id = db.Column(db.BigInteger)
+    wom_group_id = db.Column(db.BigInteger)
+    wom_verification_code = db.Column(db.String)
 
 class Role(db.Model):
     __tablename__ = 'roles'
