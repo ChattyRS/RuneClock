@@ -282,18 +282,9 @@ class CozyAccountInfoModal(discord.ui.Modal, title='Account information'):
 class Cozy(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
-        self.get_updated_calendar_events.start()
-        self.cozy_event_reminders.start()
-        self.update_sotw_url.start()
-        self.update_botw_url.start()
-        self.wom_update_all.start()
 
     def cog_unload(self):
-        self.get_updated_calendar_events.cancel()
-        self.cozy_event_reminders.cancel()
-        self.update_sotw_url.cancel()
-        self.update_botw_url.cancel()
-        self.wom_update_all.cancel()
+        pass
     
     def cog_load(self):
         # Register persistent views
