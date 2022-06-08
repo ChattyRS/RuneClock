@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import traceback
 from typing import List
 import discord
@@ -223,6 +224,70 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         print(error)
         traceback.print_tb(error.__traceback__)
 
+class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+
+    competition_title = discord.ui.TextInput(label='Competition title', placeholder=f'Title...', min_length=1, max_length=50, required=True, style=TextStyle.short)
+    metric = discord.ui.TextInput(label='Competition metric', placeholder=f'Skill / boss', min_length=min([len(m) for m in wom_metrics]), max_length=max([len(m) for m in wom_metrics]), required=True, style=TextStyle.short)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        competition_title = self.competition_title.value
+        metric = self.metric.value.strip().replace(' ', '_').lower()
+
+        # Validation
+        if not competition_title:
+            await interaction.response.send_message(f'Required argument missing: `TITLE`.', ephemeral=True)
+            return
+        if not metric:
+            await interaction.response.send_message(f'Required argument missing: `METRIC`.', ephemeral=True)
+            return
+        if not metric in wom_metrics:
+            await interaction.response.send_message(f'Invalid argument: `METRIC: {metric}`.', ephemeral=True)
+            return
+
+        # Get guild info from database
+        guild = await Guild.get(interaction.guild.id)
+
+        # Calculate start and end datetimes
+        now = datetime.utcnow()
+        start = now + timedelta(days=-now.weekday(), weeks=1)
+        start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(weeks=1)
+
+        start = start.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        start = start[:len(start)-4] + "Z"
+
+        end = end.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        end = end[:len(end)-4] + "Z"
+        
+        # Create competition
+        payload = {"title": competition_title, "metric": metric, "startsAt": start, "endsAt": end, "groupId": guild.wom_group_id, "groupVerificationCode": guild.wom_verification_code}
+        url = 'https://api.wiseoldman.net/competitions'
+        competition = None
+        async with self.bot.aiohttp.post(url, json=payload) as r:
+            if r.status != 201:
+                raise commands.CommandError(message=f'Error status: {r.status}.')
+            competition = await r.json()
+            
+        # Create embed to show data
+        embed = discord.Embed(title=f'**Wise Old Man**', colour=0xff0000)
+        embed.add_field(name='Competition', value=competition['title'], inline=False)
+        embed.add_field(name='Metric', value=competition['metric'], inline=False)
+        embed.add_field(name='Start', value=competition['startsAt'], inline=False)
+        embed.add_field(name='End', value=competition['endsAt'], inline=False)
+        embed.add_field(name='Link', value=f'https://wiseoldman.net/competitions/{competition["id"]}/participants', inline=False)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f'User ID: {interaction.user.id}')
+
+        await interaction.response.send_message(embed=embed)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
+
 class Clan(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
@@ -246,10 +311,10 @@ class Clan(commands.Cog):
                 await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
                 return
         # Validation
-        if action in ['add', 'remove'] and (not guild.wom_group_id or not guild.wom_verification_code):
+        if action in ['add', 'remove', 'competition'] and (not guild.wom_group_id or not guild.wom_verification_code):
             await interaction.response.send_message(f'You must setup your WOM group before you can use the `add` and `remove` actions.', ephemeral=True)
             return
-        if not action in ['add', 'remove', 'setup', 'role']:
+        if not action in ['add', 'remove', 'competition', 'setup', 'role']:
             await interaction.response.send_message(f'Invalid action: {action}', ephemeral=True)
             return
         # Perform action
@@ -257,6 +322,8 @@ class Clan(commands.Cog):
             await self.wom_add(interaction)
         elif action == 'remove':
             await self.wom_remove(interaction)
+        elif action == 'competition':
+            await self.wom_competition(interaction)
         elif action == 'setup':
             await self.wom_setup(interaction)
         elif action =='role':
@@ -270,7 +337,7 @@ class Clan(commands.Cog):
         interaction: discord.Interaction,
         current: str,
     ) -> List[app_commands.Choice[str]]:
-        actions = ['add', 'remove']
+        actions = ['add', 'remove', 'competition']
         admin_actions = ['setup', 'role']
         return [
             app_commands.Choice(name=action, value=action)
@@ -286,6 +353,9 @@ class Clan(commands.Cog):
 
     async def wom_remove(self, interaction: discord.Interaction):
         await interaction.response.send_modal(RemoveFromWOMModal(self.bot))
+
+    async def wom_competition(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(WOMCompetitionModal(self.bot))
     
     async def wom_setup(self, interaction: discord.Interaction):
         # Validation
