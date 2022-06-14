@@ -16,7 +16,7 @@ config = config_load()
 def is_obliterate_mod(interaction: discord.Interaction):
     if interaction.user.id == config['owner']:
         return True
-    if interaction.guild.id == config['cozy_guild_id']:
+    if interaction.guild.id == config['obliterate_guild_id']:
         mod_role = interaction.guild.get_role(config['obliterate_moderator_role_id'])
         key_role = interaction.guild.get_role(config['obliterate_key_role_id'])
         if mod_role in interaction.user.roles or key_role in interaction.user.roles:
