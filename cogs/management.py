@@ -770,6 +770,7 @@ class Management(commands.Cog):
 
         env = {
             'bot': self.bot,
+            'config': config,
             'ctx': ctx,
             'channel': ctx.channel,
             'author': ctx.author,
@@ -874,6 +875,7 @@ class Management(commands.Cog):
         variables = {
             'ctx': ctx,
             'bot': self.bot,
+            'config': config,
             'message': ctx.message,
             'guild': ctx.guild,
             'channel': ctx.channel,

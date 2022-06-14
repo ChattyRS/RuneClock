@@ -131,7 +131,7 @@ class ApplicationView(discord.ui.View):
 
         date_str = datetime.utcnow().strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row = [rsn, 'Friend', ironman, 'Yes', 'Yes', f'{member.display_name}#{member.discriminator}', '', date_str]
+        new_row = [rsn, 'Friend', ironman, 'Yes', 'Yes', f'{member.name}#{member.discriminator}', '', date_str]
         cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
         print(f'writing values:\n{new_row}\nto row {rows+1}')
         await roster.update_cells(cell_list, nowait=True)
@@ -684,7 +684,7 @@ class Cozy(commands.Cog):
 
     
     @app_commands.command()
-    @app_commands.guilds(discord.Object(id=config['cozy_guild_id']), discord.Object(id=config['test_guild_id']))
+    @app_commands.guilds(discord.Object(id=config['cozy_guild_id']))
     async def apply(self, interaction: discord.Interaction):
         '''
         Send a modal with the cozy application form.
