@@ -1,3 +1,4 @@
+from typing import List
 import discord
 from discord import app_commands, TextStyle
 from discord.ext import commands
@@ -10,6 +11,7 @@ from datetime import datetime
 import re
 import gspread
 import traceback
+from utils import is_int
 
 config = config_load()
 
@@ -334,6 +336,33 @@ class Obliterate(commands.Cog):
             return
         await interaction.response.send_modal(AccountInfoModal(self.bot))
 
+
+    @app_commands.command()
+    @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
+    async def appreciate(self, interaction: discord.Interaction, member: str):
+        '''
+        Send a modal with the appreciation station form.
+        '''
+        if not member or not is_int(member):
+            await interaction.response.send_message(f'Invalid argument `member: "{member}"`', ephemeral=True)
+            return
+        member = interaction.guild.get_member(int(member))
+        if not member:
+            await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
+            return
+        await interaction.response.send_message(f'Selected member: {member.mention}')
+
+    @appreciate.autocomplete('member')
+    async def member_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> List[app_commands.Choice[str]]:
+        members = [m for m in interaction.guild.members if current.upper() in m.display_name.upper() or current.upper() in m.name.upper()]
+        # filter out names that cannot be displayed, all clan member names should match this pattern (valid RSNs)
+        members = [m for m in members if not re.match('^[A-z0-9 -]+$', m.display_name) is None]
+        members = members[:25] if len(members) > 25 else members
+        return [app_commands.Choice(name=m.display_name, value=str(m.id)) for m in members]
 
 async def setup(bot):
     await bot.add_cog(Obliterate(bot))
