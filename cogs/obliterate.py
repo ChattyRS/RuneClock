@@ -256,6 +256,57 @@ class AccountInfoModal(discord.ui.Modal, title='Account information'):
         print(error)
         traceback.print_tb(error.__traceback__)
 
+class AppreciationModal(discord.ui.Modal, title="Message of Appreciation"):
+    def __init__(self, bot, appreciate_player):
+        super().__init__()
+        self.bot = bot
+        self.appreciate_player = appreciate_player
+
+    message = discord.ui.TextInput(label='Message of appreciation', min_length=1, max_length=1000, required=True, style=TextStyle.long)
+    anonymous = discord.ui.TextInput(label='Would you like this post to be anonymous?', min_length=1, max_length=3, required=True, placeholder="Yes/No", style=TextStyle.short)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        member = interaction.user
+        message = self.message.value
+        anonymous = self.anonymous.value
+        appreciate_player = self.appreciate_player
+
+        if not 'Y' in anonymous.upper() and not 'N' in anonymous.upper():
+            interaction.response.send_message(f'Error: invalid value for anonymous: `{anonymous}`', ephemeral=True)
+        else:
+            anonymous = 'Y' in anonymous.upper()
+
+        # Update appreciation sheet on roster
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['obliterate_roster_key'])
+        roster = await ss.worksheet('Appreciation')
+
+        members_col = await roster.col_values(1)
+        rows = len(members_col)
+
+        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = date_str if not date_str.startswith('0') else date_str[1:]
+        new_row = [member, appreciate_player, message, date_str]
+        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        print(f'writing values:\n{new_row}\nto row {rows+1}')
+        await roster.update_cells(cell_list, nowait=True)
+
+        # Send appreciation message to Appreciation Station channel
+        embed = discord.Embed(title=f'**Message of Appreciation**', colour=0x00b2ff)
+        if anonymous:
+            embed.set_author(name="Anonymous", icon_url=discord.AppInfo.icon.url)
+        else:
+            embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
+        embed.add_field(name="For:", value=appreciate_player.display_name, inline=True)
+        embed.add_field(name="Message:", value=message, inline=False)
+        
+        await interaction.channel.send(embed=embed)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
+
 class Obliterate(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
@@ -336,7 +387,6 @@ class Obliterate(commands.Cog):
             return
         await interaction.response.send_modal(AccountInfoModal(self.bot))
 
-
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
     async def appreciate(self, interaction: discord.Interaction, member: str):
@@ -350,7 +400,12 @@ class Obliterate(commands.Cog):
         if not member:
             await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
             return
-        await interaction.response.send_message(f'Selected member: {member.mention}')
+
+        appreciation_station_channel = interaction.guild.get_channel(config['obliterate_appreciation_station_channel_id'])
+        if not appreciation_station_channel or not interaction.channel == appreciation_station_channel:
+            await interaction.response.send_message(f'Appreciations can only be submitted in the #appreciation_station channel', ephemeral=True)
+            return
+        await interaction.response.send_modal(AppreciationModal(self.bot, member))
 
     @appreciate.autocomplete('member')
     async def member_autocomplete(
