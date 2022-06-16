@@ -1,3 +1,4 @@
+import io
 from typing import List
 import discord
 from discord import app_commands, TextStyle
@@ -24,6 +25,64 @@ def is_obliterate_mod(interaction: discord.Interaction):
         if mod_role in interaction.user.roles or key_role in interaction.user.roles:
             return True
     return False
+
+class AppreciationModal(discord.ui.Modal, title='Appreciation'):
+    def __init__(self, bot, member_to_appreciate):
+        super().__init__()
+        self.bot = bot
+        self.member_to_appreciate = member_to_appreciate
+
+    message = discord.ui.TextInput(label='Message', min_length=1, max_length=1000, required=True, style=TextStyle.long)
+    anonymous = discord.ui.TextInput(label='Should this post be anonymous?', min_length=1, max_length=3, required=True, placeholder='Yes / No', style=TextStyle.short)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        message = self.message.value
+        anonymous = self.anonymous.value
+        member_to_appreciate = self.member_to_appreciate
+
+        if not 'Y' in anonymous.upper() and not 'N' in anonymous.upper():
+            interaction.response.send_message(f'Error: invalid value for anonymous: `{anonymous}`', ephemeral=True)
+            return
+        anonymous = 'Y' in anonymous.upper()
+
+        # Create an embed to send to the appreciation station channel
+        embed = discord.Embed(title=f'Appreciation', colour=0x00e400)
+        if anonymous:
+            with open('images/default_avatar.png', 'rb') as f:
+                default_avatar = io.BytesIO(f.read())
+            default_avatar = discord.File(default_avatar, filename='default_avatar.png')
+            embed.set_author(name='Anonymous', icon_url='attachment://default_avatar.png')
+        else:
+            embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        embed.add_field(name='Member', value=member_to_appreciate.mention, inline=False)
+        embed.add_field(name='Message', value=message, inline=False)
+
+        # Update appreciation sheet on roster
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['obliterate_roster_key'])
+        roster = await ss.worksheet('Appreciation')
+
+        members_col = await roster.col_values(1)
+        rows = len(members_col)
+
+        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = date_str if not date_str.startswith('0') else date_str[1:]
+        new_row = [interaction.user.display_name, member_to_appreciate.display_name, date_str, message]
+        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        print(f'writing values:\n{new_row}\nto row {rows+1}')
+        await roster.update_cells(cell_list, nowait=True)
+        
+        # Send an embed to the appreciation station channel
+        if anonymous:
+            await interaction.channel.send(embed=embed, file=default_avatar)
+            await interaction.response.send_message(f'Your appreciation message for {member_to_appreciate.mention} has been sent!', ephemeral=True)
+        else:
+            await interaction.response.send_message(embed=embed)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
 
 class ApplicationView(discord.ui.View):
     def __init__(self, bot):
@@ -343,6 +402,10 @@ class Obliterate(commands.Cog):
         '''
         Send a modal with the appreciation station form.
         '''
+        appreciation_channel = interaction.guild.get_channel(config['obliterate_appreciation_station_channel_id'])
+        if not appreciation_channel or not interaction.channel == appreciation_channel:
+            await interaction.response.send_message(f'Appreciation messages can only be sent in the #appreciation-station channel', ephemeral=True)
+            return
         if not member or not is_int(member):
             await interaction.response.send_message(f'Invalid argument `member: "{member}"`', ephemeral=True)
             return
@@ -350,7 +413,10 @@ class Obliterate(commands.Cog):
         if not member:
             await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
             return
-        await interaction.response.send_message(f'Selected member: {member.mention}')
+        if member == interaction.member:
+            await interaction.response.send_message(f'You cannot send an appreciation message to yourself, silly.', ephemeral=True)
+            return
+        await interaction.response.send_modal(AppreciationModal(self.bot, member))
 
     @appreciate.autocomplete('member')
     async def member_autocomplete(
