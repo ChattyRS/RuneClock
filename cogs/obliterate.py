@@ -46,7 +46,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         anonymous = 'Y' in anonymous.upper()
 
         # Create an embed to send to the appreciation station channel
-        embed = discord.Embed(title=f'Appreciation', colour=0x00e400)
+        embed = discord.Embed(title=f'Appreciation message', description=message, colour=0x00e400)
         if anonymous:
             with open('images/default_avatar.png', 'rb') as f:
                 default_avatar = io.BytesIO(f.read())
@@ -54,8 +54,6 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
             embed.set_author(name='Anonymous', icon_url='attachment://default_avatar.png')
         else:
             embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
-        embed.add_field(name='Member', value=member_to_appreciate.mention, inline=False)
-        embed.add_field(name='Message', value=message, inline=False)
 
         # Update appreciation sheet on roster
         agc = await self.bot.agcm.authorize()
@@ -74,10 +72,10 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         
         # Send an embed to the appreciation station channel
         if anonymous:
-            await interaction.channel.send(embed=embed, file=default_avatar)
+            await interaction.channel.send(member_to_appreciate.mention, embed=embed, file=default_avatar)
             await interaction.response.send_message(f'Your appreciation message for {member_to_appreciate.mention} has been sent!', ephemeral=True)
         else:
-            await interaction.response.send_message(embed=embed)
+            await interaction.response.send_message(member_to_appreciate.mention, embed=embed)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         await interaction.response.send_message('Error', ephemeral=True)
@@ -415,6 +413,16 @@ class Obliterate(commands.Cog):
             return
         if member == interaction.user:
             await interaction.response.send_message(f'You cannot send an appreciation message to yourself, silly.', ephemeral=True)
+            return
+        if member.bot:
+            await interaction.response.send_message(f'Bots are nice, but you cannot send them appreciation messages.', ephemeral=True)
+            return
+        if member.bot:
+            await interaction.response.send_message(f'Bots are nice, but you cannot send them appreciation messages.', ephemeral=True)
+            return
+        bronze_role = member.guild.get_role(config['obliterate_bronze_role_id'])
+        if member.top_role < bronze_role or interaction.user.top_role < bronze_role:
+            await interaction.response.send_message(f'Only obliterate clan members can send/receive appreciation messages.', ephemeral=True)
             return
         await interaction.response.send_modal(AppreciationModal(self.bot, member))
 
