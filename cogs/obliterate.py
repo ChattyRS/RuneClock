@@ -413,7 +413,7 @@ class Obliterate(commands.Cog):
         if not member:
             await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
             return
-        if member == interaction.member:
+        if member == interaction.user:
             await interaction.response.send_message(f'You cannot send an appreciation message to yourself, silly.', ephemeral=True)
             return
         await interaction.response.send_modal(AppreciationModal(self.bot, member))
