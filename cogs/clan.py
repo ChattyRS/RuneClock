@@ -5,7 +5,8 @@ import discord
 from discord import TextStyle, app_commands
 from discord.ext import commands
 import sys
-
+import random
+import copy
 sys.path.append('../')
 from main import config_load, Guild
 import re
@@ -15,20 +16,48 @@ config = config_load()
 
 num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
-wom_metrics = [# Skills
-               "overall", "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic", "cooking", "woodcutting", "fletching", "fishing", 
-               "firemaking", "crafting", "smithing", "mining", "herblore", "agility", "thieving", "slayer", "farming", "runecrafting", "hunter", "construction",
-               # Clues & minigames
-               "league_points", "bounty_hunter_hunter", "bounty_hunter_rogue", "clue_scrolls_all", "clue_scrolls_beginner", "clue_scrolls_easy",
-               "clue_scrolls_medium", "clue_scrolls_hard", "clue_scrolls_elite", "clue_scrolls_master", "last_man_standing", "soul_wars_zeal",
-               # Bosses
-               "abyssal_sire", "alchemical_hydra", "barrows_chests", "bryophyta", "callisto", "cerberus", "chambers_of_xeric", "chambers_of_xeric_challenge_mode",
-               "chaos_elemental", "chaos_fanatic", "commander_zilyana", "corporeal_beast", "crazy_archaeologist", "dagannoth_prime", "dagannoth_rex", "dagannoth_supreme",
-               "deranged_archaeologist", "general_graardor", "giant_mole", "grotesque_guardians", "hespori", "kalphite_queen", "king_black_dragon", "kraken", "kreearra", 
-               "kril_tsutsaroth", "mimic", "nex", "nightmare", "obor", "sarachnis", "scorpia", "skotizo", "tempoross", "the_gauntlet", "the_corrupted_gauntlet", "theatre_of_blood",
-               "theatre_of_blood_hard_mode", "thermonuclear_smoke_devil", "tzkal_zuk", "tztok_jad", "venenatis", "vetion", "vorkath", "wintertodt", "zalcano", "zulrah", 
-               # Misc
-               "ehp", "ehb"]
+
+wom_skills = ['overall', 'attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 
+              'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming', 'runecrafting', 'hunter', 'construction']
+
+wom_bosses = ['abyssal_sire', 'alchemical_hydra', 'barrows_chests', 'bryophyta', 'callisto', 'cerberus', 'chambers_of_xeric', 'chambers_of_xeric_challenge_mode',
+              'chaos_elemental', 'chaos_fanatic', 'commander_zilyana', 'corporeal_beast', 'crazy_archaeologist', 'dagannoth_prime', 'dagannoth_rex', 'dagannoth_supreme',
+              'deranged_archaeologist', 'general_graardor', 'giant_mole', 'grotesque_guardians', 'hespori', 'kalphite_queen', 'king_black_dragon', 'kraken', 'kreearra', 
+              'kril_tsutsaroth', 'mimic', 'nex', 'nightmare', 'obor', 'sarachnis', 'scorpia', 'skotizo', 'tempoross', 'the_gauntlet', 'the_corrupted_gauntlet', 'theatre_of_blood',
+              'theatre_of_blood_hard_mode', 'thermonuclear_smoke_devil', 'tzkal_zuk', 'tztok_jad', 'venenatis', 'vetion', 'vorkath', 'wintertodt', 'zalcano', 'zulrah']
+
+wom_clues = ['clue_scrolls_all', 'clue_scrolls_beginner', 'clue_scrolls_easy', 'clue_scrolls_medium', 'clue_scrolls_hard', 'clue_scrolls_elite', 'clue_scrolls_master']
+
+wom_minigames = ['league_points', 'bounty_hunter_hunter', 'bounty_hunter_rogue', 'last_man_standing', 'soul_wars_zeal']
+
+wom_efficiency = ['ehp', 'ehb']
+
+wom_metrics = wom_skills + wom_bosses + wom_clues + wom_minigames + wom_efficiency
+
+def choose_metric(exclude = [], type = ''):
+    type = type.lower().strip()
+
+    options = copy.deepcopy(wom_metrics)
+    if 'skill' in type:
+        options = copy.deepcopy(wom_skills)
+    elif 'boss' in type:
+        options = copy.deepcopy(wom_bosses)
+    elif 'clue' in type:
+        options = copy.deepcopy(wom_clues)
+    elif 'minigame' in type:
+        options = copy.deepcopy(wom_minigames)
+    elif 'efficiency' in type:
+        options = copy.deepcopy(wom_efficiency)
+
+    for opt in exclude:
+        if opt in options:
+            options.remove(opt)
+
+    if not options:
+        raise Exception('No options to choose from')
+
+    return random.choice(options)
+    
 
 class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
     def __init__(self, bot):
@@ -288,6 +317,76 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         print(error)
         traceback.print_tb(error.__traceback__)
 
+class RandomMetricView(discord.ui.View):
+    def __init__(self, bot):
+        super().__init__(timeout=None)
+        self.bot = bot
+
+    @discord.ui.button(label='Reroll', style=discord.ButtonStyle.blurple, custom_id='wom_metric_reroll_button')
+    async def reroll(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Validate permission
+        if interaction.user.id != int(interaction.message.embeds[0].footer.text.lower().replace('user id:', '').strip()):
+            await interaction.response.send_message('Only the original user of this command can reroll the result.', ephemeral=True)
+            return
+        # Reroll result
+        type = interaction.message.embeds[0].title.replace('*', '').lower().strip()
+        exclude = await get_excluded_metrics(interaction) + [interaction.message.embeds[0].description]
+        try:
+            metric = choose_metric(exclude, type)
+        except:
+            await interaction.response.send_message('Your result could not be rerolled, because there is no other outcome possible.', ephemeral=True)
+            return
+        # Update message
+        embed = interaction.message.embeds[0]
+        embed.description = metric
+        await interaction.message.edit(embed=embed)
+        await interaction.response.send_message(f'Rerolled metric: `{metric}`', ephemeral=True)
+
+class WOMExcludeModal(discord.ui.Modal, title='Wise Old Man: exclude metrics'):
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+
+    metrics_to_exclude = discord.ui.TextInput(label='Metrics to exclude', placeholder=f'runecrafting, theatre_of_blood_hard_mode', min_length=None, max_length=4000, required=False, style=TextStyle.long)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        metrics_to_exclude = [metric.strip().replace(' ', '_') for metric in self.metrics_to_exclude.value.strip().lower().split(',') if metric.strip()]
+
+        # Validation
+        for metric in metrics_to_exclude:
+            if not metric in wom_metrics:
+                await interaction.response.send_message(f'Invalid metric: `{metric}`.', ephemeral=True)
+                return
+
+        # Get guild info from database
+        guild = await Guild.get(interaction.guild.id)
+
+        # Update guild data
+        await guild.update(wom_excluded_metrics=','.join(metrics_to_exclude)).apply()
+            
+        # Create embed to show data
+        embed = discord.Embed(title=f'**Wise Old Man**', colour=0xff0000)
+        embed.add_field(name='Excluded metrics', value=', '.join(metrics_to_exclude) if metrics_to_exclude else 'N/A', inline=False)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f'User ID: {interaction.user.id}')
+
+        await interaction.response.send_message(embed=embed)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
+
+async def get_excluded_metrics(interaction: discord.Interaction):
+    # Get guild info from database
+    guild = await Guild.get(interaction.guild.id)
+
+    excluded = guild.wom_excluded_metrics
+    if excluded:
+        return excluded.split(',')
+    else:
+        return []
+
 class Clan(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
@@ -307,15 +406,15 @@ class Clan(commands.Cog):
             wom_role = None
             if guild.wom_role_id:
                 wom_role = interaction.guild.get_role(guild.wom_role_id)
-            if wom_role is None or not interaction.user.top_role >= wom_role or action in ['setup', 'role']:
+            if wom_role is None or not interaction.user.top_role >= wom_role or action in ['setup', 'role', 'exclude']:
                 await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
                 return
         # Validation
         if action in ['add', 'remove', 'competition'] and (not guild.wom_group_id or not guild.wom_verification_code):
             await interaction.response.send_message(f'You must setup your WOM group before you can use the `add` and `remove` actions.', ephemeral=True)
             return
-        if not action in ['add', 'remove', 'competition', 'setup', 'role']:
-            await interaction.response.send_message(f'Invalid action: {action}', ephemeral=True)
+        if not action in ['add', 'remove', 'competition', 'setup', 'role', 'skill', 'boss', 'exclude']:
+            await interaction.response.send_message(f'Invalid action: `{action}`', ephemeral=True)
             return
         # Perform action
         if action == 'add':
@@ -326,8 +425,14 @@ class Clan(commands.Cog):
             await self.wom_competition(interaction)
         elif action == 'setup':
             await self.wom_setup(interaction)
-        elif action =='role':
-            await self.set_bank_role(interaction)
+        elif action == 'role':
+            await self.set_wom_role(interaction)
+        elif action == 'skill':
+            await self.random_skill(interaction)
+        elif action == 'boss':
+            await self.random_boss(interaction)
+        elif action == 'exclude':
+            await self.set_exclude(interaction)
         else:
             await self.wom_setup(interaction)
 
@@ -337,8 +442,8 @@ class Clan(commands.Cog):
         interaction: discord.Interaction,
         current: str,
     ) -> List[app_commands.Choice[str]]:
-        actions = ['add', 'remove', 'competition']
-        admin_actions = ['setup', 'role']
+        actions = ['add', 'remove', 'competition', 'skill', 'boss']
+        admin_actions = ['setup', 'role', 'exclude']
         return [
             app_commands.Choice(name=action, value=action)
             for action in actions if current.lower() in action.lower()
@@ -364,7 +469,7 @@ class Clan(commands.Cog):
             return
         await interaction.response.send_modal(WOMSetupModal(self.bot))
 
-    async def set_bank_role(self, interaction: discord.Interaction):
+    async def set_wom_role(self, interaction: discord.Interaction):
         # Set the role required to manage the clan WOM group.
         # Validation
         if not (interaction.user.guild_permissions.administrator or interaction.user.id == config['owner']):
@@ -372,6 +477,37 @@ class Clan(commands.Cog):
             return
         view = SelectRoleView(self.bot, interaction.guild)
         await interaction.response.send_message('Choose a role to allow management of your clan WOM group:', view=view, ephemeral=True)
+
+    async def random_skill(self, interaction: discord.Interaction):
+        # Choose a random skill
+        try:
+            metric = choose_metric(await get_excluded_metrics(interaction), 'skill')
+        except:
+            await interaction.response.send_message('Error choosing random skill.', ephemeral=True)
+            return
+        # Send embed with reroll button
+        embed = discord.Embed(title=f'**Skill**', colour=0x00b2ff, description=metric)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f'User ID: {interaction.user.id}')
+        view = RandomMetricView(self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
+
+    async def random_boss(self, interaction: discord.Interaction):
+        # Choose a random boss
+        try:
+            metric = choose_metric(await get_excluded_metrics(interaction), 'boss')
+        except:
+            await interaction.response.send_message('Error choosing random boss.', ephemeral=True)
+            return
+        # Send embed with reroll button
+        embed = discord.Embed(title=f'**Boss**', colour=0x00b2ff, description=metric)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f'User ID: {interaction.user.id}')
+        view = RandomMetricView(self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
+
+    async def set_exclude(self, interaction: discord.Interaction):
+         await interaction.response.send_modal(WOMExcludeModal(self.bot))
 
 async def setup(bot):
     await bot.add_cog(Clan(bot))

@@ -43,6 +43,7 @@ class Guild(db.Model):
     wom_role_id = db.Column(db.BigInteger)
     wom_group_id = db.Column(db.BigInteger)
     wom_verification_code = db.Column(db.String)
+    wom_excluded_metrics = db.Column(db.String)
 
 class Role(db.Model):
     __tablename__ = 'roles'
