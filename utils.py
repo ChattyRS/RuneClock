@@ -182,9 +182,9 @@ def obliterate_only():
     async def predicate(ctx):
         if ctx.author.id == config['owner']:
             return True
-        if ctx.guild.id == config['obliterate_moderator_role_id']:
+        if ctx.guild.id == config['obliterate_guild_id']:
             return True
-        raise commands.CommandError(message='Insufficient permissions: `Obliterate moderators only`')
+        raise commands.CommandError(message='Insufficient permissions: `Obliterate server only`')
     return commands.check(predicate)
 
 def obliterate_mods():
