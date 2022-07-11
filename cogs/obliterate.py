@@ -7,12 +7,12 @@ from discord.ext.commands import Cog
 import sys
 
 sys.path.append('../')
-from main import config_load, Guild
+from main import config_load, Guild, increment_command_counter
 from datetime import datetime
 import re
 import gspread
 import traceback
-from utils import is_int
+from utils import is_int, obliterate_only, obliterate_mods
 
 config = config_load()
 
@@ -437,6 +437,89 @@ class Obliterate(commands.Cog):
         members = [m for m in members if not re.match('^[A-z0-9 -]+$', m.display_name) is None]
         members = members[:25] if len(members) > 25 else members
         return [app_commands.Choice(name=m.display_name, value=str(m.id)) for m in members]
+
+
+    @obliterate_only()
+    @obliterate_mods()
+    @commands.command(hidden=True)
+    async def event(self, ctx):
+        '''
+        Marks event attendence (Moderator+ only)
+        '''
+        increment_command_counter()
+        await ctx.channel.typing()
+
+        message = ctx.message.content.replace(ctx.invoked_with, '', 1).replace(ctx.prefix, '', 1)
+
+        if not message:
+            raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
+
+        if not 'Part of the event' in message:
+            raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
+        
+        if not 'Event name:' in message:
+            raise commands.CommandError(message=f'Required argument missing: `Event name`.')
+        
+        if not 'Hosted by:' in message:
+            raise commands.CommandError(message=f'Required argument missing: `Host name`.')
+
+        event_name, host, participants = '', '', []
+
+        try:
+            event_name = message.split('Event name:')[1].split('\n')[0].strip()
+            if not event_name:
+                raise commands.CommandError(message=f'Required argument missing: `Event name`.')
+
+            host = message.split('Hosted by:')[1].split('\n')[0].strip()
+            if not host:
+                raise commands.CommandError(message=f'Required argument missing: `Host name`.')
+
+            participants = []
+
+            attendance = message.split('Part of the event')[1].strip()
+
+            first_row = True
+            for line in attendance.split('\n'):
+                if line.startswith('-'*12):
+                    first_row = True
+                    continue
+                elif line.startswith('Below time threshold'):
+                    break
+                elif line.startswith('```'):
+                    break
+                elif line.strip() == '':
+                    break
+                elif first_row:
+                    first_row = False
+                    continue
+                else:
+                    name = line.split('|')[0].strip()
+                    participants.append(name)
+
+            if not participants:
+                raise commands.CommandError(message=f'Error: Could not find any participants while parsing attendance list:\n```\n{attendance}\n```')
+
+        except commands.CommandError as e:
+            raise e
+        except:
+            raise commands.CommandError(message=f'An error occurred while attempting to parse your message. Please ensure that you follow the correct format. Contact Chatty for help if you need it.')
+
+        # Update roster
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['obliterate_roster_key'])
+        roster = await ss.worksheet('Event attendance')
+
+        event_col = await roster.col_values(1)
+        rows = len(event_col)
+
+        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = date_str if not date_str.startswith('0') else date_str[1:]
+        new_row = [event_name, host, date_str, ', '.join(participants)]
+        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        await roster.update_cells(cell_list, nowait=True)
+
+        participants_str = '\n'.join(participants)
+        await ctx.send(f'Success! Attendance for event `{event_name}` has been recorded.\n```\n{participants_str}\n```')
 
 async def setup(bot):
     await bot.add_cog(Obliterate(bot))

@@ -178,6 +178,30 @@ def cozy_council():
         raise commands.CommandError(message='Insufficient permissions: `Cozy Council`')
     return commands.check(predicate)
 
+def obliterate_only():
+    async def predicate(ctx):
+        if ctx.author.id == config['owner']:
+            return True
+        if ctx.guild.id == config['obliterate_moderator_role_id']:
+            return True
+        raise commands.CommandError(message='Insufficient permissions: `Obliterate moderators only`')
+    return commands.check(predicate)
+
+def obliterate_mods():
+    async def predicate(ctx):
+        if ctx.author.id == config['owner']:
+            return True
+        obliterate = ctx.bot.get_guild(config['obliterate_guild_id'])
+        if obliterate:
+            member = await obliterate.fetch_member(ctx.author.id)
+            if member:
+                mod_role = obliterate.get_role(config['obliterate_moderator_role_id'])
+                key_role = obliterate.get_role(config['obliterate_key_role_id'])
+                if mod_role in member.roles or key_role in member.roles:
+                    return True
+        raise commands.CommandError(message='Insufficient permissions: `Obliterate moderator`')
+    return commands.check(predicate)
+
 def get_coins_image_name(amount: number):
     amount = abs(amount)
     if amount >= 10000:
