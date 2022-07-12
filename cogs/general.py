@@ -262,7 +262,7 @@ class General(commands.Cog):
         timestamp = datetime.utcnow()
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
         if member.display_avatar.url:
-            embed.set_author(name=f'{member.name}#{member.discriminator}', url=discord.Embed.Empty, icon_url=member.display_avatar.url)
+            embed.set_author(name=f'{member.name}#{member.discriminator}', url=None, icon_url=member.display_avatar.url)
             embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name='Status', value=f'{str(member.status)[0].upper() + str(member.status)[1:]}')
         join_time = member.joined_at

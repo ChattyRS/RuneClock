@@ -26,6 +26,10 @@ def is_obliterate_mod(interaction: discord.Interaction):
             return True
     return False
 
+async def update_row(sheet, row_num, new_row):
+    cell_list = [gspread.models.Cell(row_num, i+1, value=val) for i, val in enumerate(new_row)]
+    await sheet.update_cells(cell_list, nowait=True)
+
 class AppreciationModal(discord.ui.Modal, title='Appreciation'):
     def __init__(self, bot, member_to_appreciate):
         super().__init__()
@@ -58,9 +62,9 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         # Update appreciation sheet on roster
         agc = await self.bot.agcm.authorize()
         ss = await agc.open_by_key(config['obliterate_roster_key'])
-        roster = await ss.worksheet('Appreciation')
+        appreciations = await ss.worksheet('Appreciation')
 
-        members_col = await roster.col_values(1)
+        members_col = await appreciations.col_values(1)
         rows = len(members_col)
 
         date_str = datetime.utcnow().strftime('%d %b %Y')
@@ -68,7 +72,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         new_row = [interaction.user.display_name, member_to_appreciate.display_name, date_str, message]
         cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
         print(f'writing values:\n{new_row}\nto row {rows+1}')
-        await roster.update_cells(cell_list, nowait=True)
+        await appreciations.update_cells(cell_list, nowait=True)
         
         # Send an embed to the appreciation station channel
         if anonymous:
@@ -169,7 +173,7 @@ class ApplicationView(discord.ui.View):
 
         date_str = datetime.utcnow().strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str]
+        new_row = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str, '0', '0']
         cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
         print(f'writing values:\n{new_row}\nto row {rows+1}')
         await roster.update_cells(cell_list, nowait=True)
@@ -504,22 +508,117 @@ class Obliterate(commands.Cog):
         except:
             raise commands.CommandError(message=f'An error occurred while attempting to parse your message. Please ensure that you follow the correct format. Contact Chatty for help if you need it.')
 
-        # Update roster
         agc = await self.bot.agcm.authorize()
         ss = await agc.open_by_key(config['obliterate_roster_key'])
-        roster = await ss.worksheet('Event attendance')
 
-        event_col = await roster.col_values(1)
+        roster = await ss.worksheet('Roster')
+        attendance_col, host_col = 7, 8
+
+        alts_sheet = await ss.worksheet('Alts')
+
+        attendance = {}
+
+        raw_members = await roster.get_all_values()
+        raw_members = raw_members[1:]
+        members = []
+        # Ensure expected row length
+        for member in raw_members:
+            while len(member) < host_col + 1:
+                member.append('')
+            if len(member) > host_col + 1:
+                member = member[:host_col+1]
+            members.append(member)
+
+        alts = await alts_sheet.get_all_values()
+        alts = alts[1:]
+
+        # Find host
+        host_member, host_index = None, 0
+        for i, member in enumerate(members):
+            if member[0].lower().strip() == host.lower():
+                host_member, host_index = member, i
+                break
+        if not host_member:
+            for alt in alts:
+                    if alt[1].lower().strip() == host.lower():
+                        member_name = alt[0]
+                        for i, member in enumerate(members):
+                            if member[0].lower().strip() == member_name.lower():
+                                host_member, host_index = member, i
+                                break
+                        break
+        if not host_member:
+            raise commands.CommandError(message=f'Could not find host on roster: `{host}`')
+
+        for participant in participants:
+            for i, member in enumerate(members):
+                if member[0].lower().strip() == participant.lower():
+                    attendance[participant] = {'index': i, 'data': member}
+                    break
+            if not participant in attendance:
+                for alt in alts:
+                    if alt[1].lower().strip() == participant.lower():
+                        member_name = alt[0]
+                        for i, member in enumerate(members):
+                            if member[0].lower().strip() == member_name.lower():
+                                attendance[participant] = {'index': i, 'data': member}
+                                break
+                        break
+
+        # Increment attendance numbers
+        if host in attendance:
+            member = attendance[host]['data']
+            num_hosted = 0
+            if is_int(member[host_col]):
+                num_hosted = int(member[host_col])
+            num_hosted += 1
+            member[host_col] = num_hosted
+            attendance[host]['data'] = member
+        else:
+            # Update host row here if the host is not a participant
+            num_hosted = 0
+            if is_int(host_member[host_col]):
+                num_hosted = int(host_member[host_col])
+            num_hosted += 1
+            host_member[host_col] = num_hosted
+            await update_row(roster, host_index+2, host_member) # +2 for header row and 1-indexing
+        
+        for participant, value in attendance.items():
+            num_attended = 0
+            member = value['data']
+            if is_int(member[attendance_col]):
+                num_attended = int(member[attendance_col])
+            num_attended += 1
+            member[attendance_col] = num_attended
+            attendance[participant]['data'] = member
+
+        # Update participant attendance on roster
+        for participant, value in attendance.items():
+            await update_row(roster, value['index']+2, value['data']) # +2 for header row and 1-indexing
+
+        # Add event to events sheet
+        events = await ss.worksheet('Event attendance')
+
+        event_col = await events.col_values(1)
         rows = len(event_col)
 
         date_str = datetime.utcnow().strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
         new_row = [event_name, host, date_str, ', '.join(participants)]
         cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
-        await roster.update_cells(cell_list, nowait=True)
+        await events.update_cells(cell_list, nowait=True)
 
-        participants_str = '\n'.join(participants)
-        await ctx.send(f'Success! Attendance for event `{event_name}` has been recorded.\n```\n{participants_str}\n```')
+        # Generate string indicating noted attendance
+        data_str = f'Host: {host}\n\nParticipants:\n'
+        data_str += '\n'.join([f'- {p}' for p in attendance])
+        
+        if any(p not in attendance for p in participants):
+            data_str += '\n\nParticipants not found on roster:'
+            for participant in participants:
+                if not participant in attendance:
+                    data_str += f'\n- {participant}'
+
+        await ctx.send(f'Success! Attendance for event `{event_name}` has been recorded.\n```\n{data_str}\n```')
 
 async def setup(bot):
     await bot.add_cog(Obliterate(bot))
