@@ -70,16 +70,45 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         date_str = datetime.utcnow().strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
         new_row = [interaction.user.display_name, member_to_appreciate.display_name, date_str, message]
-        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
-        print(f'writing values:\n{new_row}\nto row {rows+1}')
-        await appreciations.update_cells(cell_list, nowait=True)
-        
+
+        # Update appreciation column on roster
+        roster = await ss.worksheet('Roster')
+        appreciation_col = 9
+
+        raw_members = await roster.get_all_values()
+        raw_members = raw_members[1:]
+        members = []
+        # Ensure expected row length
+        for member in raw_members:
+            while len(member) < appreciation_col + 1:
+                member.append('')
+            if len(member) > appreciation_col + 1:
+                member = member[:appreciation_col+1]
+            members.append(member)
+
+        # Find member row
+        member_row, member_index = None, 0
+        for i, member in enumerate(members):
+            if member[4].strip() == f'{member_to_appreciate.name}#{member_to_appreciate.discriminator}':
+                member_row, member_index = member, i
+                break
+        if not member_row:
+            interaction.response.send_message(f'Could not find member on roster: `{member_to_appreciate.name}#{member_to_appreciate.discriminator}`')
+            return
+
+        if not is_int(member_row[appreciation_col]):
+            member_row[appreciation_col] = '0'
+        member_row[appreciation_col] = str(int(member_row[appreciation_col]) + 1)
+
         # Send an embed to the appreciation station channel
         if anonymous:
             await interaction.channel.send(member_to_appreciate.mention, embed=embed, file=default_avatar)
             await interaction.response.send_message(f'Your appreciation message for {member_to_appreciate.mention} has been sent!', ephemeral=True)
         else:
             await interaction.response.send_message(member_to_appreciate.mention, embed=embed)
+
+        await update_row(appreciations, rows+1, new_row)
+        await update_row(roster, member_index+2, member_row) # +2 for header row and 1-indexing
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         await interaction.response.send_message('Error', ephemeral=True)
@@ -415,7 +444,7 @@ class Obliterate(commands.Cog):
         if not member:
             await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
             return
-        if member == interaction.user:
+        if member == interaction.user and not member.id == config['owner']:
             await interaction.response.send_message(f'You cannot send an appreciation message to yourself, silly.', ephemeral=True)
             return
         if member.bot:
