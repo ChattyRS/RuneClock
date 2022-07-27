@@ -648,6 +648,90 @@ class Obliterate(commands.Cog):
                     data_str += f'\n- {participant}'
 
         await ctx.send(f'Success! Attendance for event `{event_name}` has been recorded.\n```\n{data_str}\n```')
+    
+    @obliterate_only()
+    @obliterate_mods()
+    @commands.command(hidden=True)
+    async def appointment(self, ctx):
+        '''
+        Adds staff appointments for a list of members.
+        Members can be separated by commas or line breaks.
+        '''
+        increment_command_counter()
+        await ctx.channel.typing()
+
+        message = ctx.message.content.replace(ctx.invoked_with, '', 1).replace(ctx.prefix, '', 1).strip()
+        members = [m.strip() for m in message.replace('\n', ',').split(',') if m.strip() != '']
+
+        guild_members = []
+        for m in members:
+            found = False
+            for member in ctx.guild.members:
+                if m == member.mention or m == str(member.id) or m.upper() == member.display_name.upper() or m.upper() == member.name.upper():
+                    found = True
+                    guild_members.append(member)
+                    break
+            if not found:
+                for member in ctx.guild.members:
+                    if m.upper() in member.display_name.upper() or m.upper() in member.name.upper():
+                        found = True
+                        guild_members.append(member)
+                        break
+            if not found:
+                raise commands.CommandError(message=f'Could not find Discord member for name: `{m}`.\nNo changes have been made.')
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['obliterate_roster_key'])
+
+        roster = await ss.worksheet('Roster')
+        appointments = await ss.worksheet('Staff appointments')
+        appointments_col = 10
+
+        members_col = await appointments.col_values(1)
+        appointment_rows = len(members_col)
+
+        raw_members = await roster.get_all_values()
+        raw_members = raw_members[1:]
+        members = []
+        # Ensure expected row length
+        for member in raw_members:
+            while len(member) < appointments_col + 1:
+                member.append('')
+            if len(member) > appointments_col + 1:
+                member = member[:appointments_col+1]
+            members.append(member)
+
+        rows_to_update = [] # Array of arrays of sheet, row number, row data
+        
+        for m in guild_members:
+            # Find member row
+            member_row, member_index = None, 0
+            for i, member in enumerate(members):
+                if member[4].strip() == f'{m.name}#{m.discriminator}':
+                    member_row, member_index = member, i
+                    break
+            if not member_row:
+                raise commands.CommandError(message=f'Could not find member on roster: `{m.name}#{m.discriminator}`.\nNo changes have been made.')
+
+            if not is_int(member_row[appointments_col]):
+                member_row[appointments_col] = '0'
+            member_row[appointments_col] = str(int(member_row[appointments_col]) + 1)
+
+            rows_to_update.append([roster, member_index+2, member_row])# +2 for header row and 1-indexing
+
+            date_str = datetime.utcnow().strftime('%d %b %Y')
+            date_str = date_str if not date_str.startswith('0') else date_str[1:]
+            new_row = [m.display_name, ctx.author.display_name, date_str]
+
+            rows_to_update.append([appointments, appointment_rows+1, new_row])
+            appointment_rows += 1
+        
+        for update in rows_to_update:
+            await update_row(update[0], update[1], update[2])
+
+        members_str = '\n'.join([m.display_name for m in guild_members])
+
+        await ctx.send(f'**Staff appointments by** {ctx.author.mention}:\n```\n{members_str}\n```')
 
 async def setup(bot):
     await bot.add_cog(Obliterate(bot))
