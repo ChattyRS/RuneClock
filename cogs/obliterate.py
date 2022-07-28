@@ -2,7 +2,7 @@ import io
 from typing import List
 import discord
 from discord import app_commands, TextStyle
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 
@@ -202,7 +202,7 @@ class ApplicationView(discord.ui.View):
 
         date_str = datetime.utcnow().strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str, '0', '0']
+        new_row = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str]
         cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
         print(f'writing values:\n{new_row}\nto row {rows+1}')
         await roster.update_cells(cell_list, nowait=True)
@@ -349,15 +349,66 @@ class AccountInfoModal(discord.ui.Modal, title='Account information'):
 class Obliterate(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
+        self.track_discord_levels.start()
 
     def cog_unload(self):
-        pass
+        self.track_discord_levels.cancel()
     
     def cog_load(self):
         # Register persistent views
         self.bot.add_view(ApplicationView(self.bot))
         self.bot.add_view(OpenPersonalInfoView(self.bot))
+
     
+    @tasks.loop(hours=24)
+    async def track_discord_levels(self):
+        '''
+        Loop to track discord levels from Mee6 dashboard on clan roster
+        '''
+        try:
+            print('Syncing obliterate discord levels...')
+            obliterate_guild_id = config['obliterate_guild_id']
+            r = await self.bot.aiohttp.get(f'https://mee6.xyz/api/plugins/levels/leaderboard/{obliterate_guild_id}')
+
+            async with r:
+                data = await r.json(content_type='application/json')
+                player_data = data['players']
+
+                agc = await self.bot.agcm.authorize()
+                ss = await agc.open_by_key(config['obliterate_roster_key'])
+                roster = await ss.worksheet('Roster')
+
+                raw_members = await roster.get_all_values()
+                raw_members = raw_members[1:]
+
+                discord_col = 4 # 0-indexed
+                discord_level_col = 11 # 0-indexed
+
+                members = []
+                # Ensure expected row length
+                for member in raw_members:
+                    while len(member) < discord_level_col + 1:
+                        member.append('')
+                    if len(member) > discord_level_col + 1:
+                        member = member[:discord_level_col+1]
+                    members.append(member)
+
+                for player in player_data:
+                    player_discord = f'{player["username"]}#{player["discriminator"]}'
+                    player_level = player['level']
+                    for i, member in enumerate(members):
+                        if member[discord_col].strip() == player_discord:
+                            member[discord_level_col] = str(player_level)
+                            await update_row(roster, i+2, member) # +2 for 1-indexing and header row
+                            break
+        except Exception as e:
+            error = f'Error encountered in obliterate discord level tracking loop:\n{type(e).__name__}: {e}'
+            print(error)
+            try:
+                log_channel = self.get_channel(config['testChannel'])
+                await log_channel.send(error)
+            except:
+                pass
 
     @Cog.listener()
     async def on_user_update(self, before, after):
@@ -651,6 +702,7 @@ class Obliterate(commands.Cog):
     
     @obliterate_only()
     @obliterate_mods()
+    @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
     async def appointment(self, ctx):
         '''
@@ -678,7 +730,12 @@ class Obliterate(commands.Cog):
                         guild_members.append(member)
                         break
             if not found:
+                ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Could not find Discord member for name: `{m}`.\nNo changes have been made.')
+        
+        if not guild_members:
+            ctx.command.reset_cooldown(ctx)
+            raise commands.CommandError(message=f'Error: no members found in your message.\nNo changes have been made.')
 
         agc = await self.bot.agcm.authorize()
         ss = await agc.open_by_key(config['obliterate_roster_key'])
@@ -711,6 +768,7 @@ class Obliterate(commands.Cog):
                     member_row, member_index = member, i
                     break
             if not member_row:
+                ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Could not find member on roster: `{m.name}#{m.discriminator}`.\nNo changes have been made.')
 
             if not is_int(member_row[appointments_col]):
