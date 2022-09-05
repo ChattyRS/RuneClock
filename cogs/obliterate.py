@@ -525,6 +525,7 @@ class Obliterate(commands.Cog):
 
     @obliterate_only()
     @obliterate_mods()
+    @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
     async def event(self, ctx):
         '''
@@ -536,15 +537,19 @@ class Obliterate(commands.Cog):
         message = ctx.message.content.replace(ctx.invoked_with, '', 1).replace(ctx.prefix, '', 1)
 
         if not message:
+            ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
 
         if not 'Part of the event' in message:
+            ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
         
         if not 'Event name:' in message:
+            ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Event name`.')
         
         if not 'Hosted by:' in message:
+            ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Host name`.')
 
         event_name, host, participants = '', '', []
@@ -552,10 +557,12 @@ class Obliterate(commands.Cog):
         try:
             event_name = message.split('Event name:')[1].split('\n')[0].strip()
             if not event_name:
+                ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Required argument missing: `Event name`.')
 
             host = message.split('Hosted by:')[1].split('\n')[0].strip()
             if not host:
+                ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Required argument missing: `Host name`.')
 
             participants = []
@@ -581,11 +588,14 @@ class Obliterate(commands.Cog):
                     participants.append(name)
 
             if not participants:
+                ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Error: Could not find any participants while parsing attendance list:\n```\n{attendance}\n```')
 
         except commands.CommandError as e:
+            ctx.command.reset_cooldown(ctx)
             raise e
         except:
+            ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'An error occurred while attempting to parse your message. Please ensure that you follow the correct format. Contact Chatty for help if you need it.')
 
         agc = await self.bot.agcm.authorize()
@@ -790,6 +800,127 @@ class Obliterate(commands.Cog):
         members_str = '\n'.join([m.display_name for m in guild_members])
 
         await ctx.send(f'**Staff appointments by** {ctx.author.mention}:\n```\n{members_str}\n```')
+
+    @obliterate_only()
+    @obliterate_mods()
+    @commands.cooldown(1, 20, commands.BucketType.guild)
+    @commands.command(hidden=True)
+    async def top3(self, ctx, competition_url):
+        '''
+        Logs SOTW / BOTW results (Moderator+ only)
+        '''
+        increment_command_counter()
+        await ctx.channel.typing()
+
+        # Get and validate competition ID
+        if not competition_url.startswith('https://wiseoldman.net/competitions/'):
+            ctx.command.reset_cooldown(ctx)
+            raise commands.CommandError(message=f'Invalid argument **competition_url**: `{competition_url}`. Url must be of the form: `https://wiseoldman.net/competitions/xxxxx`.')
+        
+        competition_url = competition_url.replace('https://wiseoldman.net/competitions/', '')
+        if not competition_url:
+            ctx.command.reset_cooldown(ctx)
+            raise commands.CommandError(message=f'Invalid argument **competition_url**: `{competition_url}`. Url must be of the form: `https://wiseoldman.net/competitions/xxxxx`.')
+
+        competition_id = competition_url.split('/')[0]
+        if not is_int(competition_id):
+            ctx.command.reset_cooldown(ctx)
+            raise commands.CommandError(message=f'Invalid competition ID: `{competition_id}`. Must be a positive integer.')
+        competition_id = int(competition_id)
+        if competition_id <= 0:
+            ctx.command.reset_cooldown(ctx)
+            raise commands.CommandError(message=f'Invalid competition ID: `{competition_id}`. Must be a positive integer.')
+
+        # Form request
+        url = f'https://api.wiseoldman.net/competitions/{competition_id}'
+        async with self.bot.aiohttp.get(url) as r:
+            if r.status != 200:
+                ctx.command.reset_cooldown(ctx)
+                raise commands.CommandError(message=f'Error retrieving data from: `{url}`.')
+            data = await r.json()
+
+            metric = data['metric']
+            metric = metric[0].upper() + metric[1:]
+            participants = data['participants']
+
+            if datetime.utcnow() < datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ'):
+                ctx.command.reset_cooldown(ctx)
+                raise commands.CommandError(message=f'This competition has not ended yet. It will end at `{data["endsAt"]}`.')
+            
+            agc = await self.bot.agcm.authorize()
+            ss = await agc.open_by_key(config['obliterate_roster_key'])
+
+            roster = await ss.worksheet('Roster')
+            competitions = await ss.worksheet('Competitions')
+
+            top3_col = 12
+
+            competition_ids_col = await competitions.col_values(1)
+            competition_rows = len(competition_ids_col)
+
+            if str(competition_id) in competition_ids_col:
+                ctx.command.reset_cooldown(ctx)
+                raise commands.CommandError(message=f'Competition with ID `{competition_id}` has already been logged.')
+
+            raw_members = await roster.get_all_values()
+            raw_members = raw_members[1:]
+            members = []
+            # Ensure expected row length
+            for member in raw_members:
+                while len(member) < top3_col + 1:
+                    member.append('')
+                if len(member) > top3_col + 1:
+                    member = member[:top3_col+1]
+                members.append(member)
+
+            rows_to_update = [] # Array of arrays of sheet, row number, row data
+            top_num = 0
+            top_indices = []
+
+            for i, p in enumerate(participants):
+                # Find member row
+                member_row, member_index = None, 0
+                for j, member in enumerate(members):
+                    if member[0].strip().lower() == p['displayName'].strip().lower():
+                        member_row, member_index = member, j
+                        break
+                if member_row:
+                    if not is_int(member_row[top3_col]):
+                        member_row[top3_col] = '0'
+                    member_row[top3_col] = str(int(member_row[top3_col]) + 1)
+
+                    rows_to_update.append([roster, member_index+2, member_row]) # +2 for header row and 1-indexing
+                    top_indices.append(i)
+
+                    if len(rows_to_update) >= 3:
+                        top_num = i + 1
+                        break
+
+            top = participants[:top_num]
+            top_names = ''
+
+            table = 'No.  Name          Gain'
+            for i, p in enumerate(top):
+                table += (f'\n{i+1}.' + (4 - len(str(i+1))) * ' ') if i in top_indices else (f'\n--' + (4 - len(str(i+1))) * ' ')
+                table += p['displayName'] + (14 - len(p['displayName'])) * ' '
+                table += str(p['progress']['gained'])
+                if i in top_indices:
+                    top_names += ', ' if top_names else ''
+                    top_names += p['displayName']
+
+            start = datetime.strptime(data['startsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime('%d %b %Y')
+            start = start if not start.startswith('0') else start[1:]
+            end = datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime('%d %b %Y')
+            end = end if not end.startswith('0') else end[1:]
+
+            new_row = [str(competition_id), data['title'], metric, start, end, top_names]
+
+            rows_to_update.append([competitions, competition_rows+1, new_row])
+
+            for update in rows_to_update:
+                await update_row(update[0], update[1], update[2])
+
+            await ctx.send(f'Results logged for `{metric}` competition **{data["title"]}**\n```\n{table}\n```')
 
 async def setup(bot):
     await bot.add_cog(Obliterate(bot))
