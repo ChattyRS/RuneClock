@@ -542,13 +542,6 @@ class Sheets(commands.Cog):
         increment_command_counter()
         if not dxp_active:
             raise commands.CommandError(message='This command is only enabled during DXP.')
-
-        loc_channel = self.bot.get_channel(config['locChannel'])
-        admin_commands_channel = self.bot.get_channel(config['adminCommandsChannel'])
-
-        if ctx.guild == self.bot.get_guild(config['portablesServer']):
-            if ctx.channel != loc_channel and ctx.channel != admin_commands_channel:
-                raise commands.CommandError(message=f'Error: Incorrect channel. Use {loc_channel.mention}.')
         
         last_ports = get_last_ports()
         boxes = last_ports[17].value
