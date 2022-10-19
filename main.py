@@ -45,7 +45,7 @@ command_counter = 0 # int to track how many commands have been processed since s
 districts = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
 
 # variable used for role management
-notif_roles = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'PinkSkirts']
+notif_roles = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'PinkSkirts', 'WildernessFlashEvents']
 for d in districts:
     notif_roles.append(d)
 
@@ -595,6 +595,7 @@ class Bot(commands.AutoShardedBot):
         notified_this_hour_goebies = False
         notified_this_hour_sinkhole = False
         notified_this_hour_pinkskirts = False
+        notified_this_hour_wilderness_flash = False
         notified_this_day_merchant = False
         notified_this_day_spotlight = False
         reset = False
@@ -633,6 +634,9 @@ class Bot(commands.AutoShardedBot):
                         continue
                     if 'Pink' in m.content and 'Skirt' in m.content:
                         notified_this_hour_pinkskirts = True
+                        continue
+                    if 'wilderness' in m.content.lower() and 'flash' in m.content.lower():
+                        notified_this_hour_wilderness_flash = True
                         continue
             else:
                 break
@@ -917,6 +921,34 @@ class Bot(commands.AutoShardedBot):
 
                         notified_this_hour_pinkskirts = True
                         break
+                
+                # Notify of wilderness flash events
+                if not notified_this_hour_wilderness_flash and now.minute >= 55 and now.minute <= 56:
+                    flash_event = self.bot.wilderness_flash_event['next']
+                    emoji = config['wildernessflasheventsEmoji']
+
+                    channels = []
+                    guilds = await Guild.query.gino.all()
+                    for guild in guilds:
+                        if guild.notification_channel_id:
+                            c = self.get_channel(guild.notification_channel_id)
+                            if c:
+                                channels.append(c)
+
+                    for c in channels:
+                        role = ''
+                        for r in c.guild.roles:
+                            if 'WILDERNESSFLASHEVENT' in r.name.upper():
+                                role = r
+                                break
+                        if role:
+                            role = role.mention
+                        msg = f'{emoji} The next **Wilderness Flash Event** will start in 5 minutes: **{flash_event}**. {role}'
+                        try:
+                            await c.send(msg)
+                        except discord.Forbidden:
+                            continue
+                    notified_this_hour_wilderness_flash = True
 
 
                 if now.minute > 1 and reset:
@@ -930,6 +962,7 @@ class Bot(commands.AutoShardedBot):
                     notified_this_hour_goebies = False
                     notified_this_hour_sinkhole = False
                     notified_this_hour_pinkskirts = False
+                    notified_this_hour_wilderness_flash = False
                     if now.hour == 0:
                         notified_this_day_merchant = False
                         notified_this_day_spotlight = False

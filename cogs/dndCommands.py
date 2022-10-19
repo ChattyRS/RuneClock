@@ -4,11 +4,12 @@ import sys
 import copy
 sys.path.append('../')
 from main import config_load, increment_command_counter, districts
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from utils import time_diff_to_string
 from utils import item_emojis
 import json
 import praw
+import math
 
 config = config_load()
 
@@ -24,6 +25,22 @@ nemi_time = None
 peng_embed = None
 peng_time = None
 
+wilderness_flash_events = [
+    'Spider Swarm',
+    'Unnatural Outcrop',
+    'Demon Stragglers',
+    'Butterfly Swarm',
+    'King Black Dragon Rampage',
+    'Forgotten Soldiers',
+    'Surprising Seedlings',
+    'Hellhound Pack',
+    'Infernal Star',
+    'Lost Souls',
+    'Ramokee Incursion',
+    'Displaced Energy',
+    'Evil Bloodwood Tree'
+]
+
 class DNDCommands(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
@@ -37,16 +54,17 @@ class DNDCommands(commands.Cog):
         self.bot.next_sinkhole = None
         self.bot.next_merchant = None
         self.bot.next_spotlight = None
+        self.bot.next_wilderness_flash_event = None
 
         self.bot.vos = None
         self.bot.merchant = None
         self.bot.spotlight = None
-    
-        self.track_dnds.start()
+        self.bot.wilderness_flash_event = None
     
     def next_update(self):
-        next_times = [self.bot.next_warband, self.bot.next_vos, self.bot.next_cache, self.bot.next_goebies, self.bot.next_yews48, \
-                      self.bot.next_yews140, self.bot.next_goebies, self.bot.next_sinkhole, self.bot.next_merchant, self.bot.next_spotlight]
+        next_times = [self.bot.next_warband, self.bot.next_vos, self.bot.next_cache, self.bot.next_goebies, self.bot.next_yews48,
+                      self.bot.next_yews140, self.bot.next_goebies, self.bot.next_sinkhole, self.bot.next_merchant, self.bot.next_spotlight,
+                      self.bot.next_wilderness_flash_event]
         if any(t is None for t in next_times) or self.bot.vos is None or self.bot.merchant is None or self.bot.spotlight is None:
             return timedelta(seconds=0)
         
@@ -60,6 +78,9 @@ class DNDCommands(commands.Cog):
     
     def cog_unload(self):
         self.track_dnds.cancel()
+
+    def cog_load(self):
+        self.track_dnds.start()
     
     @tasks.loop(seconds=15)
     async def track_dnds(self):
@@ -173,6 +194,18 @@ class DNDCommands(commands.Cog):
         self.bot.spotlight = minigame
         if not last_spotlight is None:
             self.bot.next_spotlight = last_spotlight + timedelta(days=3)
+
+        # Update upcoming wilderness flash event
+        t_0 = datetime(2022, 10, 19, 14, 0, 0, tzinfo=None)
+        elapsed = now - t_0
+        elapsed /= timedelta(hours=1)
+        elapsed = math.floor(elapsed)
+        current_flash_event = wilderness_flash_events[(elapsed-1)%len(wilderness_flash_events)]
+        upcoming_flash_event = wilderness_flash_events[elapsed%len(wilderness_flash_events)]
+        if not self.bot.wilderness_flash_event:
+            self.bot.wilderness_flash_event = {'current': None, 'next': upcoming_flash_event}
+        self.bot.wilderness_flash_event['current'] = current_flash_event
+        self.bot.wilderness_flash_event['next'] = upcoming_flash_event
         
         # Update time values
         last_warband = now
@@ -192,6 +225,7 @@ class DNDCommands(commands.Cog):
         self.bot.next_goebies = now + timedelta(hours=12) - timedelta(hours=(now.hour%12), minutes=now.minute, seconds=now.second)
         self.bot.next_sinkhole = now + timedelta(hours=1) - timedelta(minutes=((now.minute+30)%60), seconds=now.second)
         self.bot.next_merchant = self.bot.next_yews48
+        self.bot.next_wilderness_flash_event = now + timedelta(hours=1) - timedelta(minutes=now.minute, seconds=now.second)
 
 
     @commands.command(pass_context=True)
@@ -213,7 +247,8 @@ class DNDCommands(commands.Cog):
                f'{config["goebiesEmoji"]} **Goebies supply run** will begin in {time_diff_to_string(self.bot.next_goebies - now)}.\n'
                f'{config["sinkholeEmoji"]} **Sinkhole** will spawn in {time_diff_to_string(self.bot.next_sinkhole - now)}.\n'
                f'{config["merchantEmoji"]} **Travelling merchant** stock will refresh in {time_diff_to_string(self.bot.next_merchant - now)}.\n'
-               f'{config["spotlightEmoji"]} **Minigame spotlight** will change in {time_diff_to_string(self.bot.next_spotlight - now)}.')
+               f'{config["spotlightEmoji"]} **Minigame spotlight** will change in {time_diff_to_string(self.bot.next_spotlight - now)}.\n'
+               f'{config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {time_diff_to_string(self.bot.next_wilderness_flash_event - now)}.\n')
         
         await ctx.send(msg)
 
@@ -486,6 +521,22 @@ class DNDCommands(commands.Cog):
         peng_embed = embed
         peng_time = datetime.utcnow()
 
+        await ctx.send(embed=embed)
+    
+    @commands.command(aliases=['wilderness_flash_events', 'wilderness_flash_event', 'wilderness_flash', 'wildy_flash', 'wildy_flash_events', 'wildy_flash_event'])
+    async def flash(self, ctx):
+        '''
+        Returns the next wilderness flash event.
+        '''
+        increment_command_counter()
+        
+        now = datetime.utcnow()
+        now = now.replace(microsecond=0)
+        
+        txt = f'Current: {self.bot.wilderness_flash_event["current"]}\nNext: {self.bot.wilderness_flash_event["next"]}' if self.bot.wilderness_flash_event["current"] else f'Next: {self.bot.wilderness_flash_event["next"]}'
+        embed = discord.Embed(title='Wilderness flash event', colour=0x00b2ff, description=txt)
+        embed.set_footer(text=time_diff_to_string(self.bot.next_wilderness_flash_event - now))
+        
         await ctx.send(embed=embed)
 
 
