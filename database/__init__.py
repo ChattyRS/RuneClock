@@ -44,6 +44,9 @@ class Guild(db.Model):
     wom_group_id = db.Column(db.BigInteger)
     wom_verification_code = db.Column(db.String)
     wom_excluded_metrics = db.Column(db.String)
+    custom_role_reaction_channel_id = db.Column(db.BigInteger)
+    role_reaction_management_role_id = db.Column(db.BigInteger)
+    custom_role_reaction_message = db.Column(db.String)
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -179,6 +182,14 @@ class ClanBankTransaction(db.Model):
     time = db.Column(db.DateTime, nullable=False)
     amount = db.Column(db.BigInteger, nullable=False)
     description = db.Column(db.String)
+
+class CustomRoleReaction(db.Model):
+    __tablename__ = 'custom_role_reactions'
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
+    emoji_id = db.Column(db.BigInteger, nullable=False)
+    role_id = db.Column(db.BigInteger, nullable=False)
 
 async def setup():
     print('Setting up database connection...')

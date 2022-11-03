@@ -16,7 +16,7 @@ import feedparser
 import traceback
 from github import Github
 from difflib import SequenceMatcher
-from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction
+from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction
 from database import setup as database_setup
 from database import close_connection as close_database
 import io
@@ -115,6 +115,12 @@ async def purge_guild(guild):
         await i.delete()
     polls = await Poll.query.where(Poll.guild_id == guild.id).gino.all()
     for i in polls:
+        await i.delete()
+    transactions = await ClanBankTransaction.query.where(ClanBankTransaction.guild_id == guild.id).gino.all()
+    for i in transactions:
+        await i.delete()
+    reactions = await CustomRoleReaction.query.where(CustomRoleReaction.guild_id == guild.id).gino.all()
+    for i in reactions:
         await i.delete()
     await guild.delete()
 
@@ -256,7 +262,7 @@ class Bot(commands.AutoShardedBot):
 
         # Adds 100 old messages to cache for each channel in Portables
         for guild in self.guilds:
-            if not guild.id == config['portablesServer'] and not guild.id == config['cozy_guild_id']:
+            if not guild.id == config['portablesServer']:
                 continue
             for channel in guild.channels:
                 async for message in channel.history(limit=100):
