@@ -285,7 +285,6 @@ class RoleReactions(commands.Cog):
                     pass
 
     @app_commands.command(name='reactions')
-    @app_commands.guilds(discord.Object(id=config['test_guild_id']))
     async def reactions(self, interaction: discord.Interaction, action: str):
         '''
         Manage role reactions
