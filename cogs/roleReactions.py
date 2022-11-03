@@ -89,6 +89,14 @@ class AddRoleDropdown(discord.ui.Select):
         # The self object refers to the Select object, 
         # and the values attribute gets a list of the user's
         # selected options. We only want the first one.
+        if not interaction.user.guild_permissions.administrator and interaction.user.id != config['owner']:
+            guild = await Guild.get(interaction.guild.id)
+            role_reaction_management_role = None
+            if guild.role_reaction_management_role_id:
+                role_reaction_management_role = interaction.guild.get_role(guild.role_reaction_management_role_id)
+            if role_reaction_management_role is None or not interaction.user.top_role >= role_reaction_management_role:
+                await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
+                return
         role = interaction.guild.get_role(int(self.values[0]))
         interaction.message = await interaction.message.fetch() # This is required to fetch the reactions
         if not interaction.message.reactions:
@@ -127,6 +135,14 @@ class RemoveRoleReactionDropdown(discord.ui.Select):
         # The self object refers to the Select object, 
         # and the values attribute gets a list of the user's
         # selected options. We only want the first one.
+        if not interaction.user.guild_permissions.administrator and interaction.user.id != config['owner']:
+            guild = await Guild.get(interaction.guild.id)
+            role_reaction_management_role = None
+            if guild.role_reaction_management_role_id:
+                role_reaction_management_role = interaction.guild.get_role(guild.role_reaction_management_role_id)
+            if role_reaction_management_role is None or not interaction.user.top_role >= role_reaction_management_role:
+                await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
+                return
         await delete_role_reaction(int(self.values[0]))
         await interaction.response.send_message(f'Role-reaction with ID {int(self.values[0])} deleted successfully.')
 
@@ -164,6 +180,14 @@ class ChannelDropdown(discord.ui.Select):
         # The self object refers to the Select object, 
         # and the values attribute gets a list of the user's
         # selected options. We only want the first one.
+        if not interaction.user.guild_permissions.administrator and interaction.user.id != config['owner']:
+            guild = await Guild.get(interaction.guild.id)
+            role_reaction_management_role = None
+            if guild.role_reaction_management_role_id:
+                role_reaction_management_role = interaction.guild.get_role(guild.role_reaction_management_role_id)
+            if role_reaction_management_role is None or not interaction.user.top_role >= role_reaction_management_role:
+                await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
+                return
         channel = interaction.guild.get_channel(int(self.values[0]))
         await set_guild_channel(interaction.guild.id, channel.id)
         await interaction.response.send_message(f'The role-reaction channel was set to {channel.mention}.')
