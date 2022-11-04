@@ -266,7 +266,7 @@ class RoleReactions(commands.Cog):
         if not user or user.bot:
             return
 
-        role_reaction = await CustomRoleReaction.query.where(CustomRoleReaction.guild_id == guild.id and CustomRoleReaction.emoji_id == emoji.id).gino.first()
+        role_reaction = await CustomRoleReaction.query.where(CustomRoleReaction.guild_id == guild.id).where(CustomRoleReaction.emoji_id == emoji.id).gino.first()
         if role_reaction:
             role = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
             if role:
@@ -299,7 +299,7 @@ class RoleReactions(commands.Cog):
         if not user or user.bot:
             return
 
-        role_reaction = await CustomRoleReaction.query.where(CustomRoleReaction.guild_id == guild.id and CustomRoleReaction.emoji_id == emoji.id).gino.first()
+        role_reaction = await CustomRoleReaction.query.where(CustomRoleReaction.guild_id == guild.id).where(CustomRoleReaction.emoji_id == emoji.id).gino.first()
         if role_reaction:
             role = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
             if role:
