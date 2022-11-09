@@ -44,7 +44,10 @@ wilderness_flash_events = [
 class DNDCommands(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
         self.bot = bot
-        # Initialize time values
+        self.init_times()
+    
+    def init_times(self):
+        # Initialize time values for D&D notifications
         self.bot.next_warband = None
         self.bot.next_vos = None
         self.bot.next_cache = None
@@ -62,14 +65,22 @@ class DNDCommands(commands.Cog):
         self.bot.wilderness_flash_event = None
     
     def next_update(self):
+        now = datetime.utcnow()
+        now = now.replace(microsecond=0)
+
         next_times = [self.bot.next_warband, self.bot.next_vos, self.bot.next_cache, self.bot.next_goebies, self.bot.next_yews48,
                       self.bot.next_yews140, self.bot.next_goebies, self.bot.next_sinkhole, self.bot.next_merchant, self.bot.next_spotlight,
                       self.bot.next_wilderness_flash_event]
-        if any(t is None for t in next_times) or self.bot.vos is None or self.bot.merchant is None or self.bot.spotlight is None:
+        
+        if not any(t is None for t in next_times) or self.bot.vos is None or self.bot.merchant is None or self.bot.spotlight is None:
+            # If all time values are before now, then reset everything
+            # This should fix a strange bug where all time values are somehow set several days in the past
+            if not any(t > now for t in next_times):
+                self.init_times()
+                return timedelta(seconds=0)
+        else: # If any of the time values are None, return a timedelta of 0, indicating that the times must be updated
             return timedelta(seconds=0)
         
-        now = datetime.utcnow()
-        now = now.replace(microsecond=0)
         next_time = min(next_times)
         if next_time < now:
             return timedelta(seconds=0)
