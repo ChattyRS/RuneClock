@@ -72,7 +72,7 @@ class DNDCommands(commands.Cog):
                       self.bot.next_yews140, self.bot.next_goebies, self.bot.next_sinkhole, self.bot.next_merchant, self.bot.next_spotlight,
                       self.bot.next_wilderness_flash_event]
         
-        if not any(t is None for t in next_times) or self.bot.vos is None or self.bot.merchant is None or self.bot.spotlight is None:
+        if not (any(t is None for t in next_times) or self.bot.vos is None or self.bot.merchant is None or self.bot.spotlight is None):
             # If all time values are before now, then reset everything
             # This should fix a strange bug where all time values are somehow set several days in the past
             if not any(t > now for t in next_times):
