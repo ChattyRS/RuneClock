@@ -1025,34 +1025,35 @@ class Runescape(commands.Cog):
         if re.match('^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://oldschool.runeclan.com/xp-tracker/user/{name}'.replace(' ', '+')
+        url = f'https://api.wiseoldman.net/players/username/{name}/gained'.replace(' ', '-')
 
         r = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
-            data = await r.text()
+            data = await r.json()
 
-        try:
-            bs = BeautifulSoup(data, "html.parser")
-            table_body = bs.find('table')
-            rows = table_body.find_all('tr')
-            columns = []
-            for row in rows:
-                cols = row.find_all('td')
-                cols = [x.text.strip() for x in cols]
-                columns.append(cols)
-        except:
-            raise commands.CommandError(message=f'Could not find xp gains for: `{name}`. Make sure the profile is not set to private')
+        print(1)
 
-        cols = columns[1:]
+        skills = []
+        for i, (skill_name, skill_data) in enumerate(data['day']['data'].items()):
+            if (i >= len(skills_07)):
+                break
+            skill = {
+                'xp': float_to_formatted_string(skill_data['experience']['end']), 
+                'today': float_to_formatted_string(skill_data['experience']['gained']), 
+                'week': float_to_formatted_string(data['week']['data'][skill_name]['experience']['gained'])
+            }
+            skills.append(skill)
+        
+        print(2)
 
-        skill_chars = 13
-        today_chars = max(max([len(col[4]) for col in cols]), len('Today'))+1
-        yday_chars = max(max([len(col[5]) for col in cols]), len('Yesterday'))+1
-        week_chars = max(max([len(col[6]) for col in cols]), len('This Week'))+1
+        skill_chars = 14
+        xp_chars = max(max([len(skill['xp']) for skill in skills]), len('XP'))+1
+        today_chars = max(max([len(skill['today']) for skill in skills]), len('Today'))+1
+        week_chars = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
 
-        msg = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
+        msg = '.-' + '-'*skill_chars + '--' + '-'*xp_chars + '--' + '-'*today_chars + '--' + '-'*week_chars + '.'
         width = len(msg)
 
         msg = '.' + '-'*(width-2) + '.\n'
@@ -1063,36 +1064,36 @@ class Runescape(commands.Cog):
             msg += '| ' + ' '*skill_whitespace + 'Skill' + ' '*skill_whitespace + '| '
         else:
             msg += '| ' + ' '*(math.floor(skill_whitespace)) + 'Skill' + ' '*(math.ceil(skill_whitespace)) + '| '
+        xp_whitespace = float((xp_chars-len('XP'))/2)
+        if xp_whitespace.is_integer():
+            xp_whitespace = int(xp_whitespace)
+            msg += ' '*xp_whitespace + 'XP' + ' '*xp_whitespace + '| '
+        else:
+            msg += ' '*(math.floor(xp_whitespace)) + 'XP' + ' '*(math.ceil(xp_whitespace)) + '| '
         today_whitespace = float((today_chars-len('Today'))/2)
         if today_whitespace.is_integer():
             today_whitespace = int(today_whitespace)
             msg += ' '*today_whitespace + 'Today' + ' '*today_whitespace + '| '
         else:
             msg += ' '*(math.floor(today_whitespace)) + 'Today' + ' '*(math.ceil(today_whitespace)) + '| '
-        yday_whitespace = float((yday_chars-len('Yesterday'))/2)
-        if yday_whitespace.is_integer():
-            yday_whitespace = int(yday_whitespace)
-            msg += ' '*yday_whitespace + 'Yesterday' + ' '*yday_whitespace + '| '
-        else:
-            msg += ' '*(math.floor(yday_whitespace)) + 'Yesterday' + ' '*(math.ceil(yday_whitespace)) + '| '
         week_whitespace = float((week_chars-len('This Week'))/2)
         if week_whitespace.is_integer():
             week_whitespace = int(week_whitespace)
-            msg += ' '*week_whitespace + 'This Week' + ' '*week_whitespace + '| '
+            msg += ' '*week_whitespace + 'This Week' + ' '*week_whitespace + '|\n'
         else:
             msg += ' '*(math.floor(week_whitespace)) + 'This Week' + ' '*(math.ceil(week_whitespace)) + '|\n'
 
-        msg += '|-' + '-'*skill_chars + '|-' + '-'*today_chars + '|-' + '-'*yday_chars + '|-' + '-'*week_chars + '|\n'
+        msg += '|-' + '-'*skill_chars + '|-' + '-'*xp_chars + '|-' + '-'*today_chars + '|-' + '-'*week_chars + '|\n'
 
-        for i, col in enumerate(cols):
-            msg += '| ' + skills_07[i] + ' '*(skill_chars-len(skills_07[i])) + '| ' + ' '*(today_chars-len(col[4])-1) + col[4] + ' | ' + ' '*(yday_chars-len(col[5])-1) + col[5] + ' | ' + ' '*(week_chars-len(col[6])-1) + col[6] + ' |\n'
+        for i, skill in enumerate(skills):
+            msg += '| ' + skills_07[i] + ' '*(skill_chars-len(skills_07[i])) + '| ' + ' '*(xp_chars-len(skill['xp'])-1) + skill['xp'] + ' | ' + ' '*(today_chars-len(skill['today'])-1) + skill['today'] + ' | ' + ' '*(week_chars-len(skill['week'])-1) + skill['week'] + ' |\n'
 
         msg += "'" + '-'*(width-2) + "'"
 
         msg = f'```\n{msg}\n```'
 
-        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=url)
-        embed.set_author(name=f'Runeclan', url=url)
+        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'))
+        embed.set_author(name=f'Wise Old Man', url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'), icon_url='https://wiseoldman.net/img/logo.png')
 
         await ctx.send(embed=embed)
 
