@@ -20,6 +20,7 @@ import copy
 import numpy as np
 import random
 from youtubesearchpython import Playlist, playlist_from_channel_id
+from utils import float_to_formatted_string
 
 config = config_load()
 
@@ -1382,35 +1383,38 @@ class Runescape(commands.Cog):
         if re.match('^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://runeclan.com/user/{name}'.replace(' ', '+')
+        url = f'https://runepixels.com:5000/players/{name}'.replace(' ', '-')
 
         r = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
-            data = await r.text()
+            data = await r.json()
 
-        for i in range(3000, 0, -1):
-            data = data.replace(f'+{i}', '')
+        yday_url = f'https://runepixels.com:5000/players/{data["id"]}/xp?timeperiod=1'
+        r = await self.bot.aiohttp.get(yday_url)
+        async with r:
+            if r.status != 200:
+                raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
+            yday_data = await r.json()
 
-        try:
-            bs = BeautifulSoup(data, "html.parser")
-            table_body = bs.find('table')
-            rows = table_body.find_all('tr')
-            columns = []
-            for row in rows:
-                cols = row.find_all('td')
-                cols = [x.text.strip() for x in cols]
-                columns.append(cols)
-        except:
-            raise commands.CommandError(message=f'Could not find xp gains for: `{name}`. Make sure the profile is not set to private.')
+        week_url = f'https://runepixels.com:5000/players/{data["id"]}/xp?timeperiod=2'
+        r = await self.bot.aiohttp.get(week_url)
+        async with r:
+            if r.status != 200:
+                raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
+            week_data = await r.json()
 
-        cols = columns[1:]
+        skills = [data['overall']] + data['skills']
+        for i, _ in enumerate(skills):
+            skills[i]['xpDelta'] = float_to_formatted_string(skills[i]['xpDelta'])
+            skills[i]['yday'] = float_to_formatted_string(yday_data[i]['xp'])
+            skills[i]['week'] = float_to_formatted_string(week_data[i]['xp'])
 
         skill_chars = 14
-        today_chars = max(max([len(col[4]) for col in cols]), len('Today'))+1
-        yday_chars = max(max([len(col[5]) for col in cols]), len('Yesterday'))+1
-        week_chars = max(max([len(col[6]) for col in cols]), len('This Week'))+1
+        today_chars = max(max([len(skill['xpDelta']) for skill in skills]), len('Today'))+1
+        yday_chars = max(max([len(skill['yday']) for skill in skills]), len('Yesterday'))+1
+        week_chars = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
 
         msg = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
         width = len(msg)
@@ -1444,15 +1448,15 @@ class Runescape(commands.Cog):
 
         msg += '|-' + '-'*skill_chars + '|-' + '-'*today_chars + '|-' + '-'*yday_chars + '|-' + '-'*week_chars + '|\n'
 
-        for i, col in enumerate(cols):
-            msg += '| ' + skills_rs3[i] + ' '*(skill_chars-len(skills_rs3[i])) + '| ' + ' '*(today_chars-len(col[4])-1) + col[4] + ' | ' + ' '*(yday_chars-len(col[5])-1) + col[5] + ' | ' + ' '*(week_chars-len(col[6])-1) + col[6] + ' |\n'
+        for i, skill in enumerate(skills):
+            msg += '| ' + skills_rs3[i] + ' '*(skill_chars-len(skills_rs3[i])) + '| ' + ' '*(today_chars-len(skill['xpDelta'])-1) + skill['xpDelta'] + ' | ' + ' '*(yday_chars-len(skill['yday'])-1) + skill['yday'] + ' | ' + ' '*(week_chars-len(skill['week'])-1) + skill['week'] + ' |\n'
 
         msg += "'" + '-'*(width-2) + "'"
 
         msg = f'```\n{msg}\n```'
 
-        embed = discord.Embed(title=f'RS3 gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=url)
-        embed.set_author(name=f'Runeclan', url=url)
+        embed = discord.Embed(title=f'RS3 gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'))
+        embed.set_author(name=f'RunePixels', url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'), icon_url='https://pbs.twimg.com/profile_images/1579124090958479362/LbR9PDfv_400x400.png')
 
         await ctx.send(embed=embed)
 

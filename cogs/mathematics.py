@@ -9,31 +9,13 @@ import cmath
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy
-from utils import is_int, is_float
+from utils import is_int, is_float, float_to_formatted_string
 from forex_python.converter import CurrencyRates
 from utils import units, unit_aliases
 import io
 import multiprocessing
 
-# convert float to string without scientific notation
-# https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
-import decimal
-
-# create a new context for this task
-ctx = decimal.Context()
-
-# 20 digits should be enough for everyone :D
-ctx.prec = 20
-
 np.seterr(all='raise')
-
-def float_to_str(f):
-    """
-    Convert the given float to a string,
-    without resorting to scientific notation
-    """
-    d1 = ctx.create_decimal(repr(f))
-    return format(d1, 'f')
 
 config = config_load()
 
@@ -604,20 +586,7 @@ class Mathematics(commands.Cog):
                 result = num * (10**exp)
             except Exception as e:
                 raise commands.CommandError(message=f'Invalid input: `{input}`. Error: {e}')
-            output = float_to_str(result) 
-            if output.endswith('.0'):
-                output = output[:len(output)-2]
-            end = ''
-            if output.find('.') != -1:
-                end = output[output.find('.'):]
-                output = output[:output.find('.')]
-            index = len(output)-2
-            while index >= 0:
-                print(f'{index} "{output[index]}": {(len(output.replace(",", "")) - 1 - index) % 3 == 0}')
-                if (len(output.replace(',', '')) - 1 - index) % 3 == 0:
-                    output = output[:index+1] + ',' + output[index+1:]
-                index -= 1
-            output += end
+            return float_to_formatted_string(result)
         else: # convert from number literal to scientific notation
             if not is_float(input):
                 raise commands.CommandError(message=f'Invalid input: `{input}`. Please give a number literal as argument.')

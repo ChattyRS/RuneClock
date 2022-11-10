@@ -6,6 +6,16 @@ from oauth2client.service_account import ServiceAccountCredentials
 from discord.ext import commands
 import math
 
+# convert float to string without scientific notation
+# https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
+import decimal
+
+# create a new context for this task
+decimal_ctx = decimal.Context()
+
+# 20 digits should be enough for everyone :D
+decimal_ctx.prec = 20
+
 '''
 Load config file with necessary information
 '''
@@ -1116,3 +1126,27 @@ def time_diff_to_string(time):
         if seconds != 1:
             time += "s"
     return time
+
+def float_to_str(f):
+    """
+    Convert the given float to a string,
+    without resorting to scientific notation
+    """
+    d1 = decimal_ctx.create_decimal(repr(f))
+    return format(d1, 'f')
+
+def float_to_formatted_string(input):
+    output = float_to_str(input) 
+    if output.endswith('.0'):
+        output = output[:len(output)-2]
+    end = ''
+    if output.find('.') != -1:
+        end = output[output.find('.'):]
+        output = output[:output.find('.')]
+    index = len(output)-2
+    while index >= 0:
+        if (len(output.replace(',', '')) - 1 - index) % 3 == 0:
+            output = output[:index+1] + ',' + output[index+1:]
+        index -= 1
+    output += end
+    return output
