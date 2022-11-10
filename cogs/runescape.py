@@ -1033,8 +1033,6 @@ class Runescape(commands.Cog):
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
             data = await r.json()
 
-        print(1)
-
         skills = []
         for i, (skill_name, skill_data) in enumerate(data['day']['data'].items()):
             if (i >= len(skills_07)):
@@ -1045,8 +1043,6 @@ class Runescape(commands.Cog):
                 'week': float_to_formatted_string(data['week']['data'][skill_name]['experience']['gained'])
             }
             skills.append(skill)
-        
-        print(2)
 
         skill_chars = 14
         xp_chars = max(max([len(skill['xp']) for skill in skills]), len('XP'))+1
