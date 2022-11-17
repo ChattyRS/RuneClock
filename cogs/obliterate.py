@@ -540,7 +540,7 @@ class Obliterate(commands.Cog):
             ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
 
-        if not 'Part of the event' in message:
+        if not 'Present Members' in message:
             ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
         
@@ -567,17 +567,17 @@ class Obliterate(commands.Cog):
 
             participants = []
 
-            attendance = message.split('Part of the event')[1].strip()
+            attendance = message.split('Present Members')[1].strip()
 
             first_row = True
             for line in attendance.split('\n'):
-                if line.startswith('-'*12):
+                if line.startswith('-'*5):
                     first_row = True
                     continue
-                elif line.startswith('Below time threshold'):
+                elif line.startswith('Below Threshold'):
                     break
                 elif line.startswith('```'):
-                    break
+                    continue
                 elif line.strip() == '':
                     break
                 elif first_row:
