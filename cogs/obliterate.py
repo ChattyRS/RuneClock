@@ -16,6 +16,16 @@ from utils import is_int, obliterate_only, obliterate_mods
 
 config = config_load()
 
+ranks = ['Bronze', 'Iron', 'Steel', 'Mithril', 'Adamant', 'Rune']
+
+reqs = {
+    'Bronze': { 'number': 2, 'events': 5, 'top3': 2, 'appointments': 5, 'appreciations': 2, 'discord': 2, 'months': 1 },
+    'Iron': { 'number': 2, 'events': 15, 'top3': 3, 'appointments': 15, 'appreciations': 4, 'discord': 3, 'months': 2 },
+    'Steel': { 'number': 3, 'events': 20, 'top3': 4, 'appointments': 25, 'appreciations': 6, 'discord': 5, 'months': 3 },
+    'Mithril': { 'number': 3, 'events': 30, 'top3': 5, 'appointments': 30, 'appreciations': 8, 'discord': 8, 'months': 6 },
+    'Adamant': { 'number': 4, 'events': 40, 'top3': 6, 'appointments': 40, 'appreciations': 10, 'discord': 10, 'months': 9 }
+}
+
 def is_obliterate_mod(interaction: discord.Interaction):
     if interaction.user.id == config['owner']:
         return True
@@ -387,17 +397,18 @@ class Obliterate(commands.Cog):
                 members = []
                 # Ensure expected row length
                 for member in raw_members:
-                    while len(member) < discord_level_col + 1:
-                        member.append('')
-                    if len(member) > discord_level_col + 1:
-                        member = member[:discord_level_col+1]
-                    members.append(member)
+                    if len(member) and member[0]:
+                        while len(member) < discord_level_col + 1:
+                            member.append('')
+                        if len(member) > discord_level_col + 1:
+                            member = member[:discord_level_col+1]
+                        members.append(member)
 
                 for player in player_data:
                     player_discord = f'{player["username"]}#{player["discriminator"]}'
                     player_level = player['level']
                     for i, member in enumerate(members):
-                        if member[discord_col].strip() == player_discord:
+                        if member[discord_col].strip() == player_discord and str(member[discord_level_col]).strip() != str(player_level):
                             member[discord_level_col] = str(player_level)
                             await update_row(roster, i+2, member) # +2 for 1-indexing and header row
                             break
@@ -921,6 +932,68 @@ class Obliterate(commands.Cog):
                 await update_row(update[0], update[1], update[2])
 
             await ctx.send(f'Results logged for `{metric}` competition **{data["title"]}**\n```\n{table}\n```')
+    
+    @obliterate_only()
+    @obliterate_mods()
+    @commands.command(hidden=True)
+    async def promotions(self, ctx):
+        '''
+        Gets a list of members eligible for a promotion (Moderator+ only)
+        '''
+        increment_command_counter()
+        await ctx.channel.typing()
+
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['obliterate_roster_key'])
+
+        roster = await ss.worksheet('Roster')
+        events_attended_col, events_hosted_col, appreciations_col = 7, 8, 9
+        appointments_col, discord_level_col, top3_col = 10, 11, 12
+
+        raw_members = await roster.get_all_values()
+        raw_members = raw_members[1:]
+        members = []
+        # Ensure expected row length
+        for member in raw_members:
+            if len(member) and member[0]:
+                while len(member) < top3_col + 1:
+                    member.append('')
+                if len(member) > top3_col + 1:
+                    member = member[:top3_col+1]
+                members.append(member)
+
+        eligible = []
+        
+        for m in reversed(members):
+            events_attended, events_hosted, appreciations, appointments, discord_level, top3 = [int(val) if is_int(val) else 0 for val in m[events_attended_col:top3_col+1]]
+            rank = m[1] # Bronze, Iron, Steel, Mithril, Adamant, Rune, Legacy, Moderator, Key
+            if rank in reqs:
+                req = reqs[rank]
+                reqs_met = 0
+                if events_attended + events_hosted >= req['events']:
+                    reqs_met += 1
+                if appreciations >= req['appreciations']:
+                    reqs_met += 1
+                if appointments >= req['appointments']:
+                    reqs_met += 1
+                if discord_level >= req['discord']:
+                    reqs_met += 1
+                if top3 >= req['top3']:
+                    reqs_met += 1
+                if reqs_met >= req['number']:
+                    eligible.append(m)
+        
+        msg = '```'
+        for m in eligible:
+            msg += f'\n{m[0]}{" "*(12-len(m[0]))} {m[1]}{" "*(7-len(m[1]))} -> {ranks[ranks.index(m[1])+1]}'
+        if not eligible:
+            msg += '\nNo eligible members found.'
+        msg += '\n```'
+
+        embed = discord.Embed(title=f'**Members eligible for a promotion**', colour=0x00b2ff, description=msg)
+
+        await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(Obliterate(bot))
