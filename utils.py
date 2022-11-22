@@ -5,6 +5,9 @@ from numpy import number
 from oauth2client.service_account import ServiceAccountCredentials
 from discord.ext import commands
 import math
+from datetime import datetime, timedelta
+import discord
+import logging
 
 # convert float to string without scientific notation
 # https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
@@ -1092,6 +1095,10 @@ Function to convert timedelta to a string of the form:
 x day(s), x hour(s), x minute(s), x second(s)
 '''
 def time_diff_to_string(time):
+    postfix = ''
+    if time < timedelta(seconds=0):
+        time = -time
+        postfix = ' ago'
     seconds = time.seconds
     days = time.days
     hours = seconds // 3600
@@ -1125,7 +1132,7 @@ def time_diff_to_string(time):
         time += str(seconds) + " second"
         if seconds != 1:
             time += "s"
-    return time
+    return f'{time}{postfix}'
 
 def float_to_str(f):
     """
@@ -1150,3 +1157,13 @@ def float_to_formatted_string(input):
         index -= 1
     output += end
     return output
+
+async def safe_send_coroutine(channel, message):
+    try:
+        await channel.send(message)
+    except discord.Forbidden:
+        pass
+    except Exception as e:
+        error = f'Encountered error while sending a message:\n{type(e).__name__}: {e}'
+        logging.critical(error)
+        print(error)

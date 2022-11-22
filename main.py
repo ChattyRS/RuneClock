@@ -22,6 +22,7 @@ from database import close_connection as close_database
 import io
 import html
 import oauthlib
+from utils import safe_send_coroutine
 
 '''
 Load config file with necessary information
@@ -655,6 +656,10 @@ class Bot(commands.AutoShardedBot):
         while True:
             try:
                 now = datetime.utcnow()
+
+                # Used to send messages concurrently
+                coroutines = []
+
                 if not notified_this_day_merchant and now.hour <= 2:
                     if self.bot.next_merchant > now + timedelta(hours=1):
                         txt = self.bot.merchant
@@ -675,10 +680,7 @@ class Bot(commands.AutoShardedBot):
                                     break
                             if role:
                                 role = role.mention
-                            try:
-                                await c.send(f'{role}\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{txt}')
-                            except discord.Forbidden:
-                                pass
+                            coroutines.append(safe_send_coroutine(c, f'{role}\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{txt}'))
                         notified_this_day_merchant = True
 
                 if not notified_this_day_spotlight and now.hour <= 1:
@@ -703,10 +705,7 @@ class Bot(commands.AutoShardedBot):
                             if role:
                                 role = role.mention
                             msg = f'{emoji} **{minigame}** is now the spotlighted minigame. {role}'
-                            try:
-                                await c.send(msg)
-                            except discord.Forbidden:
-                                continue
+                            coroutines.append(safe_send_coroutine(c, msg))
                         notified_this_day_spotlight = True
                 if not notified_this_hour_vos and now.minute <= 1:
                     if self.bot.next_vos > now + timedelta(minutes=1):
@@ -732,10 +731,7 @@ class Bot(commands.AutoShardedBot):
                                 msg += config[msgName] + role + '\n'
                             if msg:
                                 notified_this_hour_vos = True
-                                try:
-                                    await c.send(msg)
-                                except discord.Forbidden:
-                                    continue
+                                coroutines.append(safe_send_coroutine(c, msg))
                 if not notified_this_hour_warbands and now.minute >= 45 and now.minute <= 46:
                     if self.bot.next_warband - now <= timedelta(minutes=15):
                         channels = []
@@ -753,10 +749,7 @@ class Bot(commands.AutoShardedBot):
                                     break
                             if role:
                                 role = role.mention
-                            try:
-                                await c.send(config['msgWarbands'] + role)
-                            except discord.Forbidden:
-                                continue
+                            coroutines.append(safe_send_coroutine(c, config['msgWarbands'] + role))
                             notified_this_hour_warbands = True
                             
                 if not notified_this_hour_cache and now.minute >= 55 and now.minute <= 56:
@@ -776,10 +769,7 @@ class Bot(commands.AutoShardedBot):
                                 break
                         if role:
                             role = role.mention
-                        try:
-                            await c.send(config['msgCache'] + role)
-                        except discord.Forbidden:
-                            continue
+                        coroutines.append(safe_send_coroutine(c, config['msgCache'] + role))
                     notified_this_hour_cache = True
                 if not notified_this_hour_yews_48 and now.hour == 23 and now.minute >= 45 and now.minute <= 46:
                     channels = []
@@ -798,10 +788,7 @@ class Bot(commands.AutoShardedBot):
                                 break
                         if role:
                             role = role.mention
-                        try:
-                            await c.send(config['msgYews48'] + role)
-                        except discord.Forbidden:
-                            continue
+                        coroutines.append(safe_send_coroutine(c, config['msgYews48'] + role))
                     notified_this_hour_yews_48 = True
                 if not notified_this_hour_yews_140 and now.hour == 16 and now.minute >= 45 and now.minute <= 46:
                     channels = []
@@ -820,10 +807,7 @@ class Bot(commands.AutoShardedBot):
                                 break
                         if role:
                             role = role.mention
-                        try:
-                            await c.send(config['msgYews140'] + role)
-                        except discord.Forbidden:
-                            continue
+                        coroutines.append(safe_send_coroutine(c, config['msgYews140'] + role))
                     notified_this_hour_yews_140 = True
                 if not notified_this_hour_goebies and now.hour in [11, 23] and now.minute >= 45 and now.minute <= 46:
                     channels = []
@@ -842,10 +826,7 @@ class Bot(commands.AutoShardedBot):
                                 break
                         if role:
                             role = role.mention
-                        try:
-                            await c.send(config['msgGoebies'] + role)
-                        except discord.Forbidden:
-                            continue
+                        coroutines.append(safe_send_coroutine(c, config['msgGoebies'] + role))
                     notified_this_hour_goebies = True
                 if not notified_this_hour_sinkhole and now.minute >= 25 and now.minute <= 26:
                     channels = []
@@ -864,10 +845,7 @@ class Bot(commands.AutoShardedBot):
                                 break
                         if role:
                             role = role.mention
-                        try:
-                            await c.send(config['msgSinkhole'] + role)
-                        except discord.Forbidden:
-                            continue
+                        coroutines.append(safe_send_coroutine(c, config['msgSinkhole'] + role))
                     notified_this_hour_sinkhole = True
                 
                 # Notify of Pink Skirts events
@@ -919,11 +897,7 @@ class Bot(commands.AutoShardedBot):
                                 role = 'Pink Skirts'
                             
                             c_msg = f'{config["pinkskirtsEmoji"]} **Pink Skirts** event:\n{msg} {role}'
-
-                            try:
-                                await c.send(c_msg)
-                            except discord.Forbidden:
-                                continue
+                            coroutines.append(safe_send_coroutine(c, c_msg))
 
                         notified_this_hour_pinkskirts = True
                         break
@@ -950,12 +924,17 @@ class Bot(commands.AutoShardedBot):
                         if role:
                             role = role.mention
                         msg = f'{emoji} The next **Wilderness Flash Event** will start in 5 minutes: **{flash_event}**. {role}'
-                        try:
-                            await c.send(msg)
-                        except discord.Forbidden:
-                            continue
+                        coroutines.append(safe_send_coroutine(c, msg))
                     notified_this_hour_wilderness_flash = True
 
+                # Send messages concurrently if there are any
+                if coroutines:
+                    # Split list of coroutines into chunks to avoid rate limits
+                    chunk_size = 40 # Global rate limit = 50 requests per second
+                    for chunk in [coroutines[j:j + chunk_size] for j in range(0, len(coroutines), chunk_size)]:
+                        await asyncio.gather(*chunk)
+                        await asyncio.sleep(1) # Sleep for a second after each chunk of requests to avoid rate limits
+                    print(f'Notifications sent in {(datetime.utcnow() - now) / timedelta(milliseconds=1)} ms')
 
                 if now.minute > 1 and reset:
                     reset = False
@@ -1382,8 +1361,9 @@ class Bot(commands.AutoShardedBot):
                                 graph_data = await r.json(content_type='text/html')
                                 break
                             except Exception as e:
-                                print(e)
-                                await asyncio.sleep(60)
+                                 # This should only happen when the API is down
+                                print(f'Unexpected error in RS3 price tracking for {item.id}: {item.name}\n{e}')
+                                await asyncio.sleep(300)
                     
                     if not exists:
                         continue
@@ -1461,8 +1441,9 @@ class Bot(commands.AutoShardedBot):
                                 graph_data = await r.json(content_type='text/html')
                                 break
                             except Exception as e:
-                                print(e)
-                                await asyncio.sleep(60)
+                                # This should only happen when the API is down
+                                print(f'Unexpected error in OSRS price tracking for {item.id}: {item.name}\n{e}')
+                                await asyncio.sleep(300)
                     
                     if not exists:
                         continue
