@@ -8,7 +8,7 @@ import sys
 
 sys.path.append('../')
 from main import config_load, Guild, increment_command_counter
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import gspread
 import traceback
@@ -967,6 +967,10 @@ class Obliterate(commands.Cog):
         for m in reversed(members):
             events_attended, events_hosted, appreciations, appointments, discord_level, top3 = [int(val) if is_int(val) else 0 for val in m[events_attended_col:top3_col+1]]
             rank = m[1] # Bronze, Iron, Steel, Mithril, Adamant, Rune, Legacy, Moderator, Key
+            try:
+                join_date = datetime.strptime(m[6], '%d %b %Y')
+            except:
+                join_date = datetime.utcnow()
             if rank in reqs:
                 req = reqs[rank]
                 reqs_met = 0
@@ -979,6 +983,8 @@ class Obliterate(commands.Cog):
                 if discord_level >= req['discord']:
                     reqs_met += 1
                 if top3 >= req['top3']:
+                    reqs_met += 1
+                if join_date <= datetime.utcnow() - timedelta(days=req['months']*30):
                     reqs_met += 1
                 if reqs_met >= req['number']:
                     eligible.append(m)

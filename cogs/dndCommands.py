@@ -68,18 +68,19 @@ class DNDCommands(commands.Cog):
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
 
-        next_times = [self.bot.next_warband, self.bot.next_vos, self.bot.next_cache, self.bot.next_goebies, self.bot.next_yews48,
-                      self.bot.next_yews140, self.bot.next_goebies, self.bot.next_sinkhole, self.bot.next_merchant, self.bot.next_spotlight,
+        next_times = [self.bot.next_warband, self.bot.next_vos, self.bot.next_cache, self.bot.next_yews48, self.bot.next_yews140, 
+                      self.bot.next_goebies, self.bot.next_sinkhole, self.bot.next_merchant, self.bot.next_spotlight,
                       self.bot.next_wilderness_flash_event]
         
-        if not (any(t is None for t in next_times) or self.bot.vos is None or self.bot.merchant is None or self.bot.spotlight is None):
-            # If all time values are before now, then reset everything
-            # This should fix a strange bug where all time values are somehow set several days in the past
-            if not any(t > now for t in next_times):
-                self.init_times()
-                return timedelta(seconds=0)
-        else: # If any of the time values are None, return a timedelta of 0, indicating that the times must be updated
+        if all(t is None for t in next_times) and self.bot.vos is None and self.bot.merchant is None and self.bot.spotlight is None:
+            # If all of the time values are None, return a timedelta of 0, indicating that the times must be updated
             return timedelta(seconds=0)
+        elif all(t < now if isinstance(t, datetime) else True for t in next_times):
+            # If none of the time values is after now, then reset everything
+            # This should fix a strange bug where all time values are somehow set several days in the past
+                self.init_times()
+                self.hard_reset()
+                return timedelta(seconds=1)
         
         next_time = min(next_times)
         if next_time < now:
@@ -89,9 +90,22 @@ class DNDCommands(commands.Cog):
     
     def cog_unload(self):
         self.track_dnds.cancel()
+        self.backup_loop.cancel()
 
     def cog_load(self):
         self.track_dnds.start()
+        self.backup_loop.start()
+
+    def hard_reset(self):
+        self.track_dnds.cancel()
+        self.track_dnds.start()
+    
+    @tasks.loop(seconds=60)
+    async def backup_loop(self):
+        '''
+        Resets the track_dnds loop in case it somehow breaks unexpectedly
+        '''
+        self.next_update()
     
     @tasks.loop(seconds=15)
     async def track_dnds(self):
