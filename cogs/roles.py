@@ -1,10 +1,13 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 from main import config_load, increment_command_counter, Guild, Role
 import sys
 sys.path.append('../')
 import random
-from utils import is_admin
+from utils import is_admin, is_int
+from typing import List
+import re
 
 config = config_load()
 
@@ -334,6 +337,38 @@ class Roles(commands.Cog):
             msgs = [msg[i:i+chunk_size] for i in range(0, chunks, chunk_size)]
             for msg in msgs:
                 await ctx.send(f'```{msg}```')
+
+    @app_commands.command()
+    async def mention(self, interaction: discord.Interaction, role: str):
+        '''
+        Mention all online or idle users with the given role.
+        '''
+        if not role or not is_int(role):
+            await interaction.response.send_message(f'Invalid argument `role: "{role}"`', ephemeral=True)
+            return
+        role = interaction.guild.get_role(int(role))
+        if not role:
+            await interaction.response.send_message(f'Role not found: {role}', ephemeral=True)
+            return
+
+        members = [m for m in interaction.guild.members if role in m.roles and str(m.status) in ['online', 'idle']]
+        mentions = ' '.join([m.mention for m in members])
+        if not mentions:
+            mentions = f'`No online members found.`'
+
+        await interaction.response.send_message(f'**Online members of role {role.name}:**\n{mentions}')
+
+    @mention.autocomplete('role')
+    async def role_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> List[app_commands.Choice[str]]:
+        roles = [r for r in interaction.guild.roles if current.upper() in r.name.upper()]
+        # filter out role names that cannot be displayed
+        roles = [r for r in roles if not re.match('^[A-z0-9 -]+$', r.name) is None]
+        roles = roles[:25] if len(roles) > 25 else roles
+        return [app_commands.Choice(name=r.name, value=str(r.id)) for r in roles]
 
 
 async def setup(bot):
