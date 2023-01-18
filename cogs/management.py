@@ -998,6 +998,7 @@ class Management(commands.Cog):
         ax.xaxis.set_major_locator(loc)
         ax.xaxis.set_major_formatter(formatter)
 
+        ax.set_ylim(ymin=0, ymax=105)
         ax.yaxis.grid()
 
         ax.spines['top'].set_visible(False)
