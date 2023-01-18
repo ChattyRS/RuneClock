@@ -131,7 +131,7 @@ class ApplicationView(discord.ui.View):
         url = 'https://api.wiseoldman.net/v2/groups/423/members'
         payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
-        async with self.bot.aiohttp.post(url, json=payload) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent']}) as r:
             if r.status != 200:
                 data = await r.json()
                 return f'Error adding to WOM: {r.status}\n{data}'

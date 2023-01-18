@@ -91,7 +91,7 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
         # Get WOM group
         group = None
         url = f'https://api.wiseoldman.net/v2/groups/{group_id}'
-        async with self.bot.aiohttp.get(url) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -163,7 +163,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         group = None
         guild = await Guild.get(interaction.guild.id)
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
-        async with self.bot.aiohttp.get(url) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -173,7 +173,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
         payload = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
-        async with self.bot.aiohttp.post(url, json=payload) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent']}) as r:
             if r.status != 200:
                 data = await r.json()
                 await interaction.response.send_message(f'An error occurred while trying to add `{rsn}` to WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
@@ -218,7 +218,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         group = None
         guild = await Guild.get(interaction.guild.id)
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
-        async with self.bot.aiohttp.get(url) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -228,7 +228,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
         payload = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [rsn]
-        async with self.bot.aiohttp.delete(url, json=payload) as r:
+        async with self.bot.aiohttp.delete(url, json=payload, headers={'x-user-agent': config['wom_user_agent']}) as r:
             if r.status != 200:
                 data = await r.json()
                 await interaction.response.send_message(f'An error occurred while trying to remove `{rsn}` from WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
@@ -296,7 +296,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         payload = {"title": competition_title, "metric": metric, "startsAt": start, "endsAt": end, "groupId": guild.wom_group_id, "groupVerificationCode": guild.wom_verification_code}
         url = 'https://api.wiseoldman.net/v2/competitions'
         competition = None
-        async with self.bot.aiohttp.post(url, json=payload) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent']}) as r:
             if r.status != 201:
                 raise commands.CommandError(message=f'Error status: {r.status}.')
             competition = await r.json()
