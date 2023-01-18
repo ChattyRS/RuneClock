@@ -224,7 +224,7 @@ class ApplicationView(discord.ui.View):
         await member.edit(nick=rsn, roles=roles)
 
         # Add to WOM
-        url = f'https://api.wiseoldman.net/groups/{config["obliterate_wom_group_id"]}/add-members'
+        url = f'https://api.wiseoldman.net/v2/groups/{config["obliterate_wom_group_id"]}/members'
         payload = {'verificationCode': config['obliterate_wom_verification_code']}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
         async with self.bot.aiohttp.post(url, json=payload) as r:
@@ -843,7 +843,7 @@ class Obliterate(commands.Cog):
             raise commands.CommandError(message=f'Invalid competition ID: `{competition_id}`. Must be a positive integer.')
 
         # Form request
-        url = f'https://api.wiseoldman.net/competitions/{competition_id}'
+        url = f'https://api.wiseoldman.net/v2/competitions/{competition_id}'
         async with self.bot.aiohttp.get(url) as r:
             if r.status != 200:
                 ctx.command.reset_cooldown(ctx)
@@ -852,7 +852,7 @@ class Obliterate(commands.Cog):
 
             metric = data['metric']
             metric = metric[0].upper() + metric[1:]
-            participants = data['participants']
+            participants = data['participations']
 
             if datetime.utcnow() < datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ'):
                 ctx.command.reset_cooldown(ctx)
@@ -892,7 +892,7 @@ class Obliterate(commands.Cog):
                 # Find member row
                 member_row, member_index = None, 0
                 for j, member in enumerate(members):
-                    if member[0].strip().lower() == p['displayName'].strip().lower():
+                    if member[0].strip().lower() == p['player']['displayName'].strip().lower():
                         member_row, member_index = member, j
                         break
                 if member_row:
@@ -913,11 +913,11 @@ class Obliterate(commands.Cog):
             table = 'No.  Name          Gain'
             for i, p in enumerate(top):
                 table += (f'\n{i+1}.' + (4 - len(str(i+1))) * ' ') if i in top_indices else (f'\n--' + (4 - len(str(i+1))) * ' ')
-                table += p['displayName'] + (14 - len(p['displayName'])) * ' '
+                table += p['player']['displayName'] + (14 - len(p['player']['displayName'])) * ' '
                 table += str(p['progress']['gained'])
                 if i in top_indices:
                     top_names += ', ' if top_names else ''
-                    top_names += p['displayName']
+                    top_names += p['player']['displayName']
 
             start = datetime.strptime(data['startsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime('%d %b %Y')
             start = start if not start.startswith('0') else start[1:]

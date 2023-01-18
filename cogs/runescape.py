@@ -1025,22 +1025,27 @@ class Runescape(commands.Cog):
         if re.match('^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'https://api.wiseoldman.net/players/username/{name}/gained'.replace(' ', '-')
+        url_day = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=day'.replace(' ', '-')
+        url_week = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=week'.replace(' ', '-')
 
-        r = await self.bot.aiohttp.get(url)
+        r = await self.bot.aiohttp.get(url_day)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
-            data = await r.json()
+            daily_data = await r.json()
+
+        r = await self.bot.aiohttp.get(url_week)
+        async with r:
+            if r.status != 200:
+                raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
+            weekly_data = await r.json()
 
         skills = []
-        for i, (skill_name, skill_data) in enumerate(data['day']['data'].items()):
-            if (i >= len(skills_07)):
-                break
+        for i, (skill_name, skill_data) in enumerate(daily_data['data']['skills'].items()):
             skill = {
                 'xp': float_to_formatted_string(skill_data['experience']['end']), 
                 'today': float_to_formatted_string(skill_data['experience']['gained']), 
-                'week': float_to_formatted_string(data['week']['data'][skill_name]['experience']['gained'])
+                'week': float_to_formatted_string(weekly_data['data']['skills'][skill_name]['experience']['gained'])
             }
             skills.append(skill)
 

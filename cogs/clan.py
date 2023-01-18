@@ -23,9 +23,9 @@ wom_skills = ['overall', 'attack', 'defence', 'strength', 'hitpoints', 'ranged',
 wom_bosses = ['abyssal_sire', 'alchemical_hydra', 'barrows_chests', 'bryophyta', 'callisto', 'cerberus', 'chambers_of_xeric', 'chambers_of_xeric_challenge_mode',
               'chaos_elemental', 'chaos_fanatic', 'commander_zilyana', 'corporeal_beast', 'crazy_archaeologist', 'dagannoth_prime', 'dagannoth_rex', 'dagannoth_supreme',
               'deranged_archaeologist', 'general_graardor', 'giant_mole', 'grotesque_guardians', 'hespori', 'kalphite_queen', 'king_black_dragon', 'kraken', 'kreearra', 
-              'kril_tsutsaroth', 'mimic', 'nex', 'nightmare', 'obor', 'sarachnis', 'scorpia', 'skotizo', 'tempoross', 'the_gauntlet', 'the_corrupted_gauntlet', 'theatre_of_blood',
-              'theatre_of_blood_hard_mode', 'thermonuclear_smoke_devil', 'tombs_of_amascut', 'tombs_of_amascut_expert' 'tzkal_zuk', 'tztok_jad', 'venenatis', 'vetion', 'vorkath', 
-              'wintertodt', 'zalcano', 'zulrah']
+              'kril_tsutsaroth', 'mimic', 'nex', 'nightmare', 'obor', 'phantom_muspah', 'sarachnis', 'scorpia', 'skotizo', 'tempoross', 'the_gauntlet', 'the_corrupted_gauntlet', 
+              'theatre_of_blood', 'theatre_of_blood_hard_mode', 'thermonuclear_smoke_devil', 'tombs_of_amascut', 'tombs_of_amascut_expert' 'tzkal_zuk', 'tztok_jad', 'venenatis', 
+              'vetion', 'vorkath', 'wintertodt', 'zalcano', 'zulrah']
 
 wom_clues = ['clue_scrolls_all', 'clue_scrolls_beginner', 'clue_scrolls_easy', 'clue_scrolls_medium', 'clue_scrolls_hard', 'clue_scrolls_elite', 'clue_scrolls_master']
 
@@ -90,7 +90,7 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
 
         # Get WOM group
         group = None
-        url = f'https://api.wiseoldman.net/groups/{group_id}'
+        url = f'https://api.wiseoldman.net/v2/groups/{group_id}'
         async with self.bot.aiohttp.get(url) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
@@ -162,7 +162,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         # Get WOM group
         group = None
         guild = await Guild.get(interaction.guild.id)
-        url = f'https://api.wiseoldman.net/groups/{guild.wom_group_id}'
+        url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
@@ -170,7 +170,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
             group = await r.json()
         
         # Add player to group
-        url = f'https://api.wiseoldman.net/groups/{guild.wom_group_id}/add-members'
+        url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
         payload = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
         async with self.bot.aiohttp.post(url, json=payload) as r:
@@ -217,7 +217,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         # Get WOM group
         group = None
         guild = await Guild.get(interaction.guild.id)
-        url = f'https://api.wiseoldman.net/groups/{guild.wom_group_id}'
+        url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
@@ -225,10 +225,10 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
             group = await r.json()
         
         # Remove player from group
-        url = f'https://api.wiseoldman.net/groups/{guild.wom_group_id}/remove-members'
+        url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
         payload = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [rsn]
-        async with self.bot.aiohttp.post(url, json=payload) as r:
+        async with self.bot.aiohttp.delete(url, json=payload) as r:
             if r.status != 200:
                 data = await r.json()
                 await interaction.response.send_message(f'An error occurred while trying to remove `{rsn}` from WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
@@ -294,7 +294,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         
         # Create competition
         payload = {"title": competition_title, "metric": metric, "startsAt": start, "endsAt": end, "groupId": guild.wom_group_id, "groupVerificationCode": guild.wom_verification_code}
-        url = 'https://api.wiseoldman.net/competitions'
+        url = 'https://api.wiseoldman.net/v2/competitions'
         competition = None
         async with self.bot.aiohttp.post(url, json=payload) as r:
             if r.status != 201:

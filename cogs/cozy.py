@@ -128,7 +128,7 @@ class ApplicationView(discord.ui.View):
         await member.edit(nick=rsn, roles=roles)
 
         # Add to WOM
-        url = 'https://api.wiseoldman.net/groups/423/add-members'
+        url = 'https://api.wiseoldman.net/v2/groups/423/members'
         payload = {'verificationCode': config['cozy_wiseoldman_verification_code']}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
         async with self.bot.aiohttp.post(url, json=payload) as r:
