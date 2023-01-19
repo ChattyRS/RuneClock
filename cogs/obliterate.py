@@ -227,7 +227,7 @@ class ApplicationView(discord.ui.View):
         url = f'https://api.wiseoldman.net/v2/groups/{config["obliterate_wom_group_id"]}/members'
         payload = {'verificationCode': config['obliterate_wom_verification_code']}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
-        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent']}) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
             if r.status != 200:
                 data = await r.json()
                 return f'Error adding to WOM: {r.status}\n{data}'
@@ -844,7 +844,7 @@ class Obliterate(commands.Cog):
 
         # Form request
         url = f'https://api.wiseoldman.net/v2/competitions/{competition_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent']}) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
             if r.status != 200:
                 ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Error retrieving data from: `{url}`.')

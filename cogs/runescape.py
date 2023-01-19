@@ -1028,13 +1028,13 @@ class Runescape(commands.Cog):
         url_day = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=day'.replace(' ', '-')
         url_week = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=week'.replace(' ', '-')
 
-        r = await self.bot.aiohttp.get(url_day, headers={'x-user-agent': config['wom_user_agent']})
+        r = await self.bot.aiohttp.get(url_day, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']})
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
             daily_data = await r.json()
 
-        r = await self.bot.aiohttp.get(url_week, headers={'x-user-agent': config['wom_user_agent']})
+        r = await self.bot.aiohttp.get(url_week, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']})
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
