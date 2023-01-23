@@ -295,11 +295,13 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         # Create competition
         payload = {"title": competition_title, "metric": metric, "startsAt": start, "endsAt": end, "groupId": guild.wom_group_id, "groupVerificationCode": guild.wom_verification_code}
         url = 'https://api.wiseoldman.net/v2/competitions'
-        competition = None
+        data = None
         async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
             if r.status != 201:
                 raise commands.CommandError(message=f'Error status: {r.status}.')
-            competition = await r.json()
+            data = await r.json()
+            
+        competition = data['competition']
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Wise Old Man**', colour=0xff0000)
@@ -315,7 +317,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         await interaction.response.send_message('Error', ephemeral=True)
-        print(error)
+        print(f'{type(error).__name__}: {error}')
         traceback.print_tb(error.__traceback__)
 
 class RandomMetricView(discord.ui.View):
