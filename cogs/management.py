@@ -255,8 +255,8 @@ class Management(commands.Cog):
                         val_short += f'• `{(command.name + " " + param_text).strip()}`\n'
                     val = val.strip()
                     val_short = val_short.strip()
-                    if category.upper() == 'COZY':
-                        if ctx.guild.id == config['cozy_guild_id'] or ctx.author.id == config['owner']:
+                    if category.lower() == 'obliterate':
+                        if ctx.guild.id == config['obliterate_guild_id'] or ctx.author.id == config['owner']:
                             embed.add_field(name=f'{category}', value=val, inline=False)
                             embed_short.add_field(name=f'{category}', value=val_short, inline=False)
                     else:

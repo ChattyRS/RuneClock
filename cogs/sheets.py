@@ -13,7 +13,6 @@ import copy
 import gspread_asyncio
 import gspread
 from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
-from utils import cozy_council
 import logging
 
 config = config_load()
