@@ -4,7 +4,7 @@ from discord.ext import commands, tasks
 import os
 import sys
 sys.path.append('../')
-from main import config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem
+from main import config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem, BannedGuild
 from datetime import datetime, timedelta, date
 import psutil
 from cogs.logs import get_events_logged
@@ -1315,6 +1315,48 @@ class Management(commands.Cog):
         else:
             await self.bot.tree.sync()
             await ctx.send(f'Synced application commands globally')
+
+    @commands.command(hidden=True)
+    @is_owner()
+    async def ban_guild(self, ctx, guild_id, name='', *reason):
+        increment_command_counter()
+        await ctx.channel.typing()
+
+        if not guild_id or not is_int(guild_id):
+            raise commands.CommandError(message=f'Invalid argument \'guild_id\': `{guild_id}`.')
+        guild_id = int(guild_id)
+        banned_guild = await BannedGuild.get(guild_id)
+        if banned_guild:
+            raise commands.CommandError(message=f'Guild {banned_guild.name} with ID `{guild_id}` is already banned.')
+        reason = ' '.join(reason)
+        if not reason:
+            reason = 'No reason given'
+
+        guild = self.bot.get_guild(guild_id)
+        if guild:
+            await guild.leave()
+        
+        await BannedGuild.create(id=guild_id, name=name, reason=reason)
+
+        await ctx.send(f'Banned guild `{name}` with ID `{guild_id}`.')
+
+    @commands.command(hidden=True)
+    @is_owner()
+    async def unban_guild(self, ctx, guild_id):
+        increment_command_counter()
+        await ctx.channel.typing()
+
+        if not guild_id or not is_int(guild_id):
+            raise commands.CommandError(message=f'Invalid argument \'guild_id\': `{guild_id}`.')
+        guild_id = int(guild_id)
+        banned_guild = await BannedGuild.get(guild_id)
+        if not banned_guild:
+            raise commands.CommandError(message=f'No banned guild found with ID `{guild_id}`.')
+
+        await banned_guild.delete()
+        
+        await ctx.send(f'Guild `{banned_guild.name}` with ID `{guild_id}` has been unbanned.')
+
 
 async def setup(bot):
     await bot.add_cog(Management(bot))

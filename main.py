@@ -16,7 +16,7 @@ import feedparser
 import traceback
 from github import Github
 from difflib import SequenceMatcher
-from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction
+from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction, BannedGuild
 from database import setup as database_setup
 from database import close_connection as close_database
 import io

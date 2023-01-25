@@ -12,6 +12,13 @@ def config_load():
 
 db = Gino()
 
+class BannedGuild(db.Model):
+    __tablename__ = 'banned_guilds'
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    name = db.Column(db.String)
+    reason = db.Column(db.String)
+
 class User(db.Model):  
     __tablename__ = 'users'
 
