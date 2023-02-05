@@ -17,18 +17,13 @@ RuneClock is a general-purpose Discord bot for RuneScape Discord servers, origin
 
 * [Python 3.10](https://www.python.org/)
 * [PostgreSQL 14](https://www.postgresql.org/)
-* [Discord.py v2.0](https://github.com/Rapptz/discord.py)
+* [Discord.py v2.1](https://github.com/Rapptz/discord.py)
 
-Install the latest development version of Discord.py using the following commands:
-```
-$ git clone https://github.com/Rapptz/discord.py
-$ cd discord.py
-$ pip install -U .[voice]
-```
-After installing Python and Discord.py, you can install the remaining dependencies as follows:
+After installing Python, you can install the remaining dependencies as follows:
 ```
 $ pip install -r requirements.txt
 ```
+* [discord.py v2.1](https://github.com/Rapptz/discord.py)
 * [GINO](https://python-gino.org/docs/en/master/#)
 * [Asyncio](https://docs.python.org/3/library/asyncio.html)
 * [gspread_asyncio](https://github.com/dgilman/gspread_asyncio)
