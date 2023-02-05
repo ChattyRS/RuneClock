@@ -143,7 +143,6 @@ class ApplicationView(discord.ui.View):
         await interaction.message.edit(embed=embed, view=None)
         await interaction.response.send_message('Application declined successfully.', ephemeral=True)
         self.value = False
-        self.stop()
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='obliterate_app_accept_button')
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -162,7 +161,6 @@ class ApplicationView(discord.ui.View):
         await interaction.message.edit(embed=embed, view=None)
         await interaction.response.send_message('Application accepted successfully.', ephemeral=True)
         self.value = True
-        self.stop()
 
     async def accept_handler(self, interaction: discord.Interaction) -> str:
         '''
@@ -288,8 +286,7 @@ class PersonalInfoModal(discord.ui.Modal):
         embed.set_footer(text=f'User ID: {interaction.user.id}')
         # Send final result
         view = ApplicationView(self.bot)
-        msg = await interaction.response.send_message(embed=embed, view=view)
-        await view.wait()
+        await interaction.response.send_message(embed=embed, view=view)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         await interaction.response.send_message('Error', ephemeral=True)
@@ -314,7 +311,6 @@ class OpenPersonalInfoView(discord.ui.View):
         await modal.wait()
         if modal.value:
             self.value = True
-            self.stop()
         else:
             self.value = False
 
@@ -348,8 +344,7 @@ class AccountInfoModal(discord.ui.Modal, title='Account information'):
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         # Create button to open second form
         view = OpenPersonalInfoView(self.bot)
-        msg = await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-        await view.wait()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         await interaction.response.send_message('Error', ephemeral=True)
