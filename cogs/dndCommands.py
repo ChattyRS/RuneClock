@@ -116,61 +116,55 @@ class DNDCommands(commands.Cog):
         if next_time.total_seconds() > 0:
             return
         
-        jagex_tweets = []
-
-        uri = 'https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=JagexClock&count=150'
-        http_method = 'GET'
-
-        uri, headers, _ = self.bot.twitter_client.sign(uri=uri, http_method=http_method)
-
-        r = await self.bot.aiohttp.get(uri, headers=headers)
-        async with r:
-            try:
-                txt = await r.text()
-                jagex_tweets = json.loads(txt)
-            except Exception as e:
-                print(f'Encountered exception while attempting to get jagex tweets: {e}')
-        
-        jagex_tweets = sorted(jagex_tweets, key=lambda t: datetime.strptime(t['created_at'], '%a %b %d %H:%M:%S %z %Y'), reverse=True)
-        
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
 
         # Update vos
-        vos = []
-        current = []
-        count = 0
-        for tweet in jagex_tweets:
-            if not 'Voice of Seren' in tweet['text']:
-                continue
-            tweet_time = datetime.strptime(tweet['created_at'], '%a %b %d %H:%M:%S %z %Y').replace(tzinfo=None)
+        try:
+            vos_uri, wiki_headers = 'https://api.weirdgloop.org/runescape/vos/history', {'x-user-agent': config['wiki_user_agent']}
+
+            r = await self.bot.aiohttp.get(vos_uri, headers=wiki_headers)
+            error, vos_data = False, None
+            async with r:
+                if r.status != 200:
+                    error = True
+                else:
+                    vos_data = await r.json()
             
-            count += 1
-            if count == 1:
-                self.bot.next_vos = tweet_time + timedelta(hours=1)
-            for d in districts:
-                if d in tweet['text']:
-                    vos.append(d)
-                    if count == 1:
-                        current.append(d)
-            if count == 2:
-                break
-        
-        next_vos = copy.deepcopy(districts)
-        indices = []
-        for i, d in enumerate(districts):
-            if d in vos:
-                indices.append(i)
-        indices.sort(reverse=True)
-        for i in indices:
-            del next_vos[i]
-        
-        self.bot.vos = {'vos': current, 'next': next_vos}
+            if error or not vos_data:
+                print('Error encountered while attempting to get VOS data from RS wiki.')
+            else:
+                vos_data = vos_data['data']
+                
+                vos = []
+                current = []
+                for i, data_point in enumerate(vos_data[:2]):
+                    print(f'Processing VOS data point {i}\n{data_point}')
+                    vos_time = datetime.strptime(data_point['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=None)
+                    if i == 0:
+                        self.bot.next_vos = vos_time + timedelta(hours=1)
+                        current.append(data_point['district1'])
+                        current.append(data_point['district2'])
+                    vos.append(data_point['district1'])
+                    vos.append(data_point['district2'])
+                
+                next_vos = copy.deepcopy(districts)
+                indices = []
+                for i, d in enumerate(districts):
+                    if d in vos:
+                        indices.append(i)
+                indices.sort(reverse=True)
+                for i in indices:
+                    del next_vos[i]
+                
+                self.bot.vos = {'vos': current, 'next': next_vos}
+        except Exception as e:
+            print(f'Error getting VOS data: {type(e).__name__} : {e}')
 
         # Update merchant
         url = f'https://runescape.wiki/api.php?action=parse&disablelimitreport=1&format=json&prop=text&contentmodel=wikitext&text=%7B%7BTravelling+Merchant%2Fapi%7Cformat%3Dsimple%7D%7D'
 
-        r = await self.bot.aiohttp.get(url)
+        r = await self.bot.aiohttp.get(url, headers=wiki_headers)
         error = False
         async with r:
             if r.status != 200:
@@ -206,6 +200,24 @@ class DNDCommands(commands.Cog):
             txt = txt.strip()
 
             self.bot.merchant = txt
+
+        # Get Jagex tweets
+        jagex_tweets = []
+
+        uri = 'https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=JagexClock&count=150'
+        http_method = 'GET'
+
+        uri, headers, _ = self.bot.twitter_client.sign(uri=uri, http_method=http_method)
+
+        r = await self.bot.aiohttp.get(uri, headers=headers)
+        async with r:
+            try:
+                txt = await r.text()
+                jagex_tweets = json.loads(txt)
+            except Exception as e:
+                print(f'Encountered exception while attempting to get jagex tweets: {e}')
+        
+        jagex_tweets = sorted(jagex_tweets, key=lambda t: datetime.strptime(t['created_at'], '%a %b %d %H:%M:%S %z %Y'), reverse=True)
         
         # Update spotlight and spotlight time
         minigame = self.bot.spotlight
