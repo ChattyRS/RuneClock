@@ -35,7 +35,6 @@ $ pip install -r requirements.txt
 * [NumPy](http://www.numpy.org/)
 * [matplotlib](https://matplotlib.org/)
 * [SymPy](https://www.sympy.org/en/index.html)
-* [Tweepy](http://docs.tweepy.org/en/latest/)
 * [oauth2client](https://oauth2client.readthedocs.io/en/latest/)
 * [psutil](https://psutil.readthedocs.io/en/latest/)
 * [python-dateutil](https://dateutil.readthedocs.io/en/stable/)

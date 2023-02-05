@@ -10,6 +10,7 @@ from utils import item_emojis
 import json
 import praw
 import math
+from bs4 import BeautifulSoup
 
 config = config_load()
 
@@ -110,7 +111,7 @@ class DNDCommands(commands.Cog):
     @tasks.loop(seconds=15)
     async def track_dnds(self):
         '''
-        Maintains D&D statuses and timers from Jagex tweets
+        Maintains D&D statuses and timers
         '''
         next_time = self.next_update()
         if next_time.total_seconds() > 0:
@@ -121,116 +122,106 @@ class DNDCommands(commands.Cog):
 
         # Update vos
         try:
-            vos_uri, wiki_headers = 'https://api.weirdgloop.org/runescape/vos/history', {'x-user-agent': config['wiki_user_agent']}
+            if not self.bot.vos or not self.bot.next_vos or self.bot.next_vos <= now:
+                vos_uri, wiki_headers = 'https://api.weirdgloop.org/runescape/vos/history', {'x-user-agent': config['wiki_user_agent']}
 
-            r = await self.bot.aiohttp.get(vos_uri, headers=wiki_headers)
-            error, vos_data = False, None
-            async with r:
-                if r.status != 200:
-                    error = True
-                else:
+                r = await self.bot.aiohttp.get(vos_uri, headers=wiki_headers)
+                async with r:
                     vos_data = await r.json()
-            
-            if error or not vos_data:
-                print('Error encountered while attempting to get VOS data from RS wiki.')
-            else:
-                vos_data = vos_data['data']
-                
-                vos = []
-                current = []
-                for i, data_point in enumerate(vos_data[:2]):
-                    print(f'Processing VOS data point {i}\n{data_point}')
-                    vos_time = datetime.strptime(data_point['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=None)
-                    if i == 0:
-                        self.bot.next_vos = vos_time + timedelta(hours=1)
-                        current.append(data_point['district1'])
-                        current.append(data_point['district2'])
-                    vos.append(data_point['district1'])
-                    vos.append(data_point['district2'])
-                
-                next_vos = copy.deepcopy(districts)
-                indices = []
-                for i, d in enumerate(districts):
-                    if d in vos:
-                        indices.append(i)
-                indices.sort(reverse=True)
-                for i in indices:
-                    del next_vos[i]
-                
-                self.bot.vos = {'vos': current, 'next': next_vos}
+                    vos_data = vos_data['data']
+                    
+                    vos = []
+                    current = []
+                    for i, data_point in enumerate(vos_data[:2]):
+                        vos_time = datetime.strptime(data_point['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=None)
+                        if i == 0:
+                            self.bot.next_vos = vos_time + timedelta(hours=1)
+                            current.append(data_point['district1'])
+                            current.append(data_point['district2'])
+                        vos.append(data_point['district1'])
+                        vos.append(data_point['district2'])
+                    
+                    next_vos = copy.deepcopy(districts)
+                    indices = []
+                    for i, d in enumerate(districts):
+                        if d in vos:
+                            indices.append(i)
+                    indices.sort(reverse=True)
+                    for i in indices:
+                        del next_vos[i]
+                    
+                    self.bot.vos = {'vos': current, 'next': next_vos}
         except Exception as e:
             print(f'Error getting VOS data: {type(e).__name__} : {e}')
 
         # Update merchant
-        url = f'https://runescape.wiki/api.php?action=parse&disablelimitreport=1&format=json&prop=text&contentmodel=wikitext&text=%7B%7BTravelling+Merchant%2Fapi%7Cformat%3Dsimple%7D%7D'
+        if not self.bot.merchant or not self.bot.next_merchant or self.bot.next_merchant <= now:
+            url = f'https://runescape.wiki/api.php?action=parse&disablelimitreport=1&format=json&prop=text&contentmodel=wikitext&text=%7B%7BTravelling+Merchant%2Fapi%7Cformat%3Dsimple%7D%7D'
 
-        r = await self.bot.aiohttp.get(url, headers=wiki_headers)
-        error = False
-        async with r:
-            if r.status != 200:
-                error = True
-            else:
-                data = await r.json()
+            r = await self.bot.aiohttp.get(url, headers=wiki_headers)
+            error = False
+            async with r:
+                if r.status != 200:
+                    error = True
+                else:
+                    data = await r.json()
 
-        if not error:
-            data = data['parse']['text']['*']
+            if not error:
+                data = data['parse']['text']['*']
 
-            data = data.replace('<div class=\"mw-parser-output"><p>', '').replace('</p></div>', '')
-            data = data.replace('@', '').replace('\n', '').replace('&amp;', '&')
+                data = data.replace('<div class=\"mw-parser-output"><p>', '').replace('</p></div>', '')
+                data = data.replace('@', '').replace('\n', '').replace('&amp;', '&')
 
-            data = data.replace('D&D token (daily)', 'Daily D&D token')
-            data = data.replace('D&D token (weekly)', 'Weekly D&D token')
-            data = data.replace('D&D token (monthly)', 'Monthly D&D token')
-            data = data.replace('Menaphite gift offering (small)', 'Small Menaphite gift offering')
-            data = data.replace('Menaphite gift offering (medium)', 'Medium Menaphite gift offering')
-            data = data.replace('Menaphite gift offering (large)', 'Large Menaphite gift offering')
-            data = data.replace('Livid plant (Deep Sea Fishing)', 'Livid plant')
-            data = data.replace('Message in a bottle (Deep Sea Fishing)', 'Message in a bottle')
-            data = data.replace('Sacred clay (Deep Sea Fishing)', 'Sacred clay')
+                data = data.replace('Distraction & Diversion reset token (daily)', 'Daily D&D token')
+                data = data.replace('Distraction & Diversion reset token (weekly)', 'Weekly D&D token')
+                data = data.replace('Distraction & Diversion reset token (monthly)', 'Monthly D&D token')
+                data = data.replace('Menaphite gift offering (small)', 'Small Menaphite gift offering')
+                data = data.replace('Menaphite gift offering (medium)', 'Medium Menaphite gift offering')
+                data = data.replace('Menaphite gift offering (large)', 'Large Menaphite gift offering')
+                data = data.replace('Livid plant (Deep Sea Fishing)', 'Livid plant')
+                data = data.replace('Message in a bottle (Deep Sea Fishing)', 'Message in a bottle')
+                data = data.replace('Sacred clay (Deep Sea Fishing)', 'Sacred clay')
 
-            items = ['Uncharted island map'] + data.split('¦')
+                items = ['Uncharted island map'] + data.split('¦')
 
-            txt = ''
-            for item in items:
-                for e in item_emojis:
-                    if item == e[0]:
-                        txt += config[e[1]] + ' '
-                        break
-                txt += item + '\n'
-            txt = txt.strip()
+                txt = ''
+                for item in items:
+                    for e in item_emojis:
+                        if item == e[0]:
+                            txt += config[e[1]] + ' '
+                            break
+                    txt += item + '\n'
+                txt = txt.strip()
 
-            self.bot.merchant = txt
-
-        # Get Jagex tweets
-        jagex_tweets = []
-
-        uri = 'https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=JagexClock&count=150'
-        http_method = 'GET'
-
-        uri, headers, _ = self.bot.twitter_client.sign(uri=uri, http_method=http_method)
-
-        r = await self.bot.aiohttp.get(uri, headers=headers)
-        async with r:
-            try:
-                txt = await r.text()
-                jagex_tweets = json.loads(txt)
-            except Exception as e:
-                print(f'Encountered exception while attempting to get jagex tweets: {e}')
-        
-        jagex_tweets = sorted(jagex_tweets, key=lambda t: datetime.strptime(t['created_at'], '%a %b %d %H:%M:%S %z %Y'), reverse=True)
+                self.bot.merchant = txt
         
         # Update spotlight and spotlight time
-        minigame = self.bot.spotlight
-        last_spotlight = self.bot.next_spotlight
-        for tweet in jagex_tweets:
-            if not 'spotlight' in tweet['text']:
-                continue
-            last_spotlight = datetime.strptime(tweet['created_at'], '%a %b %d %H:%M:%S %z %Y').replace(tzinfo=None)
-            minigame = tweet['text'].replace(' is now the spotlighted minigame!', '')
-            break
-        self.bot.spotlight = minigame
-        if not last_spotlight is None:
-            self.bot.next_spotlight = last_spotlight + timedelta(days=3)
+        try:
+            if not self.bot.spotlight or not self.bot.next_spotlight or self.bot.next_spotlight <= now:
+                spotlight_url = 'https://runescape.wiki/api.php?action=parse&format=json&page=Template%3AMinigame%20spotlight&prop=text'
+                r = await self.bot.aiohttp.get(spotlight_url, headers=wiki_headers)
+                async with r:
+                    data = await r.json()
+
+                    bs = BeautifulSoup(data['parse']['text']['*'].replace('\\"', '"'), "html.parser")
+                    table_body = bs.find('table')
+                    rows = table_body.find_all('tr')
+                    schedule = []
+                    for row in rows[:2]:
+                        minigame = row.find('td').find('a').text.strip()
+                        time = row.find('td').find('span').text.strip()
+                        schedule.append([minigame, time])
+
+                    next_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                    next_day_and_month = datetime.strptime(schedule[1][1], '%d %b')
+                    next_date = next_date.replace(day=next_day_and_month.day, month=next_day_and_month.month)
+                    if datetime.strptime('1 Jan', '%d %b') <= next_day_and_month <= datetime.strptime('3 Jan', '%d %b'):
+                        next_date += timedelta(years=1)
+
+                    self.bot.spotlight = schedule[0][0]
+                    self.bot.next_spotlight = next_date
+        except Exception as e:
+            print(f'Error getting minigame spotlight data: {type(e).__name__} : {e}')
 
         # Update upcoming wilderness flash event
         t_0 = datetime(2022, 10, 19, 14, 0, 0, tzinfo=None)
@@ -244,18 +235,13 @@ class DNDCommands(commands.Cog):
         self.bot.wilderness_flash_event['current'] = current_flash_event
         self.bot.wilderness_flash_event['next'] = upcoming_flash_event
         
+        # Warbands schedule repeats weekly starting monday 02:00
+        next_warband_start = (now - timedelta(days=now.weekday())).replace(hour=2, minute=0, second=0, microsecond=0)
+        while next_warband_start < now:
+            next_warband_start += timedelta(hours=7)
+        self.bot.next_warband = next_warband_start
+
         # Update time values
-        last_warband = now
-        for tweet in jagex_tweets:
-            if 'Warbands' in tweet['text']:
-                last_warband = datetime.strptime(tweet['created_at'], '%a %b %d %H:%M:%S %z %Y').replace(tzinfo=None)
-                last_warband = last_warband.replace(microsecond=0)
-                break
-        
-        if last_warband + timedelta(minutes=15) > now:
-            self.bot.next_warband = last_warband + timedelta(minutes=15)
-        else:
-            self.bot.next_warband = last_warband + timedelta(hours=7, minutes=15)
         self.bot.next_cache = now.replace(minute=0, second=0) + timedelta(hours=1)
         self.bot.next_yews48 = now.replace(hour=0, minute=0, second=0) + timedelta(days=1)
         self.bot.next_yews140 = now + timedelta(days=1) - timedelta(hours=((now.hour+7)%24), minutes=now.minute, seconds=now.second)

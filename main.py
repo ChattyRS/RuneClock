@@ -34,19 +34,13 @@ def config_load():
 
 config = config_load()
 
-twitter_client = oauthlib.oauth1.Client(
-    client_key = config['consumer_key'],
-    client_secret = config['consumer_secret'],
-    resource_owner_key = config['access_token_key'],
-    resource_owner_secret = config['access_token_secret'])
-
 command_counter = 0 # int to track how many commands have been processed since startup
 
 # variable used for VOS notifications
 districts = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
 
 # variable used for role management
-notif_roles = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'PinkSkirts', 'WildernessFlashEvents']
+notif_roles = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'WildernessFlashEvents']
 for d in districts:
     notif_roles.append(d)
 
@@ -139,7 +133,6 @@ class Bot(commands.AutoShardedBot):
         self.app_info = None
         self.aiohttp = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
-        self.twitter_client = twitter_client
         self.bot = self
     
     async def setup_hook(self):
@@ -601,7 +594,6 @@ class Bot(commands.AutoShardedBot):
         notified_this_hour_yews_140 = False
         notified_this_hour_goebies = False
         notified_this_hour_sinkhole = False
-        notified_this_hour_pinkskirts = False
         notified_this_hour_wilderness_flash = False
         notified_this_day_merchant = False
         notified_this_day_spotlight = False
@@ -638,9 +630,6 @@ class Bot(commands.AutoShardedBot):
                         continue
                     if 'Sinkhole' in m.content:
                         notified_this_hour_sinkhole = True
-                        continue
-                    if 'Pink' in m.content and 'Skirt' in m.content:
-                        notified_this_hour_pinkskirts = True
                         continue
                     if 'wilderness' in m.content.lower() and 'flash' in m.content.lower():
                         notified_this_hour_wilderness_flash = True
@@ -848,60 +837,6 @@ class Bot(commands.AutoShardedBot):
                         coroutines.append(safe_send_coroutine(c, config['msgSinkhole'] + role))
                     notified_this_hour_sinkhole = True
                 
-                # Notify of Pink Skirts events
-                if not notified_this_hour_pinkskirts and i == 0:
-                    ps_tweets = []
-
-                    uri = 'https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=PinkSkirtsRS&count=10'
-                    http_method = 'GET'
-
-                    uri, headers, _ = self.bot.twitter_client.sign(uri=uri, http_method=http_method)
-
-                    r = await self.bot.aiohttp.get(uri, headers=headers)
-                    async with r:
-                        try:
-                            txt = await r.text()
-                            ps_tweets = json.loads(txt)
-                        except Exception as e:
-                            print(f'Encountered exception while attempting to get pink skirts tweets: {e}')
-                    
-                    ps_tweets = sorted(ps_tweets, key=lambda t: datetime.strptime(t['created_at'], '%a %b %d %H:%M:%S %z %Y'), reverse=True)
-
-
-                    for tweet in ps_tweets:
-                        tweet_time = datetime.strptime(tweet['created_at'], '%a %b %d %H:%M:%S %z %Y').replace(tzinfo=None)
-                        time_diff = now - tweet_time if now > tweet_time else tweet_time - now
-                        if time_diff > timedelta(minutes=2):
-                            break
-                        msg = tweet['text']
-                        if msg.startswith('RT'):
-                            break
-                        msg = html.unescape(msg)
-
-                        channels = []
-                        guilds = await Guild.query.gino.all()
-                        for guild in guilds:
-                            if guild.notification_channel_id:
-                                c = self.get_channel(guild.notification_channel_id)
-                                if c:
-                                    channels.append(c)
-                        for c in channels:
-                            role = ''
-                            for r in c.guild.roles:
-                                if 'PINK' in r.name.upper() and 'SKIRT' in r.name.upper():
-                                    role = r
-                                    break
-                            if role:
-                                role = role.mention
-                            else:
-                                role = 'Pink Skirts'
-                            
-                            c_msg = f'{config["pinkskirtsEmoji"]} **Pink Skirts** event:\n{msg} {role}'
-                            coroutines.append(safe_send_coroutine(c, c_msg))
-
-                        notified_this_hour_pinkskirts = True
-                        break
-                
                 # Notify of wilderness flash events
                 if not notified_this_hour_wilderness_flash and now.minute >= 55 and now.minute <= 56:
                     flash_event = self.bot.wilderness_flash_event['next']
@@ -946,7 +881,6 @@ class Bot(commands.AutoShardedBot):
                     notified_this_hour_yews_140 = False
                     notified_this_hour_goebies = False
                     notified_this_hour_sinkhole = False
-                    notified_this_hour_pinkskirts = False
                     notified_this_hour_wilderness_flash = False
                     if now.hour == 0:
                         notified_this_day_merchant = False

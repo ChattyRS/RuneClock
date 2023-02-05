@@ -10,7 +10,7 @@ config = config_load()
 
 ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys',
          'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',
-         'Spotlight', 'PinkSkirts']
+         'Spotlight', 'WildernessFlashEvents']
 
 class Notifications(commands.Cog):
     def __init__(self, bot: commands.AutoShardedBot):
