@@ -811,7 +811,7 @@ class Obliterate(commands.Cog):
     @obliterate_mods()
     @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
-    async def top3(self, ctx, competition_url):
+    async def top5(self, ctx, competition_url):
         '''
         Logs SOTW / BOTW results (Moderator+ only)
         '''
@@ -859,7 +859,7 @@ class Obliterate(commands.Cog):
             roster = await ss.worksheet('Roster')
             competitions = await ss.worksheet('Competitions')
 
-            top3_col = 12
+            top_col = 12
 
             competition_ids_col = await competitions.col_values(1)
             competition_rows = len(competition_ids_col)
@@ -873,10 +873,10 @@ class Obliterate(commands.Cog):
             members = []
             # Ensure expected row length
             for member in raw_members:
-                while len(member) < top3_col + 1:
+                while len(member) < top_col + 1:
                     member.append('')
-                if len(member) > top3_col + 1:
-                    member = member[:top3_col+1]
+                if len(member) > top_col + 1:
+                    member = member[:top_col+1]
                 members.append(member)
 
             rows_to_update = [] # Array of arrays of sheet, row number, row data
@@ -891,14 +891,14 @@ class Obliterate(commands.Cog):
                         member_row, member_index = member, j
                         break
                 if member_row:
-                    if not is_int(member_row[top3_col]):
-                        member_row[top3_col] = '0'
-                    member_row[top3_col] = str(int(member_row[top3_col]) + 1)
+                    if not is_int(member_row[top_col]):
+                        member_row[top_col] = '0'
+                    member_row[top_col] = str(int(member_row[top_col]) + 1)
 
                     rows_to_update.append([roster, member_index+2, member_row]) # +2 for header row and 1-indexing
                     top_indices.append(i)
 
-                    if len(rows_to_update) >= 3:
+                    if len(rows_to_update) >= 5:
                         top_num = i + 1
                         break
 
