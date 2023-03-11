@@ -36,7 +36,7 @@ rho = 1.32471795724474602596090885447809734
 e = math.e
 i = complex(0,1)
 inf = math.inf
-pattern = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!inf)(?<!x)(?<!sum)(?<!product)\('
+pattern = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!inf)(?<!x)(?<!sum)(?<!product)(?<!wrap_fn)\('
 legal = ['log', 'sqrt', 'floor', 'ceil', 'sin', 'cos', 'tan', 'round', 'abs', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'i', 'inf', 'mod', 'x', 'sum', 'product']
 pattern_graph = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!x)\('
 legal_graph = ['log', 'sqrt', 'floor', 'ceil', 'sin', 'cos', 'tan', 'round', 'abs', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'mod', 'x']
@@ -89,6 +89,11 @@ def calcproduct(start: int, end: int, f: str) -> numeric:
         product *= res
     return product
 
+def wrap_fn(fn: str, input: str) -> numeric:
+    '''
+    Wraps function calls to convert complex to real numbers.
+    '''
+    return eval(f'{fn}({input}{".real" if hasattr(input, "real") and input.imag == 0 else ""})')
 
 def calculate(input: str, val: DictProxy):
     '''
@@ -125,8 +130,9 @@ def format_input(input: str, style: int) -> str:
         input = input.replace('sin', 'cmath.sin')
         input = input.replace('cos', 'cmath.cos')
         input = input.replace('tan', 'cmath.tan')
-        input = input.replace('floor', 'math.floor')
-        input = input.replace('ceil', 'math.ceil')
+        input = input.replace('floor(', 'wrap_fn(\'math.floor\',')
+        input = input.replace('ceil(', 'wrap_fn(\'math.ceil\',')
+        input = input.replace('round(', 'wrap_fn(\'round\',')
         input = input.replace('sqrt', 'cmath.sqrt')
         input = input.replace('log', 'cmath.log')
         input = input.replace('sum', 'calcsum')
