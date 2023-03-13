@@ -424,10 +424,7 @@ class Mathematics(commands.Cog):
         increment_command_counter()
         await ctx.channel.typing()
         
-        formula = ''
-        for f in formulas:
-            formula += f + ' '
-        formula = formula.strip()
+        formula = ' '.join(formulas).strip()
         if not formula:
             raise commands.CommandError(message=f'Required argument missing: `formula`.')
         try:
@@ -476,10 +473,7 @@ class Mathematics(commands.Cog):
         '''
         increment_command_counter()
         await ctx.channel.typing()
-        formula = ''
-        for f in formulas:
-            formula += f + ' '
-        formula = formula.strip()
+        formula = ' '.join(formulas).strip()
         if not is_float(start) or not is_float(end):
             raise commands.CommandError(message=f'Invalid argument(s): `start/end`.')
         elif start >= end:
@@ -551,10 +545,7 @@ class Mathematics(commands.Cog):
         increment_command_counter()
         await ctx.channel.typing()
         
-        formula = ''
-        for f in formulas:
-            formula += f + ' '
-        formula = formula.strip()
+        formula = ' '.join(formulas).strip()
         if not formula:
             raise commands.CommandError(message=f'Required argument missing: `formula`.')
         try:
