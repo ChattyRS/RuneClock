@@ -887,7 +887,7 @@ class Obliterate(commands.Cog):
                 # Find member row
                 member_row, member_index = None, 0
                 for j, member in enumerate(members):
-                    if member[0].strip().lower() == p['player']['displayName'].strip().replace('-', ' ').replace('_', ' ').lower():
+                    if member[0].strip().lower().replace('-', ' ').replace('_', ' ') == p['player']['displayName'].strip().lower().replace('-', ' ').replace('_', ' '):
                         member_row, member_index = member, j
                         break
                 if member_row:
