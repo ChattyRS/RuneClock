@@ -120,10 +120,12 @@ class DNDCommands(commands.Cog):
         now = datetime.utcnow()
         now = now.replace(microsecond=0)
 
+        wiki_headers = {'x-user-agent': config['wiki_user_agent']}
+
         # Update vos
         try:
             if not self.bot.vos or not self.bot.next_vos or self.bot.next_vos <= now:
-                vos_uri, wiki_headers = 'https://api.weirdgloop.org/runescape/vos/history', {'x-user-agent': config['wiki_user_agent']}
+                vos_uri = 'https://api.weirdgloop.org/runescape/vos/history'
 
                 r = await self.bot.aiohttp.get(vos_uri, headers=wiki_headers)
                 async with r:
