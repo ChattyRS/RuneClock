@@ -713,14 +713,14 @@ curr = units['EUR']
 for unit in curr:
     if unit == 'EUR':
         continue
-    units[unit] = {'EUR': f'*get_currency_rate(\'EUR\', \'{unit}\')'}
+    units[unit] = {'EUR': f'*get_currency_rate(\'{unit}\', \'EUR\')'}
     for unit_2 in curr:
         if unit_2 == 'EUR':
             continue
         elif unit_2 == unit:
             units[unit][unit_2] = 1
         else:
-            units[unit][unit_2] = f'*get_currency_rate(\'{unit_2}\', \'{unit}\')'
+            units[unit][unit_2] = f'*get_currency_rate(\'{unit}\', \'{unit_2}\')'
 
 vol = units['mL']
 for unit, val in vol.items():
