@@ -37,7 +37,7 @@ def is_obliterate_mod(interaction: discord.Interaction):
     return False
 
 async def update_row(sheet, row_num, new_row):
-    cell_list = [gspread.models.Cell(row_num, i+1, value=val) for i, val in enumerate(new_row)]
+    cell_list = [gspread.Cell(row_num, i+1, value=val) for i, val in enumerate(new_row)]
     await sheet.update_cells(cell_list, nowait=True)
 
 class AppreciationModal(discord.ui.Modal, title='Appreciation'):
@@ -211,7 +211,7 @@ class ApplicationView(discord.ui.View):
         date_str = datetime.utcnow().strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
         new_row = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str]
-        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        cell_list = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
         print(f'writing values:\n{new_row}\nto row {rows+1}')
         await roster.update_cells(cell_list, nowait=True)
 
@@ -701,7 +701,7 @@ class Obliterate(commands.Cog):
         date_str = datetime.utcnow().strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
         new_row = [event_name, host, date_str, ', '.join(participants)]
-        cell_list = [gspread.models.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        cell_list = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
         await events.update_cells(cell_list, nowait=True)
 
         # Generate string indicating noted attendance

@@ -289,8 +289,8 @@ async def update_sheet_row(agcm, ports_row, timestamp, name, is_rank):
     ss = await agc.open(config['sheetName'])
     sheet = await ss.worksheet('Home')
 
-    cell_list = [gspread.models.Cell(21, i+1, value=val) for i, val in enumerate(ports_row)]
-    mobile_cell_list = [gspread.models.Cell(32+i, 2, value=val) for i, val in enumerate(ports_row)]
+    cell_list = [gspread.Cell(21, i+1, value=val) for i, val in enumerate(ports_row)]
+    mobile_cell_list = [gspread.Cell(32+i, 2, value=val) for i, val in enumerate(ports_row)]
     await sheet.update_cells(cell_list, nowait=True)
     await sheet.update_cells(mobile_cell_list, nowait=True)
     await sheet.update_cell(22, 3, timestamp, nowait=True) # update time cell
@@ -357,7 +357,7 @@ async def write_error(agcm, name, date, msg):
     for i, e in enumerate(errors):
         if e == "":
             row = i+1
-            cell_list = [gspread.models.Cell(row, col, value=values[col-1]) for col in range(1,4)]
+            cell_list = [gspread.Cell(row, col, value=values[col-1]) for col in range(1,4)]
             await sheet.update_cells(cell_list, nowait=True)
             return
         elif i == len(errors)-1:
