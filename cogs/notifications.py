@@ -18,7 +18,7 @@ class Notifications(commands.Cog):
 
     @commands.command(aliases=['rsnewschannel', 'newschannel'])
     @is_admin()
-    async def rs3newschannel(self, ctx, channel=''):
+    async def rs3newschannel(self, ctx: commands.Context, channel=''):
         '''
         Changes the server's RS3 news channel. (Admin+)
         Arguments: channel
@@ -60,7 +60,7 @@ class Notifications(commands.Cog):
 
     @commands.command(aliases=['07newschannel'])
     @is_admin()
-    async def osrsnewschannel(self, ctx, channel=''):
+    async def osrsnewschannel(self, ctx: commands.Context, channel=''):
         '''
         Changes the server's OSRS news channel. (Admin+)
         Arguments: channel
@@ -101,7 +101,7 @@ class Notifications(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def rsnotify(self, ctx, channel=''):
+    async def rsnotify(self, ctx: commands.Context, channel=''):
         '''
         Changes server's RS notification channel. (Admin+)
         Arguments: channel.
@@ -149,7 +149,7 @@ class Notifications(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def addnotification(self, ctx, channel, time, interval, *message):
+    async def addnotification(self, ctx: commands.Context, channel, time, interval, *message):
         '''
         Adds a custom notification. (Admin+)
         Format:
@@ -373,7 +373,7 @@ class Notifications(commands.Cog):
         await ctx.send(f'Notification added with id: `{id}`\n```channel:  {channel.id}\ntime:     {str(time)} UTC\ninterval: {int(interval.total_seconds())} (seconds)\nmessage:  {msg}```')
 
     @commands.command()
-    async def notifications(self, ctx):
+    async def notifications(self, ctx: commands.Context):
         '''
         Returns list of custom notifications for this server.
         '''
@@ -398,7 +398,7 @@ class Notifications(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def removenotification(self, ctx, id):
+    async def removenotification(self, ctx: commands.Context, id):
         '''
         Removes a custom notification by ID. (Admin+)
         To get the ID of the notification that you want to remove, use the command "notifications".
@@ -427,7 +427,7 @@ class Notifications(commands.Cog):
     
     @commands.command(aliases=['updatenotification'])
     @is_admin()
-    async def editnotification(self, ctx, id, key='message', *value):
+    async def editnotification(self, ctx: commands.Context, id, key='message', *value):
         '''
         Update an existing notification. (Admin+)
         Key can be "channel", "time", "interval", or "message"
@@ -640,7 +640,7 @@ class Notifications(commands.Cog):
         await ctx.send(f'Notification edited with id: `{id}`\n```channel:  {notification.channel_id}\ntime:     {notification.time} UTC\ninterval: {notification.interval} (seconds)\nmessage:  {notification.message}```')
 
     @commands.command()
-    async def online(self, ctx, *member):
+    async def online(self, ctx: commands.Context, *member):
         '''
         Notify next time a user comes online.
         Arguments: member (mention, id, name), (optional: int type [1-4])

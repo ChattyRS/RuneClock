@@ -90,7 +90,7 @@ class General(commands.Cog):
         self.bot = bot
 
     @commands.command(pass_context=True, aliases=['flip', 'coin', 'coinflip'])
-    async def flipcoin(self, ctx):
+    async def flipcoin(self, ctx: commands.Context):
         '''
         Flips a coin.
         '''
@@ -106,7 +106,7 @@ class General(commands.Cog):
         await ctx.send(f'{ctx.author.mention} {result}!')
 
     @commands.command(pass_context=True, aliases=['dice'])
-    async def roll(self, ctx, sides=6, num=1):
+    async def roll(self, ctx: commands.Context, sides=6, num=1):
         '''
         Rolls a dice.
         '''
@@ -133,7 +133,7 @@ class General(commands.Cog):
         await ctx.send(f'{ctx.author.mention} You rolled {result}!')
 
     @commands.command(pass_context=True)
-    async def rps(self, ctx, choice=''):
+    async def rps(self, ctx: commands.Context, choice=''):
         '''
         Play rock, paper, scissors.
         '''
@@ -162,7 +162,7 @@ class General(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['forecast'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def weather(self, ctx, *location):
+    async def weather(self, ctx: commands.Context, *location):
         '''
         Get the weather forecast for a location
         '''
@@ -192,30 +192,29 @@ class General(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True)
-    async def serverinfo(self, ctx):
+    async def serverinfo(self, ctx: commands.Context):
         '''
         Get info on a server
         '''
         increment_command_counter()
 
-        guild = ctx.guild
-        title = f'Server info for: **{guild.name}**'
+        title = f'Server info for: **{ctx.guild.name}**'
         colour = 0x00b2ff
         timestamp = datetime.utcnow()
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
-        embed.add_field(name='Owner', value=f'{guild.owner.name}#{guild.owner.discriminator}')
-        embed.add_field(name='Channels', value=f'{len(guild.channels)}')
-        embed.add_field(name='Members', value=f'{guild.member_count}')
-        embed.add_field(name='Roles', value=f'{len(guild.roles)}')
-        icon = guild.icon.url
+        embed.add_field(name='Owner', value=ctx.guild.owner.mention)
+        embed.add_field(name='Channels', value=f'{len(ctx.guild.channels)}')
+        embed.add_field(name='Members', value=f'{ctx.guild.member_count}')
+        embed.add_field(name='Roles', value=f'{len(ctx.guild.roles)}')
+        icon = ctx.guild.icon.url
         if icon:
             embed.set_thumbnail(url=icon)
-        embed.set_footer(text=f'ID: {guild.id}')
+        embed.set_footer(text=f'ID: {ctx.guild.id}')
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, alias=['userinfo', 'memberinfo'])
-    async def whois(self, ctx, *memberName):
+    async def whois(self, ctx: commands.Context, *memberName):
         '''
         Get info on a member.
         '''
@@ -262,8 +261,9 @@ class General(commands.Cog):
         timestamp = datetime.utcnow()
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
         if member.display_avatar.url:
-            embed.set_author(name=f'{member.name}#{member.discriminator}', url=None, icon_url=member.display_avatar.url)
+            embed.set_author(name=member.name, url=None, icon_url=member.display_avatar.url)
             embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name='Display name', value=member.display_name)
         embed.add_field(name='Status', value=f'{str(member.status)[0].upper() + str(member.status)[1:]}')
         join_time = member.joined_at
         min = join_time.minute
@@ -299,7 +299,7 @@ class General(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def quote(self, ctx, msg_id=''):
+    async def quote(self, ctx: commands.Context, msg_id=''):
         '''
         Quotes a message from a given message ID.
         '''
@@ -334,14 +334,14 @@ class General(commands.Cog):
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`.')
 
         embed = discord.Embed(description=f'In: {chan.mention}\n“{msg.content}”', colour=0x00b2ff, timestamp=msg.created_at)
-        embed.set_author(name=f'{msg.author.display_name}#{msg.author.discriminator}', icon_url=msg.author.display_avatar.url)
+        embed.set_author(name=msg.author.display_name, icon_url=msg.author.display_avatar.url)
         embed.set_footer(text=f'ID: {msg.id}')
 
         await ctx.message.delete()
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['lorem', 'ipsum', 'loremipsum'])
-    async def lipsum(self, ctx, words=0, paragraphs=1):
+    async def lipsum(self, ctx: commands.Context, words=0, paragraphs=1):
         '''
         Generate random Lorem Ipsum text.
         '''
@@ -402,7 +402,7 @@ class General(commands.Cog):
     
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def shorten(self, ctx, url=''):
+    async def shorten(self, ctx: commands.Context, url=''):
         '''
         Shorten a URL.
         '''
@@ -423,7 +423,7 @@ class General(commands.Cog):
         await ctx.send(data)
     
     @commands.command()
-    async def id(self, ctx, *input):
+    async def id(self, ctx: commands.Context, *input):
         '''
         Get the ID of a discord object.
         It is best to provide a mention to ensure the right object is found.
@@ -537,7 +537,7 @@ class General(commands.Cog):
             raise commands.CommandError(message=f'Error, could not find any object: `{input}`. Please check your spelling.')
     
     @commands.command(aliases=['strawpoll'])
-    async def poll(self, ctx, hours='24', *options):
+    async def poll(self, ctx: commands.Context, hours='24', *options):
         '''
         Create a poll in which users can vote by reacting.
         Poll duration can vary from 1 hour to 1 week (168 hours).
@@ -579,7 +579,7 @@ class General(commands.Cog):
         await Poll.create(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
 
     @commands.command()
-    async def close(self, ctx, msg_id=''):
+    async def close(self, ctx: commands.Context, msg_id=''):
         '''
         Close a poll by giving its message ID.
         '''

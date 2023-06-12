@@ -533,7 +533,7 @@ class Sheets(commands.Cog):
                 pass
 
     @commands.command(aliases=['box'])
-    async def boxes(self, ctx):
+    async def boxes(self, ctx: commands.Context):
         '''
         Get portable bank deposit box locations.
         Only available during DXP.
@@ -551,7 +551,7 @@ class Sheets(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['p', 'portable'] + [item for sublist in portable_aliases for item in sublist])
-    async def portables(self, ctx, portable='', *input):
+    async def portables(self, ctx: commands.Context, portable='', *input):
         '''
         Get portable locations.
         '''
@@ -632,7 +632,7 @@ class Sheets(commands.Cog):
     
     @commands.command()
     @is_helper()
-    async def update_time(self, ctx):
+    async def update_time(self, ctx: commands.Context):
         '''
         Updates the time on the Portables sheet.
         '''
@@ -665,7 +665,7 @@ class Sheets(commands.Cog):
 
     @commands.command(aliases=['banlist'], hidden=True)
     @is_mod()
-    async def addban(self, ctx, name="", *reasons):
+    async def addban(self, ctx: commands.Context, name="", *reasons):
         '''
         Adds a player to the banlist (Mod+) (Portables only).
         Arguments: name, reason, screenshot (optional).
@@ -745,7 +745,7 @@ class Sheets(commands.Cog):
 
     @commands.command(hidden=True)
     @is_rank()
-    async def helper(self, ctx, *name_parts):
+    async def helper(self, ctx: commands.Context, *name_parts):
         '''
         Adds a helper, or notes activity for an existing helper (Rank+) (Portables only).
         Arguments: name
@@ -831,7 +831,7 @@ class Sheets(commands.Cog):
 
     @commands.command(hidden=True)
     @is_rank()
-    async def smileyactivity(self, ctx, *name_parts):
+    async def smileyactivity(self, ctx: commands.Context, *name_parts):
         '''
         Notes activity for a smiley on sheets (Rank+) (Portables only).
         Arguments: name
@@ -902,7 +902,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @portables_admin()
-    async def addsmiley(self, ctx, *name_parts):
+    async def addsmiley(self, ctx: commands.Context, *name_parts):
         '''
         Adds a smiley to the sheets (Admin+) (Portables only).
         Arguments: name.
@@ -961,7 +961,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @portables_leader()
-    async def activatesmiley(self, ctx, *name_parts):
+    async def activatesmiley(self, ctx: commands.Context, *name_parts):
         '''
         Sets smiley status to active (Leader+) (Portables only).
         Arguments: name.
@@ -1016,7 +1016,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @portables_admin()
-    async def addalt(self, ctx, name="", member=""):
+    async def addalt(self, ctx: commands.Context, name="", member=""):
         '''
         Adds a rank alt to the sheets (Admin+) (Portables only).
         Arguments: name, member.
@@ -1107,7 +1107,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['a'], ignore_extra=True)
     @portables_only()
-    async def add(self, ctx):
+    async def add(self, ctx: commands.Context):
         """
         Add portable locations (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
@@ -1193,7 +1193,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rem'], ignore_extra=True)
     @portables_only()
-    async def remove(self, ctx):
+    async def remove(self, ctx: commands.Context):
         """
         Remove portable locations (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
@@ -1282,7 +1282,7 @@ class Sheets(commands.Cog):
 
     @commands.command(aliases=['rall'], ignore_extra=True)
     @is_helper()
-    async def removeall(self, ctx, *input):
+    async def removeall(self, ctx: commands.Context, *input):
         '''
         Removes all instances of a given location, or all locations of a given portable. (Helper+) (Portables only)
         Arguments: [portable] / [worlds][locations]
@@ -1360,7 +1360,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, ignore_extra=True)
     @is_helper()
-    async def edit(self, ctx, portable='', *input_locs):
+    async def edit(self, ctx: commands.Context, portable='', *input_locs):
         '''
         Edit portable locations (Helper+) (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
@@ -1434,7 +1434,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['watch'], hidden=True)
     @is_rank()
-    async def watchlist(self, ctx, name="", *reasons):
+    async def watchlist(self, ctx: commands.Context, name="", *reasons):
         '''
         Adds a player to the watchlist (Rank+) (Portables only).
         Arguments: name, reason, screenshot (optional).
@@ -1492,7 +1492,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['act', 'active'], hidden=True)
     @portables_admin()
-    async def activity(self, ctx, *name_parts):
+    async def activity(self, ctx: commands.Context, *name_parts):
         '''
         Notes rank activity on admin sheets (Admin+) (Portables only).
         Arguments: name
@@ -1560,7 +1560,7 @@ class Sheets(commands.Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @portables_admin()
-    async def sheetactivity(self, ctx, *name_parts):
+    async def sheetactivity(self, ctx: commands.Context, *name_parts):
         '''
         Notes rank sheet activity on admin sheets (Admin+) (Portables only).
         Arguments: name

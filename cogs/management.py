@@ -135,7 +135,7 @@ class Management(commands.Cog):
         return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
 
     @commands.command()
-    async def help(self, ctx, command=''):
+    async def help(self, ctx: commands.Context, command=''):
         '''
         This command.
         Give a command or command category as argument for more specific help.
@@ -276,7 +276,7 @@ class Management(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def welcome(self, ctx, channel='', *msgParts):
+    async def welcome(self, ctx: commands.Context, channel='', *msgParts):
         '''
         Changes server's welcome channel and message. (Admin+)
         Arguments: channel, message (optional).
@@ -321,7 +321,7 @@ class Management(commands.Cog):
                        f'The welcome message has been set to \"{msg}\".')
 
     @commands.command(pass_context=True, aliases=['servers', 'guilds', 'guildcount'])
-    async def servercount(self, ctx):
+    async def servercount(self, ctx: commands.Context):
         '''
         Returns the amount of servers that the bot is currently in.
         '''
@@ -330,7 +330,7 @@ class Management(commands.Cog):
 
     @commands.group(pass_context=True, invoke_without_command=True, aliases=['logging'])
     @is_admin()
-    async def log(self, ctx, channel=''):
+    async def log(self, ctx: commands.Context, channel=''):
         '''
         Changes server's logging channel. (Admin+)
         Arguments: channel.
@@ -371,7 +371,7 @@ class Management(commands.Cog):
     
     @log.command()
     @is_admin()
-    async def bots(self, ctx):
+    async def bots(self, ctx: commands.Context):
         '''
         Toggles logging for bot messages.
         '''
@@ -386,7 +386,7 @@ class Management(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def command(self, ctx, cmd=''):
+    async def command(self, ctx: commands.Context, cmd=''):
         '''
         Disables/enables the given command for this server. (Admin+)
         '''
@@ -420,7 +420,7 @@ class Management(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['setprefix'])
     @is_admin()
-    async def prefix(self, ctx, prefix='-'):
+    async def prefix(self, ctx: commands.Context, prefix='-'):
         '''
         Changes server's command prefix (default "-"). (Admin+)
         Arguments: prefix
@@ -433,7 +433,7 @@ class Management(commands.Cog):
         await ctx.send(f'The command prefix for server **{ctx.guild.name}** has been set to `{prefix}`.')
 
     @commands.command(pass_context=True, aliases=['latency', 'delay'])
-    async def ping(self, ctx):
+    async def ping(self, ctx: commands.Context):
         '''
         Pings the bot to check latency.
         '''
@@ -441,7 +441,7 @@ class Management(commands.Cog):
         await ctx.send(f'`{int(self.bot.latency*1000)} ms`')
     
     @commands.command(aliases=['donate'])
-    async def patreon(self, ctx):
+    async def patreon(self, ctx: commands.Context):
         '''
         Provides a link to the RuneClock Patreon page where you can donate to help support ongoing development on RuneClock.
         '''
@@ -449,7 +449,7 @@ class Management(commands.Cog):
         await ctx.send(f'You can support the hosting and ongoing development of RuneClock on Patreon here:\n{config["patreon"]}')
     
     @commands.command(aliases=['server'])
-    async def support(self, ctx):
+    async def support(self, ctx: commands.Context):
         '''
         Provides an invite link to the RuneClock support server.
         '''
@@ -457,7 +457,7 @@ class Management(commands.Cog):
         await ctx.send(config['support_server'])
 
     @commands.group(pass_context=True, invoke_without_command=True, aliases=['github'])
-    async def git(self, ctx):
+    async def git(self, ctx: commands.Context):
         '''
         Returns the link to the GitHub repository of this bot.
         '''
@@ -467,7 +467,7 @@ class Management(commands.Cog):
     
     @git.command()
     @is_admin()
-    async def track(self, ctx, repo_url='', channel=''):
+    async def track(self, ctx: commands.Context, repo_url='', channel=''):
         '''
         Receive notifications for updates to a GitHub repository in a channel.
         Arguments: GitHub repo url, channel
@@ -550,7 +550,7 @@ class Management(commands.Cog):
     
     @git.command()
     @is_admin()
-    async def untrack(self, ctx, repo_url=''):
+    async def untrack(self, ctx: commands.Context, repo_url=''):
         '''
         Stop receiving notifications for updates to a GitHub repository in a channel.
         Arguments: GitHub repo url, channel
@@ -577,7 +577,7 @@ class Management(commands.Cog):
 
     @commands.command(aliases=['info'])
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def status(self, ctx):
+    async def status(self, ctx: commands.Context):
         '''
         Returns the bot's current status.
         '''
@@ -662,7 +662,7 @@ class Management(commands.Cog):
         processed = f'**Commands:** {get_command_counter()}\n**Events:** {get_events_logged()}\n**Notifications:** {notifications}'
         embed.add_field(name='__Processed__', value=processed)
 
-        embed.set_author(name='Chatty#0001', url='https://github.com/ChattyRS/Portables', icon_url=config['profile_picture_url'])
+        embed.set_author(name='@schattie', url='https://github.com/ChattyRS/Portables', icon_url=config['profile_picture_url'])
 
         embed.set_thumbnail(url=ctx.guild.me.display_avatar.url)
 
@@ -673,7 +673,7 @@ class Management(commands.Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @is_owner()
-    async def restart(self, ctx):
+    async def restart(self, ctx: commands.Context):
         '''
         Restarts the bot.
         '''
@@ -689,7 +689,7 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def reboot(self, ctx):
+    async def reboot(self, ctx: commands.Context):
         '''
         Restarts the system.
         '''
@@ -705,7 +705,7 @@ class Management(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def say(self, ctx):
+    async def say(self, ctx: commands.Context):
         '''
         Makes the bot say something (Admin+).
         Arguments: channel_mention, message
@@ -731,7 +731,7 @@ class Management(commands.Cog):
     
     @commands.command(name='embed')
     @is_admin()
-    async def _embed(self, ctx, title='Announcement', channel='', *message):
+    async def _embed(self, ctx: commands.Context, title='Announcement', channel='', *message):
         '''
         Sends an embed. (Admin+)
         Arguments: title, channel (optional), message
@@ -761,7 +761,7 @@ class Management(commands.Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @is_owner()
-    async def eval(self, ctx, *, body=''):
+    async def eval(self, ctx: commands.Context, *, body=''):
         '''
         Evaluates code
         '''
@@ -818,7 +818,7 @@ class Management(commands.Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def load(self, ctx, *, module):
+    async def load(self, ctx: commands.Context, *, module):
         """Loads a module."""
         increment_command_counter()
         try:
@@ -830,7 +830,7 @@ class Management(commands.Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def unload(self, ctx, *, module):
+    async def unload(self, ctx: commands.Context, *, module):
         """Unloads a module."""
         increment_command_counter()
         try:
@@ -842,7 +842,7 @@ class Management(commands.Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def reload(self, ctx, *, module):
+    async def reload(self, ctx: commands.Context, *, module):
         """Reloads a module."""
         increment_command_counter()
         try:
@@ -855,7 +855,7 @@ class Management(commands.Cog):
     @commands.command(hidden=True)
     @portables_admin()
     @portables_only()
-    async def reload_sheets(self, ctx):
+    async def reload_sheets(self, ctx: commands.Context):
         '''
         Reloads the sheets extension.
         '''
@@ -868,7 +868,7 @@ class Management(commands.Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @is_owner()
-    async def repl(self, ctx):
+    async def repl(self, ctx: commands.Context):
         """Launches an interactive REPL session."""
         increment_command_counter()
 
@@ -960,7 +960,7 @@ class Management(commands.Cog):
     
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.channel)
-    async def uptime(self, ctx):
+    async def uptime(self, ctx: commands.Context):
         '''
         Uptime statistics
         '''
@@ -1021,7 +1021,7 @@ class Management(commands.Cog):
         await ctx.send(file=image, embed=embed)
 
     @commands.command()
-    async def invite(self, ctx):
+    async def invite(self, ctx: commands.Context):
         '''
         Get an invite link to invite RuneClock to your servers.
         '''
@@ -1029,7 +1029,7 @@ class Management(commands.Cog):
         await ctx.send(f'**RuneClock invite link:**\n{url}')
     
     @commands.command(hidden=True, aliases=['gino'])
-    async def ginonotes(self, ctx):
+    async def ginonotes(self, ctx: commands.Context):
         '''
         Get link to gino notes.
         '''
@@ -1038,7 +1038,7 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def add_item_osrs(self, ctx, id=0):
+    async def add_item_osrs(self, ctx: commands.Context, id=0):
         '''
         Add an item to the OSRS item database by ID.
         '''
@@ -1111,7 +1111,7 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def remove_item_osrs(self, ctx, id=0):
+    async def remove_item_osrs(self, ctx: commands.Context, id=0):
         '''
         Remove an item from the OSRS item database by ID.
         '''
@@ -1132,7 +1132,7 @@ class Management(commands.Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def add_item_rs3(self, ctx, id=0):
+    async def add_item_rs3(self, ctx: commands.Context, id=0):
         '''
         Add an item to the RS3 item database by ID.
         '''
@@ -1205,7 +1205,7 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def remove_item_rs3(self, ctx, id=0):
+    async def remove_item_rs3(self, ctx: commands.Context, id=0):
         '''
         Remove an item from the RS3 item database by ID.
         '''
@@ -1226,7 +1226,7 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def server_top(self, ctx):
+    async def server_top(self, ctx: commands.Context):
         '''
         Return a list of the top-10 servers by size.
         '''
@@ -1245,7 +1245,7 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def sim(self, ctx, key, val, command, *args):
+    async def sim(self, ctx: commands.Context, key, val, command, *args):
         '''
         Debugging command to simulate a command being invoked from a different context.
         '''
@@ -1299,7 +1299,7 @@ class Management(commands.Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def sync(self, ctx, *guild_ids):
+    async def sync(self, ctx: commands.Context, *guild_ids):
         '''
         Syncs application commands globally or to the given guild(s).
         '''
@@ -1318,7 +1318,7 @@ class Management(commands.Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def ban_guild(self, ctx, guild_id, name='', *reason):
+    async def ban_guild(self, ctx: commands.Context, guild_id, name='', *reason):
         increment_command_counter()
         await ctx.channel.typing()
 
@@ -1342,7 +1342,7 @@ class Management(commands.Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def unban_guild(self, ctx, guild_id):
+    async def unban_guild(self, ctx: commands.Context, guild_id):
         increment_command_counter()
         await ctx.channel.typing()
 

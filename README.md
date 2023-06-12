@@ -11,7 +11,7 @@ RuneClock is a general-purpose Discord bot for RuneScape Discord servers, origin
 
 ## Authors
 
-* **Chatty#0001** on Discord
+* **@schattie** on Discord
 
 ## Software and installation
 

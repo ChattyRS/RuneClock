@@ -229,7 +229,7 @@ class Runescape(commands.Cog):
 
 
     @commands.command(pass_context=True, aliases=['rsn'])
-    async def setrsn(self, ctx, *rsn):
+    async def setrsn(self, ctx: commands.Context, *rsn):
         '''
         Sets your Runescape 3 RSN.
         '''
@@ -261,7 +261,7 @@ class Runescape(commands.Cog):
         await ctx.send(f'{ctx.author.mention} Your RSN has been set to **{name}**.')
 
     @commands.command(pass_context=True, aliases=['07rsn'])
-    async def set07rsn(self, ctx, *rsn):
+    async def set07rsn(self, ctx: commands.Context, *rsn):
         '''
         Sets your Old School Runescape RSN.
         '''
@@ -294,7 +294,7 @@ class Runescape(commands.Cog):
 
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def alog(self, ctx, *username):
+    async def alog(self, ctx: commands.Context, *username):
         '''
         Get the last 20 activities on a player's adventurer's log.
         '''
@@ -345,7 +345,7 @@ class Runescape(commands.Cog):
 
     @commands.command(name='07reddit', pass_context=True, aliases=['osrsreddit'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07reddit(self, ctx):
+    async def _07reddit(self, ctx: commands.Context):
         '''
         Get top 5 hot posts from r/2007scape.
         '''
@@ -365,7 +365,7 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rsreddit', 'rs3reddit'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def reddit(self, ctx):
+    async def reddit(self, ctx: commands.Context):
         '''
         Get top 5 hot posts from r/runescape.
         '''
@@ -385,7 +385,7 @@ class Runescape(commands.Cog):
 
     @commands.command(name='07rsw', pass_context=True, aliases=['07wiki', 'osrswiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07rsw(self, ctx, *query):
+    async def _07rsw(self, ctx: commands.Context, *query):
         '''
         Get top 5 results for a search on OSRS Wiki.
         '''
@@ -428,7 +428,7 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rswiki', 'wiki', 'rs3wiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def rsw(self, ctx, *query):
+    async def rsw(self, ctx: commands.Context, *query):
         '''
         Get top 5 results for a search on RS Wiki.
         '''
@@ -470,7 +470,7 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07news', pass_context=True, aliases=['osrsnews'])
-    async def _07news(self, ctx):
+    async def _07news(self, ctx: commands.Context):
         '''
         Get 5 latest OSRS news posts.
         '''
@@ -488,7 +488,7 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['rsnews', 'rs3news'])
-    async def news(self, ctx):
+    async def news(self, ctx: commands.Context):
         '''
         Get 5 latest RS news posts.
         '''
@@ -506,7 +506,7 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07price', pass_context=True, aliases=['osrsprice'])
-    async def _07price(self, ctx, days='30', *item_name):
+    async def _07price(self, ctx: commands.Context, days='30', *item_name):
         '''
         Get the OSRS GE price for an item.
         Argument "days" is optional, default is 30.
@@ -637,7 +637,7 @@ class Runescape(commands.Cog):
         await ctx.send(file=image, embed=embed)
     
     @commands.command(pass_context=True, aliases=['rsprice', 'rs3price'])
-    async def price(self, ctx, days='30', *item_name):
+    async def price(self, ctx: commands.Context, days='30', *item_name):
         '''
         Get the RS3 GE price for an item.
         Argument "days" is optional, default is 30.
@@ -769,7 +769,7 @@ class Runescape(commands.Cog):
     
     @commands.command(name='07stats', pass_context=True, aliases=['osrsstats'])
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def _07stats(self, ctx, *username):
+    async def _07stats(self, ctx: commands.Context, *username):
         '''
         Get OSRS hiscores info by username.
         '''
@@ -860,7 +860,7 @@ class Runescape(commands.Cog):
     
     @commands.command(name='07compare')
     @commands.cooldown(1, 40, commands.BucketType.user)
-    async def _07compare(self, ctx, name_1="", name_2=""):
+    async def _07compare(self, ctx: commands.Context, name_1="", name_2=""):
         '''
         Compare two players on OSRS HiScores
         If either of the user names contain spaces, make sure you surround them by quotation marks.
@@ -997,7 +997,7 @@ class Runescape(commands.Cog):
 
     @commands.command(name='07gainz', pass_context=True, aliases=['07gains', 'osrsgainz', 'osrsgains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07gainz(self, ctx, *username):
+    async def _07gainz(self, ctx: commands.Context, *username):
         '''
         Get OSRS gains by username.
         '''
@@ -1100,7 +1100,7 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rs3stats'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def stats(self, ctx, *username):
+    async def stats(self, ctx: commands.Context, *username):
         '''
         Get RS3 hiscores info by username.
         '''
@@ -1206,7 +1206,7 @@ class Runescape(commands.Cog):
     
     @commands.command()
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def compare(self, ctx, name_1="", name_2=""):
+    async def compare(self, ctx: commands.Context, name_1="", name_2=""):
         '''
         Compare two players on RuneScape HiScores
         If either of the user names contain spaces, make sure you surround them by quotation marks.
@@ -1357,7 +1357,7 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['gains', 'rs3gainz', 'rs3gains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def gainz(self, ctx, *username):
+    async def gainz(self, ctx: commands.Context, *username):
         '''
         Get RS3 gains by username.
         '''
@@ -1463,7 +1463,7 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['gametime'])
-    async def time(self, ctx):
+    async def time(self, ctx: commands.Context):
         '''
         Get current RuneScape game time.
         '''
@@ -1476,7 +1476,7 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['yt', 'rs3youtube', 'rsyoutube', 'rs3yt', 'rsyt'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def youtube(self, ctx):
+    async def youtube(self, ctx: commands.Context):
         '''
         Get latest videos from RuneScape 3 youtube channel.
         '''
@@ -1504,7 +1504,7 @@ class Runescape(commands.Cog):
 
     @commands.command(name='07youtube', pass_context=True, aliases=['07yt', 'osrsyoutube', 'osrsyt'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07youtube(self, ctx):
+    async def _07youtube(self, ctx: commands.Context):
         '''
         Get latest videos from OSRS youtube channel.
         '''
@@ -1531,7 +1531,7 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.command(aliases=['wax', 'viswax', 'goldberg'])
-    async def vis(self, ctx):
+    async def vis(self, ctx: commands.Context):
         '''
         Get today's rune combination for the Rune Goldberg machine, used to make vis wax.
         '''
@@ -1541,7 +1541,7 @@ class Runescape(commands.Cog):
         await ctx.send(embed=vis_wax_embed)
     
     @commands.command(aliases=['lvl'])
-    async def level(self, ctx, lvl=0):
+    async def level(self, ctx: commands.Context, lvl=0):
         '''
         Calculate xp required for given level.
         '''
@@ -1561,7 +1561,7 @@ class Runescape(commands.Cog):
         await ctx.send(f'XP required for level `{lvl}`: `{xp}`')
     
     @commands.command(aliases=['xp', 'exp'])
-    async def experience(self, ctx, lvl_start_or_xp=0, lvl_end=0):
+    async def experience(self, ctx: commands.Context, lvl_start_or_xp=0, lvl_end=0):
         '''
         Calculate level from xp or xp difference between two levels.
         '''
@@ -1604,7 +1604,7 @@ class Runescape(commands.Cog):
             
     
     @commands.command(aliases=['actions'])
-    async def xph(self, ctx, lvl_start=0, lvl_end=0, xp_rate=0.0):
+    async def xph(self, ctx: commands.Context, lvl_start=0, lvl_end=0, xp_rate=0.0):
         '''
         Calculate hours/actions required to reach a level / xp at a certain xp rate.
         '''
@@ -1649,7 +1649,7 @@ class Runescape(commands.Cog):
         await ctx.send(f'To reach {"level " if not end_xp else ""}`{lvl_end}`{" XP" if end_xp else ""} from {"level " if not start_xp else ""}`{lvl_start}`{" XP" if start_xp else ""}, you will need to gain `{xp_dif}` XP. This will take `{hours_or_actions}` hours/actions at an XP rate of `{xp_rate}` per hour/action.')
 
     @commands.command()
-    async def pvm(self, ctx):
+    async def pvm(self, ctx: commands.Context):
         '''
         Calculate rotations for Araxxor, Vorago, and Barrows: Rise Of The Six.
         '''
@@ -1676,7 +1676,7 @@ class Runescape(commands.Cog):
         await ctx.send(file=image, embed=embed)
     
     @commands.command()
-    async def dry(self, ctx, droprate='', attempts=''):
+    async def dry(self, ctx: commands.Context, droprate='', attempts=''):
         '''
         Calculates the probability of going dry.
         Arguments: droprate, attempts
@@ -1717,7 +1717,7 @@ class Runescape(commands.Cog):
         await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
     @commands.command(aliases=['cb', 'rs3cb', 'rs3combat'])
-    async def combat(self, ctx, *username):
+    async def combat(self, ctx: commands.Context, *username):
         '''
         Calculate the combat level of a RS3 player.
         '''
@@ -1798,7 +1798,7 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07combat', aliases=['07cb', 'osrscb', 'osrscombat'])
-    async def _07combat(self, ctx, *username):
+    async def _07combat(self, ctx: commands.Context, *username):
         '''
         Calculate the combat level of a OSRS player.
         '''

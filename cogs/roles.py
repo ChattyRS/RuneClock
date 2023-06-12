@@ -21,7 +21,7 @@ class Roles(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def manageroles(self, ctx, channel=''):
+    async def manageroles(self, ctx: commands.Context, channel=''):
         '''
         Changes server's role management channel. (Admin+)
         Arguments: channel.
@@ -91,7 +91,7 @@ class Roles(commands.Cog):
         await ctx.send(f'The role management channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
 
     @commands.command(pass_context=True)
-    async def rank(self, ctx, *rank):
+    async def rank(self, ctx: commands.Context, *rank):
         '''
         Toggles the given rank.
         Arguments: rank
@@ -132,7 +132,7 @@ class Roles(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def addrank(self, ctx, *rank):
+    async def addrank(self, ctx: commands.Context, *rank):
         '''
         Creates a joinable rank. (Admin+)
         Arguments: rank
@@ -164,7 +164,7 @@ class Roles(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['removerank'])
     @is_admin()
-    async def delrank(self, ctx, *rank):
+    async def delrank(self, ctx: commands.Context, *rank):
         '''
         Removes a joinable rank. (Admin+)
         Arguments: rank
@@ -185,7 +185,7 @@ class Roles(commands.Cog):
         await ctx.send(f'Removed rank **{rank}**.')
 
     @commands.command(pass_context=True)
-    async def ranks(self, ctx):
+    async def ranks(self, ctx: commands.Context):
         '''
         Get the list of joinable ranks.
         '''
@@ -222,7 +222,7 @@ class Roles(commands.Cog):
         await ctx.send(f'```{msg}```')
 
     @commands.command(pass_context=True, aliases=['randomcolor'])
-    async def randomcolour(self, ctx):
+    async def randomcolour(self, ctx: commands.Context):
         '''
         Generates a random hex colour.
         '''
@@ -240,7 +240,7 @@ class Roles(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def addrole(self, ctx, *role_name):
+    async def addrole(self, ctx: commands.Context, *role_name):
         '''
         Add a role to the server. (Admin+)
         '''
@@ -263,7 +263,7 @@ class Roles(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['removerole'])
     @is_admin()
-    async def delrole(self, ctx, *role_name):
+    async def delrole(self, ctx: commands.Context, *role_name):
         '''
         Delete a role from the server. (Admin+)
         '''
@@ -284,7 +284,7 @@ class Roles(commands.Cog):
             raise commands.CommandError(message=f'Missing permissions: `delete_roles`.')
 
     @commands.command(pass_context=True)
-    async def members(self, ctx, *role_name):
+    async def members(self, ctx: commands.Context, *role_name):
         '''
         List members in a role.
         '''
@@ -314,7 +314,7 @@ class Roles(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True)
-    async def roles(self, ctx):
+    async def roles(self, ctx: commands.Context):
         '''
         Get a list of roles and member counts.
         '''

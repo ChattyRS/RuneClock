@@ -533,7 +533,7 @@ class Obliterate(commands.Cog):
     @obliterate_mods()
     @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
-    async def event(self, ctx):
+    async def event(self, ctx: commands.Context):
         '''
         Marks event attendence (Moderator+ only)
         '''
@@ -720,7 +720,7 @@ class Obliterate(commands.Cog):
     @obliterate_mods()
     @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
-    async def appointment(self, ctx):
+    async def appointment(self, ctx: commands.Context):
         '''
         Adds staff appointments for a list of members.
         Members can be separated by commas or line breaks.
@@ -811,7 +811,7 @@ class Obliterate(commands.Cog):
     @obliterate_mods()
     @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
-    async def top5(self, ctx, competition_url):
+    async def top5(self, ctx: commands.Context, competition_url):
         '''
         Logs SOTW / BOTW results (Moderator+ only)
         '''
@@ -931,7 +931,7 @@ class Obliterate(commands.Cog):
     @obliterate_only()
     @obliterate_mods()
     @commands.command(hidden=True)
-    async def promotions(self, ctx):
+    async def promotions(self, ctx: commands.Context):
         '''
         Gets a list of members eligible for a promotion (Moderator+ only)
         '''

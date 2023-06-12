@@ -69,7 +69,7 @@ class Timer(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['reminder', 'remind', 'remindme'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def timer(self, ctx, time='', unit='', *msg):
+    async def timer(self, ctx: commands.Context, time='', unit='', *msg):
         '''
         Lets the user set a timer.
         Arguments: time, unit (optional, default m), message (optional).
@@ -149,7 +149,7 @@ class Timer(commands.Cog):
             await ctx.send(f'{ctx.author.mention} It\'s time!')
 
     @commands.command(aliases=['timezone'])
-    async def tz(self, ctx, timezone='UTC'):
+    async def tz(self, ctx: commands.Context, timezone='UTC'):
         '''
         Check the time in a given timezone.
         '''
@@ -165,7 +165,7 @@ class Timer(commands.Cog):
         await ctx.send(f'{timezone} time: `{time_str}`.')
 
     @commands.command()
-    async def worldtime(self, ctx, *time):
+    async def worldtime(self, ctx: commands.Context, *time):
         '''
         Convert a given time in UTC to several timezones across the world.
         '''
@@ -225,7 +225,7 @@ class Timer(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.command()
-    async def settimezone(self, ctx, *tz_or_loc):
+    async def settimezone(self, ctx: commands.Context, *tz_or_loc):
         '''
         Set your personal timezone.
         This timezone will be shown (among others) when you use the `worldtime` command.

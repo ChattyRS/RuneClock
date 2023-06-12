@@ -254,7 +254,7 @@ class DNDCommands(commands.Cog):
 
 
     @commands.command(pass_context=True)
-    async def future(self, ctx):
+    async def future(self, ctx: commands.Context):
         '''
         Returns the time until all future events.
         '''
@@ -278,7 +278,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(msg)
 
     @commands.command(pass_context=True)
-    async def vos(self, ctx):
+    async def vos(self, ctx: commands.Context):
         '''
         Returns the current Voice of Seren.
         '''
@@ -304,7 +304,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True)
-    async def merchant(self, ctx):
+    async def merchant(self, ctx: commands.Context):
         '''
         Returns the current travelling merchant stock.
         '''
@@ -320,7 +320,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['warband', 'wbs'])
-    async def warbands(self, ctx):
+    async def warbands(self, ctx: commands.Context):
         '''
         Returns the time until wilderness warbands starts.
         '''
@@ -334,7 +334,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(msg)
 
     @commands.command(pass_context=True, aliases=['caches'])
-    async def cache(self, ctx):
+    async def cache(self, ctx: commands.Context):
         '''
         Returns the time until the next Guthixian cache.
         '''
@@ -348,7 +348,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(msg)
 
     @commands.command(pass_context=True, aliases=['yew'])
-    async def yews(self, ctx):
+    async def yews(self, ctx: commands.Context):
         '''
         Returns the time until the next divine yews event.
         '''
@@ -362,7 +362,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(msg)
 
     @commands.command(pass_context=True, aliases=['goebie', 'goebiebands'])
-    async def goebies(self, ctx):
+    async def goebies(self, ctx: commands.Context):
         '''
         Returns the time until the next goebies supply run.
         '''
@@ -376,7 +376,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(msg)
 
     @commands.command(pass_context=True, aliases=['sinkholes'])
-    async def sinkhole(self, ctx):
+    async def sinkhole(self, ctx: commands.Context):
         '''
         Returns the time until the next sinkhole.
         '''
@@ -390,7 +390,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(msg)
 
     @commands.command(pass_context=True)
-    async def spotlight(self, ctx):
+    async def spotlight(self, ctx: commands.Context):
         '''
         Returns the current and next minigame spotlight.
         '''
@@ -405,7 +405,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def nemi(self, ctx):
+    async def nemi(self, ctx: commands.Context):
         '''
         Gets the current nemi forest layout from FC Nemi.
         '''
@@ -443,7 +443,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.command(aliases=['w60pengs', 'world60pengs', 'penglocs', 'penguins'])
-    async def pengs(self, ctx):
+    async def pengs(self, ctx: commands.Context):
         '''
         Gets this weeks world 60 penguin locations.
         '''
@@ -549,7 +549,7 @@ class DNDCommands(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.command(aliases=['wilderness_flash_events', 'wilderness_flash_event', 'wilderness_flash', 'wildy_flash', 'wildy_flash_events', 'wildy_flash_event'])
-    async def flash(self, ctx):
+    async def flash(self, ctx: commands.Context):
         '''
         Returns the next wilderness flash event.
         '''

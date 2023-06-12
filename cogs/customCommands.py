@@ -36,7 +36,7 @@ class CustomCommands(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def custom(self, ctx):
+    async def custom(self, ctx: commands.Context):
         '''
         Command to add/remove custom commands. (Admin+)
         Arguments: name, response.
@@ -100,7 +100,7 @@ class CustomCommands(commands.Cog):
 
 
     @commands.command(hidden=True)
-    async def custom_command(self, ctx, *args):
+    async def custom_command(self, ctx: commands.Context, *args):
         '''
         Internal function used to call custom commands.
         Do not call this command directly.
@@ -278,7 +278,7 @@ class CustomCommands(commands.Cog):
             await ctx.send(command)
 
     @commands.command(name='commands')
-    async def _commands(self, ctx):
+    async def _commands(self, ctx: commands.Context):
         '''
         Returns list of custom commands.
         '''
@@ -327,7 +327,7 @@ class CustomCommands(commands.Cog):
 
     @commands.command(aliases=['description'])
     @is_admin()
-    async def describe(self, ctx, command='', *description):
+    async def describe(self, ctx: commands.Context, command='', *description):
         '''
         Add a short description to a custom command (Admin+).
         '''
@@ -348,7 +348,7 @@ class CustomCommands(commands.Cog):
 
     @commands.command(name='alias')
     @is_admin()
-    async def _alias(self, ctx, command='', alias=''):
+    async def _alias(self, ctx: commands.Context, command='', alias=''):
         '''
         Add/remove an alias for a custom command (Admin+).
         '''

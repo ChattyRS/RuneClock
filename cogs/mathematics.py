@@ -401,7 +401,7 @@ class Mathematics(commands.Cog):
 
     @commands.command(pass_context=True)
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def math(self, ctx, *formulas):
+    async def math(self, ctx: commands.Context, *formulas):
         '''
         Calculates the result of a given mathematical problem.
         Supported operations:
@@ -447,14 +447,14 @@ class Mathematics(commands.Cog):
             output = format_output(result)
             formula = beautify_input(formula)
             embed = discord.Embed(title='Math', description=f'`{formula} = {output}`')
-            embed.set_footer(text='Wrong? Please let me know! DM Chatty#0001')
+            embed.set_footer(text='Wrong? Please let me know! DM @schattie')
             await ctx.send(embed=embed)
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression:\n```{e}```')
 
     @commands.command(pass_context=True, aliases=['plot'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def graph(self, ctx, start: float, end: float, *formulas):
+    async def graph(self, ctx: commands.Context, start: float, end: float, *formulas):
         '''
         Plots a given mathematical function
         Arguments: start, end, f(x)
@@ -521,7 +521,7 @@ class Mathematics(commands.Cog):
 
             formula = beautify_input(formula)
             embed = discord.Embed(title='Graph', description=f'`𝘧(𝓍) = {formula}`')
-            embed.set_footer(text='Wrong? Please let me know! DM Chatty#0001')
+            embed.set_footer(text='Wrong? Please let me know! DM @schattie')
             embed.set_image(url=f'attachment://math_graph.png')
             await ctx.send(file=image, embed=embed)
         except Exception as e:
@@ -529,7 +529,7 @@ class Mathematics(commands.Cog):
 
     @commands.command(pass_context=True)
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def solve(self, ctx, *formulas):
+    async def solve(self, ctx: commands.Context, *formulas):
         '''
         Solves a given equation for x.
         Supported operations:
@@ -585,13 +585,13 @@ class Mathematics(commands.Cog):
             formula = beautify_input(formula)
             
             embed = discord.Embed(title='Solve', description=f'{formula}\n```{output}```')
-            embed.set_footer(text='Wrong? Please let me know! DM Chatty#0001')
+            embed.set_footer(text='Wrong? Please let me know! DM @schattie')
             await ctx.send(embed=embed)
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression:\n```{e}```')
 
     @commands.command()
-    async def convert(self, ctx, value='', unit='', new_unit=''):
+    async def convert(self, ctx: commands.Context, value='', unit='', new_unit=''):
         '''
         Converts given unit to new unit.
         Default value = 1
@@ -660,7 +660,7 @@ class Mathematics(commands.Cog):
         await ctx.send(f'{value} {unit} = `{new_value} {new_unit}`')
 
     @commands.command(name='units')
-    async def get_units(self, ctx):
+    async def get_units(self, ctx: commands.Context):
         '''
         List of units supported by convert command.
         '''
@@ -680,7 +680,7 @@ class Mathematics(commands.Cog):
         await ctx.send(f'```{txt}```')
     
     @commands.command(aliases=['sci'])
-    async def scientific(self, ctx, *number):
+    async def scientific(self, ctx: commands.Context, *number):
         '''
         Convert a number literal to scientific notation and vice versa.
         '''

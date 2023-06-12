@@ -26,7 +26,7 @@ class ModCommands(commands.Cog):
     
     @commands.command()
     @is_admin()
-    async def modmail(self, ctx, public='', private=''):
+    async def modmail(self, ctx: commands.Context, public='', private=''):
         '''
         Set up a public and private modmail channel. (Admin+)
         Any messages sent in the public channel will be instantly deleted and then copied to the private channel.
@@ -71,7 +71,7 @@ class ModCommands(commands.Cog):
             if not guild.modmail_public is None and not guild.modmail_private is None:
                 if message.channel.id == guild.modmail_public:
                     embed = discord.Embed(description=f'In: {message.channel.mention}\n“{message.content}”', colour=0x00b2ff, timestamp=message.created_at)
-                    embed.set_author(name=f'{message.author.display_name}#{message.author.discriminator}', icon_url=message.author.display_avatar.url)
+                    embed.set_author(name=f'{message.author.display_name} ({message.author.name})', icon_url=message.author.display_avatar.url)
                     embed.set_footer(text=f'ID: {message.id}')
 
                     txt = message.clean_content
@@ -87,7 +87,7 @@ class ModCommands(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def mute(self, ctx, member='', duration='', reason='N/A'):
+    async def mute(self, ctx: commands.Context, member='', duration='', reason='N/A'):
         '''
         Assigns a role 'Muted' to given member. (Admin+)
         Arguments:
@@ -213,7 +213,7 @@ class ModCommands(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def mutes(self, ctx):
+    async def mutes(self, ctx: commands.Context):
         '''
         Get a list of temp mutes for this server. (Admin+)
         '''
@@ -231,7 +231,7 @@ class ModCommands(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def unmute(self, ctx, member):
+    async def unmute(self, ctx: commands.Context, member):
         '''
         Unmute a member. (Admin+)
         member: name, nickname, id, mention
@@ -294,7 +294,7 @@ class ModCommands(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def kick(self, ctx, *, member: discord.Member):
+    async def kick(self, ctx: commands.Context, *, member: discord.Member):
         '''
         Kicks the given user (Admin+).
         Arguments: member
@@ -312,7 +312,7 @@ class ModCommands(commands.Cog):
 
     @commands.command()
     @is_admin()
-    async def ban(self, ctx, *, member: discord.Member):
+    async def ban(self, ctx: commands.Context, *, member: discord.Member):
         '''
         Bans the given user (Admin+).
         Arguments: member
@@ -330,7 +330,7 @@ class ModCommands(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['delete', 'clear'])
     @is_admin()
-    async def purge(self, ctx, num=0):
+    async def purge(self, ctx: commands.Context, num=0):
         '''
         Deletes given amount of messages (Admin+).
         Arguments: integer.
@@ -360,7 +360,7 @@ class ModCommands(commands.Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def role(self, ctx, role: RoleConverter, *, member: discord.Member):
+    async def role(self, ctx: commands.Context, role: RoleConverter, *, member: discord.Member):
         '''
         Toggles the given role for the given user (Admin+).
         Arguments: role, member
@@ -387,7 +387,7 @@ class ModCommands(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['mention'])
     @is_admin()
-    async def mentionable(self, ctx, role_name=""):
+    async def mentionable(self, ctx: commands.Context, role_name=""):
         '''
         Toggles mentionable for the given role (Admin+).
         Arguments: role
@@ -430,7 +430,7 @@ class ModCommands(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rolecolor'])
     @is_admin()
-    async def rolecolour(self, ctx, role_name="", colour=""):
+    async def rolecolour(self, ctx: commands.Context, role_name="", colour=""):
         '''
         Changes the colour of the given role to the given colour (Admin+).
         Arguments: role, #hexcode
@@ -467,7 +467,7 @@ class ModCommands(commands.Cog):
             raise commands.CommandError(message=f'Missing permissions: `edit_role`.')
 
     @commands.command(pass_context=True, aliases=['changenick', 'nick'])
-    async def setnick(self, ctx, *username):
+    async def setnick(self, ctx: commands.Context, *username):
         '''
         Changes the user's nickname.
         Arguments: nickname
@@ -501,7 +501,7 @@ class ModCommands(commands.Cog):
     
     @commands.command()
     @is_admin()
-    async def edit_nick(self, ctx, member: discord.Member, *nickname):
+    async def edit_nick(self, ctx: commands.Context, member: discord.Member, *nickname):
         '''
         Edits the nickname of the given user.
         '''
@@ -516,7 +516,7 @@ class ModCommands(commands.Cog):
 
     @commands.command(aliases=['delall'])
     @is_admin()
-    async def deleteall(self, ctx, channel=''):
+    async def deleteall(self, ctx: commands.Context, channel=''):
         '''
         Deletes all messages that will be sent in the given channel. (Admin+)
         Arguments: channel (mention, name, or id)
@@ -564,7 +564,7 @@ class ModCommands(commands.Cog):
     
     @commands.command(hidden=True, aliases=['hof'])
     @is_admin()
-    async def hall_of_fame(self, ctx, channel='', react_num=10):
+    async def hall_of_fame(self, ctx: commands.Context, channel='', react_num=10):
         '''
         Sets the hall of fame channel and number of reactions for this server. (Admin+)
         Arguments: channel (mention, name, or id), react_num (int)

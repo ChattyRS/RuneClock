@@ -23,7 +23,7 @@ class Logs(commands.Cog):
         self.bot = bot
 
     @Cog.listener()
-    async def on_command_error(self, ctx, error):
+    async def on_command_error(self, ctx: commands.Context, error):
         if len(str(error).split('\"')) == 3:
             if str(error).split('\"')[0] == "Command " and str(error).split('\"')[2] == " is not found":
                 return
@@ -61,7 +61,7 @@ class Logs(commands.Cog):
             min = '0' + str(min)
         hour = creation_time.hour
         time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {hour}:{min}'
-        txt = (f'{member.mention} {member.name}#{member.discriminator}\n'
+        txt = (f'{member.mention} ({member.name})\n'
                f'Account creation: {time}')
         url = member.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
@@ -96,7 +96,7 @@ class Logs(commands.Cog):
         colour = 0xff0000
         timestamp = datetime.utcnow()
         id = f'User ID: {member.id}'
-        txt = f'{member.mention} {member.name}#{member.discriminator}'
+        txt = f'{member.mention} ({member.name})'
         url = member.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
@@ -123,7 +123,7 @@ class Logs(commands.Cog):
         colour = 0xff0000
         timestamp = datetime.utcnow()
         id = f'User ID: {user.id}'
-        txt = f'{user.mention} {user.name}#{user.discriminator}'
+        txt = f'{user.mention} ({user.name})'
         url = user.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
@@ -150,7 +150,7 @@ class Logs(commands.Cog):
         colour = 0xff7b1f
         timestamp = datetime.utcnow()
         id = f'User ID: {user.id}'
-        txt = f'{user.name}#{user.discriminator}'
+        txt = f'{user.name}'
         url = user.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
@@ -176,7 +176,7 @@ class Logs(commands.Cog):
             return
         log_event()
         
-        txt = (f'By: {message.author.mention} {message.author.name}#{message.author.discriminator}\n'
+        txt = (f'By: {message.author.mention} ({message.author.name})\n'
                f'In: {message.channel.mention}')
         embed = discord.Embed(title='**Message Deleted**', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
         msg = message.content
@@ -239,7 +239,7 @@ class Logs(commands.Cog):
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
             id = f'Message ID: {after.id}'
-            txt = (f'By: {member.mention} {member.name}#{member.discriminator}\n'
+            txt = (f'By: {member.mention} ({member.name})\n'
                    f'In: {after.channel.mention}')
             url = member.display_avatar.url
             beforeContent = before.content
@@ -338,7 +338,7 @@ class Logs(commands.Cog):
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
             id = f'User ID: {after.id}'
-            txt = f'{after.mention} {after.name}#{after.discriminator}'
+            txt = f'{after.mention} ({after.name})'
             url = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             before_nick = before.nick
@@ -370,7 +370,7 @@ class Logs(commands.Cog):
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
             id = f'User ID: {after.id}'
-            txt = f'{after.mention} {after.name}#{after.discriminator}'
+            txt = f'{after.mention} ({after.name})'
             url = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             added = ""
@@ -417,7 +417,7 @@ class Logs(commands.Cog):
             colour = 0x00b2ff
             timestamp = datetime.utcnow()
             id = f'Server ID: {after.id}'
-            txt = f'Owner: {owner.mention} {owner.name}#{owner.discriminator}'
+            txt = f'Owner: {owner.mention} ({owner.name})'
             url = after.icon.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             before_name = before.name
