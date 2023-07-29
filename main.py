@@ -1269,6 +1269,7 @@ class Bot(commands.AutoShardedBot):
         while True:
             try:
                 items = await RS3Item.query.order_by(RS3Item.id.asc()).gino.all()
+                items = [i for i in items if i] # filter out items that are 'None', not sure why this can happen
                 items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
                 for item in items:
                     # print(f'[RS3]  Refreshing price of {item.id}: {item.name}')
@@ -1349,6 +1350,7 @@ class Bot(commands.AutoShardedBot):
         while True:
             try:
                 items = await OSRSItem.query.order_by(OSRSItem.id.asc()).gino.all()
+                items = [i for i in items if i] # filter out items that are 'None', not sure why this can happen
                 items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
                 for item in items:
                     # print(f'[OSRS] Refreshing price of {item.id}: {item.name}')

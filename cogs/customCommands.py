@@ -12,7 +12,7 @@ config = config_load()
 async def get_aliases():
     aliases = []
     custom_commands = await Command.query.gino.all()
-    for command in custom_commands:
+    for command in [c for c in custom_commands if c]:
         if not command.name in aliases:
             aliases.append(command.name)
         if command.aliases:
