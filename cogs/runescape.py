@@ -50,6 +50,8 @@ skills_rs3 = ['Overall', 'Attack', 'Defence', 'Strength', 'Constitution', 'Range
             'Thieving', 'Slayer', 'Farming', 'Runecrafting', 'Hunter', 'Construction',
             'Summoning', 'Dungeoneering', 'Divination', 'Invention', 'Archaeology']
 
+skills_rs3_gains = skills_rs3 + ['Necromancy']
+
 rs3_skill_emojis = ['<:Attack:962315037668696084>', '<:Defence:962315037396074517>', '<:Strength:962315037538668555>', '<:Constitution:962315037601562624>', '<:Ranged:962315037177970769>',
             '<:Prayer:962315037509300224>', '<:Magic:962315037207318579>', '<:Cooking:962315037563817994>', '<:Woodcutting:962315037593194516>', '<:Fletching:962315037664493568>', '<:Fishing:962315037630951484>',
             '<:Firemaking:962315037542871070>', '<:Crafting:962315037647732766>', '<:Smithing:962315037530271744>', '<:Mining:962315037526085632>', '<:Herblore:962315037563834398>', '<:Agility:962315037635121162>',
@@ -1451,7 +1453,7 @@ class Runescape(commands.Cog):
         msg += '|-' + '-'*skill_chars + '|-' + '-'*today_chars + '|-' + '-'*yday_chars + '|-' + '-'*week_chars + '|\n'
 
         for i, skill in enumerate(skills):
-            msg += '| ' + skills_rs3[i] + ' '*(skill_chars-len(skills_rs3[i])) + '| ' + ' '*(today_chars-len(skill['xpDelta'])-1) + skill['xpDelta'] + ' | ' + ' '*(yday_chars-len(skill['yday'])-1) + skill['yday'] + ' | ' + ' '*(week_chars-len(skill['week'])-1) + skill['week'] + ' |\n'
+            msg += '| ' + skills_rs3_gains[i] + ' '*(skill_chars-len(skills_rs3_gains[i])) + '| ' + ' '*(today_chars-len(skill['xpDelta'])-1) + skill['xpDelta'] + ' | ' + ' '*(yday_chars-len(skill['yday'])-1) + skill['yday'] + ' | ' + ' '*(week_chars-len(skill['week'])-1) + skill['week'] + ' |\n'
 
         msg += "'" + '-'*(width-2) + "'"
 
