@@ -21,3 +21,4 @@ imageio==2.31.1
 PyGithub==1.58.2
 gcsa==2.1.0
 youtube-search-python==1.6.6
+scikit-image==0.21.0
