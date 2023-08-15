@@ -1300,7 +1300,9 @@ class Bot(commands.AutoShardedBot):
                                 print(f'Unexpected error in RS3 price tracking for {item.id}: {item.name}\n{e}')
                                 await asyncio.sleep(300)
                     
-                    if not exists:
+                    # Graph data may not be returned at times, even with status code 200
+                    # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
+                    if not exists or not graph_data:
                         continue
 
                     prices = []
@@ -1381,7 +1383,9 @@ class Bot(commands.AutoShardedBot):
                                 print(f'Unexpected error in OSRS price tracking for {item.id}: {item.name}\n{e}')
                                 await asyncio.sleep(300)
                     
-                    if not exists:
+                    # Graph data may not be returned at times, even with status code 200
+                    # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
+                    if not exists or not graph_data:
                         continue
 
                     prices = []
