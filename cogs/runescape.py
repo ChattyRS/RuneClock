@@ -1387,7 +1387,7 @@ class Runescape(commands.Cog):
         if re.match('^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'https://runepixels.com:5000/players/{name}'.replace(' ', '-')
+        url = f'https://api.runepixels.com/players/{name}'.replace(' ', '-')
 
         r = await self.bot.aiohttp.get(url)
         async with r:
@@ -1395,14 +1395,14 @@ class Runescape(commands.Cog):
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
             data = await r.json()
 
-        yday_url = f'https://runepixels.com:5000/players/{data["id"]}/xp?timeperiod=1'
+        yday_url = f'https://api.runepixels.com/players/{data["id"]}/xp?timeperiod=1'
         r = await self.bot.aiohttp.get(yday_url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
             yday_data = await r.json()
 
-        week_url = f'https://runepixels.com:5000/players/{data["id"]}/xp?timeperiod=2'
+        week_url = f'https://api.runepixels.com/players/{data["id"]}/xp?timeperiod=2'
         r = await self.bot.aiohttp.get(week_url)
         async with r:
             if r.status != 200:
