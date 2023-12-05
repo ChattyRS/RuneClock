@@ -883,7 +883,8 @@ class Obliterate(commands.Cog):
             top_num = 0
             top_indices = []
 
-            for i, p in enumerate(participants):
+            for i, p in enumerate([participant for participant in participants if is_int(participant['progress']['gained']) and int(participant['progress']['gained']) > 0]):
+                top_num = i + 1
                 # Find member row
                 member_row, member_index = None, 0
                 for j, member in enumerate(members):
@@ -899,7 +900,6 @@ class Obliterate(commands.Cog):
                     top_indices.append(i)
 
                     if len(rows_to_update) >= 5:
-                        top_num = i + 1
                         break
 
             top = participants[:top_num]
