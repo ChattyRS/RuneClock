@@ -29,6 +29,7 @@ peng_time = None
 wilderness_flash_events = [
     'Spider Swarm',
     'Unnatural Outcrop',
+    'Stryke the Wyrm',
     'Demon Stragglers',
     'Butterfly Swarm',
     'King Black Dragon Rampage',
