@@ -125,6 +125,83 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         print(error)
         traceback.print_tb(error.__traceback__)
 
+class NameChangeModal(discord.ui.Modal, title='Name change'):
+    def __init__(self, bot, member_to_rename: discord.Member):
+        self.new_name.placeholder = member_to_rename.display_name
+        super().__init__()
+        self.bot = bot
+        self.member_to_rename = member_to_rename
+
+    new_name = discord.ui.TextInput(label='New name', min_length=1, max_length=12, required=True, style=TextStyle.short, placeholder='New name')
+
+    async def on_submit(self, interaction: discord.Interaction):
+        new_name = self.new_name.value.strip()
+        member_to_rename = self.member_to_rename
+
+        if not new_name or re.match('^[A-z0-9 -]+$', new_name) is None or len(new_name) > 12:
+            await interaction.response.send_message(f'Error: invalid RSN: `{new_name}`', ephemeral=True)
+            return
+        if new_name == member_to_rename.display_name:
+            await interaction.response.send_message(f'Error: new name cannot be the same as the previous name: `{new_name}`', ephemeral=True)
+            return
+
+        # Create an embed to send to the name change channel
+        embed = discord.Embed(title=f'Name change', colour=0x00e400)
+        embed.add_field(name='Previous name', value=member_to_rename.display_name, inline=False)
+        embed.add_field(name='New name', value=new_name, inline=False)
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f'User ID: {member_to_rename.id}')
+
+        # Update name on roster
+        agc = await self.bot.agcm.authorize()
+        ss = await agc.open_by_key(config['obliterate_roster_key'])
+        roster = await ss.worksheet('Roster')
+        name_col, notes_col = 0, 5
+
+        raw_members = await roster.get_all_values()
+        raw_members = raw_members[1:]
+        members = []
+        # Ensure expected row length
+        for member in raw_members:
+            while len(member) < notes_col + 1:
+                member.append('')
+            if len(member) > notes_col + 1:
+                member = member[:notes_col+1]
+            members.append(member)
+
+        # Find member row
+        member_row, member_index = None, 0
+        for i, member in enumerate(members):
+            if member[4].strip() == f'{member_to_rename.name}#{member_to_rename.discriminator}':
+                member_row, member_index = member, i
+                break
+        if not member_row:
+            interaction.response.send_message(f'Could not find member on roster: `{member_to_rename.name}#{member_to_rename.discriminator}`')
+            return
+
+        member_row[notes_col] = (member_row[notes_col].strip() + ('.' if member_row[notes_col].strip() and not member_row[notes_col].strip().endswith('.') else '') + f' Formerly known as {member_row[name_col]}.').strip()
+        member_row[name_col] = new_name
+
+        await update_row(roster, member_index+2, member_row) # +2 for header row and 1-indexing
+
+        renamed = False
+        try:
+            await member_to_rename.edit(nick=new_name)
+            renamed = True
+        except discord.Forbidden:
+            pass
+
+        # Send an embed to the name change channel
+        channel = interaction.guild.get_channel(config['obliterate_promotions_channel_id'])
+        await channel.send(embed=embed)
+        await interaction.response.send_message(f'Member renamed from `{member_to_rename.display_name}` to `{new_name}`.'
+            + f'\nInsufficient permissions to change nickname for user: {member_to_rename.mention}.' if not renamed else '', ephemeral=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message('Error', ephemeral=True)
+        print(error)
+        traceback.print_tb(error.__traceback__)
+
 class ApplicationView(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=None)
@@ -241,7 +318,6 @@ class ApplicationView(discord.ui.View):
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
-
 
 class PersonalInfoModal(discord.ui.Modal):
     def __init__(self, bot, data):
@@ -466,7 +542,6 @@ class Obliterate(commands.Cog):
                                 if not found:
                                     await channel.send(f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.')
 
-    
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
     async def apply(self, interaction: discord.Interaction):
@@ -482,7 +557,6 @@ class Obliterate(commands.Cog):
             await interaction.response.send_message(f'Applications can only be submitted in the #applications channel', ephemeral=True)
             return
         await interaction.response.send_modal(AccountInfoModal(self.bot))
-
 
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
@@ -507,16 +581,39 @@ class Obliterate(commands.Cog):
         if member.bot:
             await interaction.response.send_message(f'Bots are nice, but you cannot send them appreciation messages.', ephemeral=True)
             return
-        if member.bot:
-            await interaction.response.send_message(f'Bots are nice, but you cannot send them appreciation messages.', ephemeral=True)
-            return
         bronze_role = member.guild.get_role(config['obliterate_bronze_role_id'])
         if member.top_role < bronze_role or interaction.user.top_role < bronze_role:
             await interaction.response.send_message(f'Only obliterate clan members can send/receive appreciation messages.', ephemeral=True)
             return
         await interaction.response.send_modal(AppreciationModal(self.bot, member))
 
+    @app_commands.command()
+    @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
+    async def namechange(self, interaction: discord.Interaction, member: str):
+        '''
+        Send a modal with the name change form.
+        '''
+        obliterate = self.bot.get_guild(config['obliterate_guild_id'])
+        mod_role = obliterate.get_role(config['obliterate_moderator_role_id'])
+        key_role = obliterate.get_role(config['obliterate_key_role_id'])
+        if not mod_role in interaction.user.roles and not key_role in interaction.user.roles:
+            await interaction.response.send_message(f'Insufficient permissions: `Obliterate moderator`', ephemeral=True)
+            return
+
+        if not member or not is_int(member):
+            await interaction.response.send_message(f'Invalid argument `member: "{member}"`', ephemeral=True)
+            return
+        member = interaction.guild.get_member(int(member))
+        if not member:
+            await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
+            return
+        if member.bot:
+            await interaction.response.send_message(f'Cannot do a name change for a bot account.', ephemeral=True)
+            return
+        await interaction.response.send_modal(NameChangeModal(self.bot, member))
+
     @appreciate.autocomplete('member')
+    @namechange.autocomplete('member')
     async def member_autocomplete(
         self,
         interaction: discord.Interaction,
@@ -527,7 +624,6 @@ class Obliterate(commands.Cog):
         members = [m for m in members if not re.match('^[A-z0-9 -]+$', m.display_name) is None]
         members = members[:25] if len(members) > 25 else members
         return [app_commands.Choice(name=m.display_name, value=str(m.id)) for m in members]
-
 
     @obliterate_only()
     @obliterate_mods()
