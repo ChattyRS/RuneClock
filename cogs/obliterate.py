@@ -26,13 +26,17 @@ reqs = {
     'Adamant': { 'number': 4, 'events': 40, 'top3': 6, 'appointments': 40, 'appreciations': 10, 'discord': 10, 'months': 9 }
 }
 
-def is_obliterate_mod(interaction: discord.Interaction):
+'''
+Returns true iff the interaction user is an obliterate recruiter, moderator, or key.
+'''
+def is_obliterate_recruiter(interaction: discord.Interaction) -> bool:
     if interaction.user.id == config['owner']:
         return True
     if interaction.guild.id == config['obliterate_guild_id']:
+        recruiter_role = interaction.guild.get_role(config['obliterate_recruiter_role_id'])
         mod_role = interaction.guild.get_role(config['obliterate_moderator_role_id'])
         key_role = interaction.guild.get_role(config['obliterate_key_role_id'])
-        if mod_role in interaction.user.roles or key_role in interaction.user.roles:
+        if recruiter_role in interaction.user.roles or mod_role in interaction.user.roles or key_role in interaction.user.roles:
             return True
     return False
 
@@ -211,7 +215,7 @@ class ApplicationView(discord.ui.View):
     @discord.ui.button(label='Decline', style=discord.ButtonStyle.danger, custom_id='obliterate_app_decline_button')
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Validate permissions
-        if not is_obliterate_mod(interaction):
+        if not is_obliterate_recruiter(interaction):
             await interaction.response.send_message('Missing permissions: `Obliterate moderator`', ephemeral=True)
             return
         # Update message
@@ -224,7 +228,7 @@ class ApplicationView(discord.ui.View):
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='obliterate_app_accept_button')
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Validate permissions
-        if not is_obliterate_mod(interaction):
+        if not is_obliterate_recruiter(interaction):
             await interaction.response.send_message('Missing permissions: `Obliterate moderator`', ephemeral=True)
             return
         # Handle accept
