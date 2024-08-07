@@ -153,6 +153,7 @@ class Bot(commands.AutoShardedBot):
         await asyncio.sleep(10) # Wait to ensure database is running on boot
         await database_setup()
         await asyncio.sleep(5) # Ensure database is up before we continue
+        await Uptime.create(time=self.start_time, status='started')
         self.loop.create_task(self.load_all_extensions())
         print(f'Loading Discord...')
         await self.wait_until_ready()
@@ -166,8 +167,6 @@ class Bot(commands.AutoShardedBot):
         print(msg)
         print('-' * 10)
         logging.critical(msg)
-
-        await Uptime.create(time=self.start_time, status='started')
 
         self.loop.create_task(self.check_guilds())
         self.loop.create_task(self.role_setup())
