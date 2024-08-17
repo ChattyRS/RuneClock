@@ -201,7 +201,7 @@ class CustomRoleReaction(db.Model):
 async def setup():
     print('Setting up database connection...')
     config = config_load()
-    await db.set_bind(f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}@{config["postgres_ip"]}:{config["postgres_port"]}/gino')
+    await db.set_bind(f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}@{config["postgres_ip"]}:{config["postgres_port"]}/{config["postgres_db_name"]}')
     await db.gino.create_all()
     print('Database ready!')
 
