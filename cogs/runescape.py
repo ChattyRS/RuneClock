@@ -19,7 +19,6 @@ import imageio
 import copy
 import numpy as np
 import random
-from youtubesearchpython import Playlist, playlist_from_channel_id
 from utils import float_to_formatted_string
 
 config = config_load()
@@ -1475,62 +1474,6 @@ class Runescape(commands.Cog):
         time = time.strftime('%H:%M')
 
         await ctx.send(f'Current game time is: `{time}`.')
-
-    @commands.command(pass_context=True, aliases=['yt', 'rs3youtube', 'rsyoutube', 'rs3yt', 'rsyt'])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def youtube(self, ctx: commands.Context):
-        '''
-        Get latest videos from RuneScape 3 youtube channel.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        try:
-            playlist = Playlist(playlist_from_channel_id('UCGpr8LIrdwrEak3GuZLQPwg'))
-            videos = playlist.videos
-        except:
-            raise commands.CommandError(message=f'Error fetching videos.')
-
-        colour = 0xff0000
-        timestamp = datetime.now(UTC)
-        embed = discord.Embed(title='RuneScape', colour=colour, timestamp=timestamp, url='https://www.youtube.com/runescape/videos')
-        embed.set_thumbnail(url='https://imgur.com/JvKu58G.png')
-
-        for i, vid in enumerate(videos):
-            if i >= 5:
-                break
-            else:
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
-
-        await ctx.send(embed=embed)
-
-    @commands.command(name='07youtube', pass_context=True, aliases=['07yt', 'osrsyoutube', 'osrsyt'])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07youtube(self, ctx: commands.Context):
-        '''
-        Get latest videos from OSRS youtube channel.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        try:
-            playlist = Playlist(playlist_from_channel_id('UC0j1MpbiTFHYrUjOTwifW_w'))
-            videos = playlist.videos
-        except:
-            raise commands.CommandError(message=f'Error fetching videos.')
-
-        colour = 0xff0000
-        timestamp = datetime.now(UTC)
-        embed = discord.Embed(title='Old School RuneScape', colour=colour, timestamp=timestamp, url='https://www.youtube.com/OldSchoolRSCommunity/videos')
-        embed.set_thumbnail(url='https://imgur.com/JvKu58G.png')
-
-        for i, vid in enumerate(videos):
-            if i >= 5:
-                break
-            else:
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
-
-        await ctx.send(embed=embed)
     
     @commands.command(aliases=['wax', 'viswax', 'goldberg'])
     async def vis(self, ctx: commands.Context):
