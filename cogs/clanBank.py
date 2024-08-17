@@ -1,23 +1,15 @@
 from typing import List
-from urllib import response
 import discord
 from discord import app_commands, TextStyle
-from discord.ext import commands, tasks
-from discord.ext.commands import Cog
+from discord.ext import commands
 import sys
-
 sys.path.append('../')
-from main import config_load, increment_command_counter, ClanBankTransaction, Guild
-from datetime import datetime, timedelta, timezone, UTC
-import re
-import copy
-from bs4 import BeautifulSoup
-import math
+from main import config_load, ClanBankTransaction, Guild
+from datetime import datetime, UTC
 from utils import is_int, max_cash, get_coins_image_name, digits
 import traceback
 import io
 import imageio
-from skimage import img_as_uint
 
 config = config_load()
 

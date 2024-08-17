@@ -40,7 +40,6 @@ $ pip install -r requirements.txt
 * [lxml](https://lxml.de/)
 * [imageio](https://github.com/imageio/imageio)
 * [PyGithub](https://github.com/PyGithub/PyGithub)
-* [scikit-image](https://scikit-image.org/)
 
 ## License
 

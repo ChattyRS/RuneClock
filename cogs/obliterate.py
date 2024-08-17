@@ -5,7 +5,6 @@ from discord import app_commands, TextStyle
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
-
 sys.path.append('../')
 from main import config_load, Guild, increment_command_counter
 from datetime import datetime, timedelta, UTC

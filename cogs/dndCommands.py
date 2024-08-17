@@ -4,10 +4,9 @@ import sys
 import copy
 sys.path.append('../')
 from main import config_load, increment_command_counter, districts
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import datetime, timedelta, UTC
 from utils import time_diff_to_string
 from utils import item_emojis
-import json
 import praw
 import math
 from bs4 import BeautifulSoup
