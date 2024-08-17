@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sympy
 from utils import is_int, is_float, float_to_formatted_string
-from forex_python.converter import CurrencyRates
 from utils import units, unit_aliases
 import io
 import multiprocessing
@@ -42,15 +41,6 @@ pattern_graph = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!co
 legal_graph = ['log', 'sqrt', 'floor', 'ceil', 'sin', 'cos', 'tan', 'round', 'abs', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'mod', 'x']
 pattern_solve = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!sin)(?<!cos)(?<!tan)(?<!x)\('
 legal_solve = ['log', 'sqrt', 'sin', 'cos', 'tan', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'x', 'i']
-
-def get_currency_rate(input: str, output: str) -> numeric:
-    '''
-    Gets the currency rate from currency input to currency output
-    '''
-    c = CurrencyRates()
-    rates = c.get_rates(input)
-    rate = rates[output]
-    return rate
 
 def get_alias(unit: str) -> str:
     '''
