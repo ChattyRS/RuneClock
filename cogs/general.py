@@ -60,11 +60,6 @@ def perm_string(p):
 
     return s
 
-# Dict of latin words from latin wiktionary
-def load_words():
-    with codecs.open('data/loremIpsum.json', 'r', encoding='utf-8-sig') as doc:
-        return json.load(doc)
-
 # Create a simple list from the weirdly formatted dictionary, excluding non-alphabetic words
 word_list = []
 for lst in load_words()['*']:
@@ -338,66 +333,6 @@ class General(commands.Cog):
         embed.set_footer(text=f'ID: {msg.id}')
 
         await ctx.message.delete()
-        await ctx.send(embed=embed)
-
-    @commands.command(aliases=['lorem', 'ipsum', 'loremipsum'])
-    async def lipsum(self, ctx: commands.Context, words=0, paragraphs=1):
-        '''
-        Generate random Lorem Ipsum text.
-        '''
-        increment_command_counter()
-
-        # Verify that both the number of words and paragraphs are positive
-        if words < 1:
-            raise commands.CommandError(message=f'Invalid argument: `{words}`.')
-        if paragraphs < 1:
-            raise commands.CommandError(message=f'Invalid argument: `{paragraphs}`.')
-
-        # Initialize variables
-        text = ''
-        paragraph_lengths = get_paragraph_lengths(paragraphs, words)
-        sentence_length = random.randint(10, 30)
-        punctuation = [', ', ', ', ', ', '; ', ': '] # comma is 3x more common
-
-        for p in range(0, paragraphs):
-            paragraph_length = paragraph_lengths[p] # get length for this paragraph
-
-            word_num = 0
-            for w in range(0, paragraph_length):
-                word = word_list[random.randint(0, len(word_list)-1)] # get random word
-                word_num += 1 # position of word in sentence
-
-                # if new sentence, start with upper case, and choose sentence length
-                if word_num % sentence_length == 1:
-                    sentence_length = random.randint(10, 30)
-                    word_num = 1
-                    word = word[:1].upper() + word[1:]
-
-                text += word
-
-                # add punctuation and/or space
-                if not w == paragraph_length-1:
-                    if word_num == sentence_length:
-                        text += '. '
-                    elif not random.randint(0, 20):
-                        text += punctuation[random.randint(0, len(punctuation)-1)]
-                    else:
-                        text += ' '
-                else:
-                    text += '.'
-
-            # Add whitespace between paragraphs
-            if not p == paragraphs-1:
-                text += '\n\n'
-
-        # Check if message length is OK
-        if len(text) > 2048:
-            raise commands.CommandError(message=f'Error: character limit exceeded.')
-
-        # Create and send embed
-        embed = discord.Embed(title='Lorem Ipsum', description=text, timestamp=datetime.utcnow())
-        embed.set_author(name='Chatty', icon_url='https://i.imgur.com/hu3nR8o.png')
-        embed.set_footer(text=f'{words} words, {paragraphs} paragraphs')
         await ctx.send(embed=embed)
     
     @commands.command()
