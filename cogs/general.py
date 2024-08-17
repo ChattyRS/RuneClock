@@ -4,12 +4,9 @@ import sys
 sys.path.append('../')
 from main import config_load, increment_command_counter, Poll
 import random
-from pyowm.owm import OWM
 from datetime import datetime, timedelta
 from operator import attrgetter
 from utils import is_int
-import codecs
-import json
 import validators
 
 config = config_load()
@@ -18,9 +15,6 @@ rps = ['Rock', 'Paper', 'Scissors']
 rps_upper = ['ROCK', 'PAPER', 'SCISSORS']
 
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-owm = OWM(config['weatherAPI'])
-owm_manager = owm.weather_manager()
 
 num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
@@ -154,37 +148,6 @@ class General(commands.Cog):
             result += '**Scissors** win!'
         
         await ctx.send(result)
-
-    @commands.command(pass_context=True, aliases=['forecast'])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def weather(self, ctx: commands.Context, *location):
-        '''
-        Get the weather forecast for a location
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-        
-        location = ' '.join(location)
-        if not location:
-            raise commands.CommandError(message=f'Required argument missing: `location`.')
-
-        try:
-            observation = owm_manager.weather_at_place(location)
-        except Exception as e:
-            raise commands.CommandError(message=f'Error: could not find location: `{location}`.')
-        w = observation.weather
-        temperature = w.temperature('celsius')
-        wind = w.wind('meters_sec')
-
-        title = f'Weather for: {observation.location.name}, {observation.location.country}'
-        colour = 0x00b2ff
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
-        embed.add_field(name='Condition:', value=f'{w.status}')
-        embed.add_field(name='Temperature:', value=f'Current: {round(temperature["temp"])}°C\nMax: {round(temperature["temp_max"])}°C\nMin: {round(temperature["temp_min"])}°C')
-        embed.add_field(name='Wind speed:', value=f'{round(wind["speed"]*3.6)} km/h')
-        
-        await ctx.send(embed=embed)
 
     @commands.command(pass_context=True)
     async def serverinfo(self, ctx: commands.Context):

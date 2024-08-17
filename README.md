@@ -34,7 +34,6 @@ $ pip install -r requirements.txt
 * [psutil](https://psutil.readthedocs.io/en/latest/)
 * [python-dateutil](https://dateutil.readthedocs.io/en/stable/)
 * [validators](https://validators.readthedocs.io/en/latest/)
-* [PyOWM](https://pyowm.readthedocs.io/en/latest/)
 * [PRAW](https://praw.readthedocs.io/en/latest/)
 * [feedparser](https://pythonhosted.org/feedparser/)
 * [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
