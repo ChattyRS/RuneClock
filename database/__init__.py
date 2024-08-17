@@ -1,4 +1,6 @@
-from gino import Gino
+from sqlite3 import Date
+from sqlalchemy import MetaData, Table, Column, PrimaryKeyConstraint, ForeignKey
+from sqlalchemy import BigInteger, Integer, String, Boolean, DateTime, ARRAY, JSON
 import codecs
 import json
 
@@ -10,193 +12,208 @@ def config_load():
         #  Please make sure encoding is correct, especially after editing the config file
         return json.load(doc)
 
-db = Gino()
+metadata_obj = MetaData()
 
-class BannedGuild(db.Model):
-    __tablename__ = 'banned_guilds'
+users = Table(
+    'users',
+    metadata_obj,
+    Column('id', BigInteger, primary_key=True),
+    Column('rsn', String),
+    Column('osrs_rsn', String),
+    Column('timezone', String)
+)
 
-    id = db.Column(db.BigInteger, primary_key=True)
-    name = db.Column(db.String)
-    reason = db.Column(db.String)
+guilds = Table(
+    'guilds',
+    metadata_obj,
+    Column('id', BigInteger, primary_key=True),
+    Column('prefix', String(100)),
+    Column('welcome_channel_id', BigInteger),
+    Column('welcome_message', String),
+    Column('rs3_news_channel_id', BigInteger),
+    Column('osrs_news_channel_id', BigInteger),
+    Column('log_channel_id', BigInteger),
+    Column('notification_channel_id', BigInteger),
+    Column('role_channel_id', BigInteger),
+    Column('delete_channel_ids', ARRAY(BigInteger)),
+    Column('disabled_commands', ARRAY(String)),
+    Column('log_bots', Boolean),
+    Column('modmail_public', BigInteger),
+    Column('modmail_private', BigInteger),
+    Column('hall_of_fame_channel_id', BigInteger),
+    Column('hall_of_fame_react_num', BigInteger),
+    Column('bank_role_id', BigInteger),
+    Column('wom_role_id', BigInteger),
+    Column('wom_group_id', BigInteger),
+    Column('wom_verification_code', String),
+    Column('wom_excluded_metrics', String),
+    Column('custom_role_reaction_channel_id', BigInteger),
+    Column('role_reaction_management_role_id', BigInteger),
+    Column('custom_role_reaction_message', String)
+)
 
-class User(db.Model):  
-    __tablename__ = 'users'
+roles = Table(
+    'roles',
+    metadata_obj,
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('name', String),
+    Column('role_id', BigInteger),
 
-    id = db.Column(db.BigInteger, primary_key=True)
-    rsn = db.Column(db.String)
-    osrs_rsn = db.Column(db.String)
-    timezone = db.Column(db.String)
+    PrimaryKeyConstraint('guild_id', 'name', name='role_pkey')
+)
 
-class Guild(db.Model):
-    __tablename__ = 'guilds'
+mutes = Table(
+    'mutes',
+    metadata_obj,
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('user_id', BigInteger),
+    Column('expiration', DateTime),
+    Column('reason', String),
 
-    id = db.Column(db.BigInteger, primary_key=True)
-    prefix = db.Column(db.String)
-    welcome_channel_id = db.Column(db.BigInteger)
-    welcome_message = db.Column(db.String)
-    rs3_news_channel_id = db.Column(db.BigInteger)
-    osrs_news_channel_id = db.Column(db.BigInteger)
-    log_channel_id = db.Column(db.BigInteger)
-    notification_channel_id = db.Column(db.BigInteger)
-    role_channel_id = db.Column(db.BigInteger)
-    delete_channel_ids = db.Column(db.ARRAY(db.BigInteger))
-    disabled_commands = db.Column(db.ARRAY(db.String))
-    log_bots = db.Column(db.Boolean)
-    modmail_public = db.Column(db.BigInteger)
-    modmail_private = db.Column(db.BigInteger)
-    hall_of_fame_channel_id = db.Column(db.BigInteger)
-    hall_of_fame_react_num = db.Column(db.BigInteger)
-    bank_role_id = db.Column(db.BigInteger)
-    wom_role_id = db.Column(db.BigInteger)
-    wom_group_id = db.Column(db.BigInteger)
-    wom_verification_code = db.Column(db.String)
-    wom_excluded_metrics = db.Column(db.String)
-    custom_role_reaction_channel_id = db.Column(db.BigInteger)
-    role_reaction_management_role_id = db.Column(db.BigInteger)
-    custom_role_reaction_message = db.Column(db.String)
+    PrimaryKeyConstraint('guild_id', 'user_id', name='mute_pkey')
+)
 
-class Role(db.Model):
-    __tablename__ = 'roles'
+commands = Table(
+    'commands',
+    metadata_obj,
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('name', String),
+    Column('function', String),
+    Column('aliases', ARRAY(String)),
+    Column('description', String),
 
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    name = db.Column(db.String)
-    role_id = db.Column(db.BigInteger)
+    PrimaryKeyConstraint('guild_id', 'name', name='command_pkey')
+)
 
-    _pk = db.PrimaryKeyConstraint('guild_id', 'name', name='role_pkey')
+repositories = Table(
+    'repositories',
+    metadata_obj,
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('channel_id', BigInteger),
+    Column('user_name', String),
+    Column('repo_name', String),
+    Column('sha', String),
 
-class Mute(db.Model):
-    __tablename__ = 'mutes'
+    PrimaryKeyConstraint('guild_id', 'user_name', 'repo_name', name='repo_pkey')
+)
 
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    user_id = db.Column(db.BigInteger)
-    expiration = db.Column(db.DateTime)
-    reason = db.Column(db.String)
+notifications = Table(
+    'notifications',
+    metadata_obj,
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('notification_id', Integer),
+    Column('channel_id', BigInteger),
+    Column('time', DateTime),
+    Column('interval', Integer),
+    Column('message', String),
 
-    _pk = db.PrimaryKeyConstraint('guild_id', 'user_id', name='mute_pkey')
+    PrimaryKeyConstraint('guild_id', 'notification_id', name='notification_pkey')
+)
 
-class Command(db.Model):
-    __tablename__ = 'commands'
+online_notifications = Table(
+    'online_notifications',
+    metadata_obj,
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('author_id', BigInteger),
+    Column('member_id', BigInteger),
+    Column('channel_id', BigInteger),
+    Column('type', Integer),
 
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    name = db.Column(db.String)
-    function = db.Column(db.String)
-    aliases = db.Column(db.ARRAY(db.String))
-    description = db.Column(db.String)
+    PrimaryKeyConstraint('guild_id', 'author_id', 'member_id', name='online_notification_pkey')
+)
 
-    _pk = db.PrimaryKeyConstraint('guild_id', 'name', name='command_pkey')
+polls = Table(
+    'polls',
+    metadata_obj,
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('author_id', BigInteger),
+    Column('channel_id', BigInteger),
+    Column('message_id', BigInteger),
+    Column('end_time', DateTime),
 
-class Repository(db.Model):
-    __tablename__ = 'repositories'
+    PrimaryKeyConstraint('guild_id', 'message_id', name='poll_pkey')
+)
 
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    channel_id = db.Column(db.BigInteger)
-    user_name = db.Column(db.String)
-    repo_name = db.Column(db.String)
-    sha = db.Column(db.String)
+news_posts = Table(
+    'news_posts',
+    metadata_obj,
+    Column('link', String, primary_key=True),
+    Column('game', String),
+    Column('title', String),
+    Column('description', String),
+    Column('time', DateTime),
+    Column('category', String),
+    Column('image_url', String),
+)
 
-    _pk = db.PrimaryKeyConstraint('guild_id', 'user_name', 'repo_name', name='repo_pkey')
+uptime = Table(
+    'uptime',
+    metadata_obj,
+    Column('time', DateTime, primary_key=True),
+    Column('status', String)
+)
 
-class Notification(db.Model):
-    __tablename__ = 'notifications'
+rs3_items = Table(
+    'rs3_items',
+    metadata_obj,
+    Column('id', Integer, primary_key=True),
+    Column('name', String),
+    Column('icon_url', String),
+    Column('type', String),
+    Column('description', String),
+    Column('members', Boolean),
+    Column('current', String),
+    Column('today', String),
+    Column('day30', String),
+    Column('day90', String),
+    Column('day180', String),
+    Column('graph_data', JSON),
+)
 
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    notification_id = db.Column(db.Integer)
-    channel_id = db.Column(db.BigInteger)
-    time = db.Column(db.DateTime)
-    interval = db.Column(db.Integer)
-    message = db.Column(db.String)
+osrs_items = Table(
+    'osrs_items',
+    metadata_obj,
+    Column('id', Integer, primary_key=True),
+    Column('name', String),
+    Column('icon_url', String),
+    Column('type', String),
+    Column('description', String),
+    Column('members', Boolean),
+    Column('current', String),
+    Column('today', String),
+    Column('day30', String),
+    Column('day90', String),
+    Column('day180', String),
+    Column('graph_data', JSON),
+)
 
-    _pk = db.PrimaryKeyConstraint('guild_id', 'notification_id', name='notification_pkey')
+clan_bank_transactions = Table(
+    'clan_bank_transactions',
+    metadata_obj,
+    Column('id', Integer, primary_key=True),
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('member_id', BigInteger, nullable=False),
+    Column('time', DateTime, nullable=False),
+    Column('amount', BigInteger, nullable=False),
+    Column('description', String),
+)
 
-class OnlineNotification(db.Model):
-    __tablename__ = 'online_notifications'
+custom_role_reactions = Table(
+    'custom_role_reactions',
+    metadata_obj,
+    Column('id', BigInteger, primary_key=True),
+    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
+    Column('emoji_id', BigInteger, nullable=False),
+    Column('role_id', BigInteger, nullable=False),
+)
 
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    author_id = db.Column(db.BigInteger)
-    member_id = db.Column(db.BigInteger)
-    channel_id = db.Column(db.BigInteger)
-    type = db.Column(db.Integer)
-
-    _pk = db.PrimaryKeyConstraint('guild_id', 'author_id', 'member_id', name='online_notification_pkey')
-
-class Poll(db.Model):
-    __tablename__ = 'polls'
-
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    author_id = db.Column(db.BigInteger)
-    channel_id = db.Column(db.BigInteger)
-    message_id = db.Column(db.BigInteger)
-    end_time = db.Column(db.DateTime)
-
-    _pk = db.PrimaryKeyConstraint('guild_id', 'message_id', name='poll_pkey')
-
-class NewsPost(db.Model):
-    __tablename__ = 'news_posts'
-
-    link = db.Column(db.String, primary_key=True)
-    game = db.Column(db.String)
-    title = db.Column(db.String)
-    description = db.Column(db.String)
-    time = db.Column(db.DateTime)
-    category = db.Column(db.String)
-    image_url = db.Column(db.String)
-
-class Uptime(db.Model):
-    __tablename__ = 'uptime'
-
-    time = db.Column(db.DateTime, primary_key=True)
-    status = db.Column(db.String)
-
-class RS3Item(db.Model):
-    __tablename__ = 'rs3_items'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    icon_url = db.Column(db.String)
-    type = db.Column(db.String)
-    description = db.Column(db.String)
-    members = db.Column(db.Boolean)
-    current = db.Column(db.String)
-    today = db.Column(db.String)
-    day30 = db.Column(db.String)
-    day90 = db.Column(db.String)
-    day180 = db.Column(db.String)
-    graph_data = db.Column(db.JSON)
-
-# https://rsbuddy.com/exchange/summary.json
-class OSRSItem(db.Model):
-    __tablename__ = 'osrs_items'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    icon_url = db.Column(db.String)
-    type = db.Column(db.String)
-    description = db.Column(db.String)
-    members = db.Column(db.Boolean)
-    current = db.Column(db.String)
-    today = db.Column(db.String)
-    day30 = db.Column(db.String)
-    day90 = db.Column(db.String)
-    day180 = db.Column(db.String)
-    graph_data = db.Column(db.JSON)
-
-class ClanBankTransaction(db.Model):
-    __tablename__ = 'clan_bank_transactions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    member_id = db.Column(db.BigInteger, nullable=False)
-    time = db.Column(db.DateTime, nullable=False)
-    amount = db.Column(db.BigInteger, nullable=False)
-    description = db.Column(db.String)
-
-class CustomRoleReaction(db.Model):
-    __tablename__ = 'custom_role_reactions'
-
-    id = db.Column(db.BigInteger, primary_key=True)
-    guild_id = db.Column(db.BigInteger, db.ForeignKey('guilds.id'), nullable=False)
-    emoji_id = db.Column(db.BigInteger, nullable=False)
-    role_id = db.Column(db.BigInteger, nullable=False)
+banned_guilds = Table(
+    'banned_guilds',
+    metadata_obj,
+    Column('id', BigInteger, primary_key=True),
+    Column('name', String),
+    Column('reason', String),
+)
 
 async def setup():
     print('Setting up database connection...')
