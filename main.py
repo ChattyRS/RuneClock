@@ -533,19 +533,6 @@ class Bot(commands.AutoShardedBot):
                     except discord.Forbidden:
                         return
 
-        '''
-        In portables server, respond to "!portables"
-        '''
-        if message.guild.id == config['portablesServer'] and not '!' == prefix:
-            if message.content.upper().startswith('!PORTABLE'):
-                loc_channel = self.bot.get_channel(config['locChannel'])
-                if message.channel != loc_channel:
-                    await message.channel.send(f'Please use this command in {loc_channel.mention}.')
-                else:
-                    portables_command = self.get_command('portables')
-                    context = await self.get_context(message=message)
-                    await portables_command.callback(self, context)
-
         if msg.startswith(prefix):
             txt = f'{datetime.now(UTC)}: Command \"{msg}\" received; processing...'
             logging.info(str(filter(lambda x: x in string.printable, txt)))
