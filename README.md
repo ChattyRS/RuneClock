@@ -38,8 +38,6 @@ $ pip install -r requirements.txt
 * [feedparser](https://pythonhosted.org/feedparser/)
 * [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
 * [lxml](https://lxml.de/)
-* [WMI](http://timgolden.me.uk/python/wmi/index.html)
-* [pywin32](https://github.com/mhammond/pywin32)
 * [imageio](https://github.com/imageio/imageio)
 * [PyGithub](https://github.com/PyGithub/PyGithub)
 * [Google Calendar Simple API](https://github.com/kuzmoyev/google-calendar-simple-api)

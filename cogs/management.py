@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, date, UTC
 import psutil
 from cogs.logs import get_events_logged
 from pathlib import Path
-import wmi
 import traceback
 import textwrap
 import inspect
@@ -23,7 +22,6 @@ import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
-w = wmi.WMI(namespace="root\OpenHardwareMonitor", privileges=["Security"])
 
 # to expose to the eval command
 from collections import Counter
@@ -604,6 +602,7 @@ class Management(commands.Cog):
         cpu_percent = str(psutil.cpu_percent(interval=None))
         ram = psutil.virtual_memory() # total, available, percent, used, free, active, inactive, buffers, cached, shared, slab
         ram_percent = ram[2]
+        disk_percent = psutil.disk_usage('/').percent
         title = f'**Status**'
         colour = 0x00e400
         timestamp = datetime.now(UTC)
@@ -628,16 +627,7 @@ class Management(commands.Cog):
 
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
 
-        temp = 20
-        temperature_info = w.Sensor()
-        for sensor in temperature_info:
-            if sensor.SensorType == 'Temperature':
-                if sensor.Name == 'CPU Package':
-                    temp = str(sensor.Value).replace('.0', '')
-                    break
-
-
-        system = f'**CPU:** {cpu_percent}%\n**RAM:** {ram_percent}%\n**Temp:** {temp}°C'
+        system = f'**CPU:** {cpu_percent}%\n**RAM:** {ram_percent}%\n**Disk:** {disk_percent}%'
         embed.add_field(name='__System__', value=system)
 
         info = f'**Extensions:** {cogs_txt}\n**Uptime:** {time}\n**Latency:** {int(self.bot.latency*1000)} ms'

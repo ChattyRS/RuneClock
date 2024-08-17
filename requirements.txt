@@ -12,8 +12,6 @@ praw==7.7.1
 feedparser==6.0.11
 beautifulsoup4==4.12.3
 lxml==5.3.0
-wmi==1.5.1
-pywin32==306
 imageio==2.31.1
 PyGithub==1.58.2
 gcsa==2.1.0
