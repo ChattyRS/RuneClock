@@ -1,6 +1,6 @@
 discord.py==2.4.0
 SQLAlchemy==2.0.32
-gspread_asyncio==1.8.1
+gspread_asyncio==2.0.0
 numpy==1.24.3
 matplotlib==3.7.1
 sympy==1.12
