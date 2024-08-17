@@ -1,5 +1,5 @@
-discord.py==2.3.2
 gino==1.0.1
+discord.py==2.4.0
 asyncio==3.4.3
 gspread_asyncio==1.8.1
 numpy==1.24.3
