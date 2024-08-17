@@ -32,7 +32,6 @@ $ pip install -r requirements.txt
 * [SymPy](https://www.sympy.org/en/index.html)
 * [oauth2client](https://oauth2client.readthedocs.io/en/latest/)
 * [psutil](https://psutil.readthedocs.io/en/latest/)
-* [python-dateutil](https://dateutil.readthedocs.io/en/stable/)
 * [validators](https://validators.readthedocs.io/en/latest/)
 * [PRAW](https://praw.readthedocs.io/en/latest/)
 * [feedparser](https://pythonhosted.org/feedparser/)

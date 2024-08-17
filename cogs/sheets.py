@@ -4,9 +4,8 @@ from discord.ext import commands, tasks
 import sys
 sys.path.append('../')
 from main import config_load, increment_command_counter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 import re
-from dateutil.relativedelta import relativedelta
 import validators
 import utils
 import copy
@@ -731,8 +730,8 @@ class Sheets(commands.Cog):
         for player in ex_bans:
             if name.upper() == player.upper():
                 count += 1
-        timestamp = datetime.utcnow().strftime("%b %#d, %Y")
-        end_time = (datetime.utcnow() + relativedelta(days=+14)).strftime("%b %#d, %Y")
+        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
+        end_time = (datetime.now(UTC) + timedelta(days=14)).strftime("%b %#d, %Y")
         username = ctx.author.display_name
         username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
         values = [name, '2 weeks', timestamp, end_time, reason, username, 'Pending', '', screenshot]
@@ -950,8 +949,8 @@ class Sheets(commands.Cog):
         if row:
             await sheet.delete_row(row)
         row = header_rows + len(current_smileys) + 1
-        timestamp = datetime.utcnow().strftime("%b %#d, %Y")
-        end_time = (datetime.utcnow() + relativedelta(months=+1)).strftime("%b %#d, %Y")
+        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
+        end_time = (datetime.now(UTC) + timedelta(days=30)).strftime("%b %#d, %Y")
         values = [name, 'No', 'Applied', '', '', '', '', '', '', '', '', '', '', 'Pending', timestamp, end_time]
         await sheet.insert_row(values, row)
         await ctx.send(f'**{name}** has been added to the smileys sheet.')
