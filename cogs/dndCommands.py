@@ -1,15 +1,16 @@
 import discord
 from discord.ext import commands, tasks
+from discord.ext.commands import Cog
 import sys
 import copy
 sys.path.append('../')
-from main import config_load, increment_command_counter, districts
+from main import Bot, config_load, increment_command_counter, districts
 from datetime import datetime, timedelta, UTC
 from utils import time_diff_to_string
 from utils import item_emojis
 import praw
 import math
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 config = config_load()
 
@@ -18,12 +19,6 @@ reddit = praw.Reddit(client_id=config['redditID'],
                      password=config['redditPW'],
                      user_agent=config['user_agent'],
                      username=config['redditName'])
-
-nemi_embed = None
-nemi_time = None
-
-peng_embed = None
-peng_time = None
 
 wilderness_flash_events = [
     'Spider Swarm',
@@ -42,8 +37,14 @@ wilderness_flash_events = [
     'Evil Bloodwood Tree'
 ]
 
-class DNDCommands(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class DNDCommands(Cog):
+    nemi_embed: discord.Embed | None = None
+    nemi_time: datetime | None = None
+
+    peng_embed: discord.Embed | None = None
+    peng_time: datetime | None = None
+
+    def __init__(self, bot: Bot):
         self.bot = bot
         self.init_times()
     
@@ -83,7 +84,7 @@ class DNDCommands(commands.Cog):
                 self.hard_reset()
                 return timedelta(seconds=1)
         
-        next_time = min(next_times)
+        next_time = min([time for time in next_times if time])
         if next_time < now:
             return timedelta(seconds=0)
         else:
@@ -207,7 +208,7 @@ class DNDCommands(commands.Cog):
 
                     bs = BeautifulSoup(data['parse']['text']['*'].replace('\\"', '"'), "html.parser")
                     table_body = bs.find('table')
-                    rows = table_body.find_all('tr')
+                    rows = table_body.find_all('tr') if table_body and isinstance(table_body, Tag) else []
                     schedule = []
                     for row in rows[:2]:
                         minigame = row.find('td').find('a').text.strip()
@@ -218,7 +219,7 @@ class DNDCommands(commands.Cog):
                     next_day_and_month = datetime.strptime(schedule[1][1], '%d %b')
                     next_date = next_date.replace(day=next_day_and_month.day, month=next_day_and_month.month)
                     if datetime.strptime('1 Jan', '%d %b') <= next_day_and_month <= datetime.strptime('3 Jan', '%d %b'):
-                        next_date += timedelta(years=1)
+                        next_date = next_date.replace(year=next_date.year+1)
 
                     self.bot.spotlight = schedule[0][0]
                     self.bot.next_spotlight = next_date
@@ -263,17 +264,19 @@ class DNDCommands(commands.Cog):
         now = datetime.now(UTC)
         now = now.replace(microsecond=0)
 
-        msg = (f'Future:\n'
-               f'{config["warbandsEmoji"]} **Wilderness warbands** will begin in {time_diff_to_string(self.bot.next_warband - now)}.\n'
-               f'{config["vosEmoji"]} **Voice of Seren** will change in {time_diff_to_string(self.bot.next_vos - now)}.\n'
-               f'{config["cacheEmoji"]} **Guthixian caches** will begin in {time_diff_to_string(self.bot.next_cache - now)}.\n'
-               f'{config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {time_diff_to_string(self.bot.next_yews48 - now)}.\n'
-               f'{config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {time_diff_to_string(self.bot.next_yews140 - now)}.\n'
-               f'{config["goebiesEmoji"]} **Goebies supply run** will begin in {time_diff_to_string(self.bot.next_goebies - now)}.\n'
-               f'{config["sinkholeEmoji"]} **Sinkhole** will spawn in {time_diff_to_string(self.bot.next_sinkhole - now)}.\n'
-               f'{config["merchantEmoji"]} **Travelling merchant** stock will refresh in {time_diff_to_string(self.bot.next_merchant - now)}.\n'
-               f'{config["spotlightEmoji"]} **Minigame spotlight** will change in {time_diff_to_string(self.bot.next_spotlight - now)}.\n'
-               f'{config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {time_diff_to_string(self.bot.next_wilderness_flash_event - now)}.\n')
+        msg = (
+            f'Future:\n'
+            f'{config["warbandsEmoji"]} **Wilderness warbands** will begin in {time_diff_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now)}.\n'
+            f'{config["vosEmoji"]} **Voice of Seren** will change in {time_diff_to_string((self.bot.next_vos if self.bot.next_vos else datetime.now(UTC)) - now)}.\n'
+            f'{config["cacheEmoji"]} **Guthixian caches** will begin in {time_diff_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now)}.\n'
+            f'{config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {time_diff_to_string((self.bot.next_yews48 if self.bot.next_yews48 else datetime.now(UTC)) - now)}.\n'
+            f'{config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {time_diff_to_string((self.bot.next_yews140 if self.bot.next_yews140 else datetime.now(UTC)) - now)}.\n'
+            f'{config["goebiesEmoji"]} **Goebies supply run** will begin in {time_diff_to_string((self.bot.next_goebies if self.bot.next_goebies else datetime.now(UTC)) - now)}.\n'
+            f'{config["sinkholeEmoji"]} **Sinkhole** will spawn in {time_diff_to_string((self.bot.next_sinkhole if self.bot.next_sinkhole else datetime.now(UTC)) - now)}.\n'
+            f'{config["merchantEmoji"]} **Travelling merchant** stock will refresh in {time_diff_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.\n'
+            f'{config["spotlightEmoji"]} **Minigame spotlight** will change in {time_diff_to_string((self.bot.next_spotlight if self.bot.next_spotlight else datetime.now(UTC)) - now)}.\n'
+            f'{config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {time_diff_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now)}.\n'
+        )
         
         await ctx.send(msg)
 
@@ -286,7 +289,7 @@ class DNDCommands(commands.Cog):
 
         now = datetime.now(UTC)
         now = now.replace(second=0, microsecond=0)
-        time_to_vos = self.bot.next_vos - now
+        time_to_vos = (self.bot.next_vos if self.bot.next_vos else datetime.now(UTC)) - now
         time_to_vos = time_diff_to_string(time_to_vos)
 
         current = self.bot.vos['vos']
@@ -315,7 +318,7 @@ class DNDCommands(commands.Cog):
 
         embed = discord.Embed(title='Traveling Merchant\'s Shop', colour=0x00b2ff, timestamp=datetime.now(UTC), url='https://runescape.wiki/w/Travelling_Merchant%27s_Shop', description=self.bot.merchant)
         embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
-        embed.set_footer(text=f'Reset in {time_diff_to_string(self.bot.next_merchant - now)}.')
+        embed.set_footer(text=f'Reset in {time_diff_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.')
         
         await ctx.send(embed=embed)
 
@@ -329,7 +332,7 @@ class DNDCommands(commands.Cog):
         now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg = config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + time_diff_to_string(self.bot.next_warband - now) + "."
+        msg = config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + time_diff_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -343,7 +346,7 @@ class DNDCommands(commands.Cog):
         now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg = config['cacheEmoji'] + " **Guthixian caches** will begin in " + time_diff_to_string(self.bot.next_cache - now) + "."
+        msg = config['cacheEmoji'] + " **Guthixian caches** will begin in " + time_diff_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -357,7 +360,11 @@ class DNDCommands(commands.Cog):
         now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg = config['yewsEmoji'] + " **Divine yews** will begin in " + time_diff_to_string(self.bot.next_yews48 - now) + " in w48 bu, and in " + time_diff_to_string(self.bot.next_yews140 - now) + " in w140 bu."
+        msg = (
+            config['yewsEmoji'] + " **Divine yews** will begin in " + 
+            time_diff_to_string((self.bot.next_yews48 if self.bot.next_yews48 else datetime.now(UTC)) - now) + " in w48 bu, and in " + 
+            time_diff_to_string((self.bot.next_yews140 if self.bot.next_yews140 else datetime.now(UTC)) - now) + " in w140 bu."
+        )
         
         await ctx.send(msg)
 
@@ -371,7 +378,7 @@ class DNDCommands(commands.Cog):
         now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg = config['goebiesEmoji'] + " **Goebies supply run** will begin in " + time_diff_to_string(self.bot.next_goebies - now) + "."
+        msg = config['goebiesEmoji'] + " **Goebies supply run** will begin in " + time_diff_to_string((self.bot.next_goebies if self.bot.next_goebies else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -385,7 +392,7 @@ class DNDCommands(commands.Cog):
         now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg = config['sinkholeEmoji'] + " **Sinkhole** will spawn in " + time_diff_to_string(self.bot.next_sinkhole - now) + "."
+        msg = config['sinkholeEmoji'] + " **Sinkhole** will spawn in " + time_diff_to_string((self.bot.next_sinkhole if self.bot.next_sinkhole else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -400,7 +407,7 @@ class DNDCommands(commands.Cog):
         now = now.replace(microsecond=0)
         
         embed = discord.Embed(title='Minigame Spotlight', colour=0x00b2ff, description=self.bot.spotlight)
-        embed.set_footer(text=time_diff_to_string(self.bot.next_spotlight - now))
+        embed.set_footer(text=time_diff_to_string((self.bot.next_spotlight if self.bot.next_spotlight else datetime.now(UTC)) - now))
         
         await ctx.send(embed=embed)
 
@@ -412,11 +419,8 @@ class DNDCommands(commands.Cog):
         increment_command_counter()
         await ctx.channel.typing()
 
-        global nemi_embed
-        global nemi_time
-
-        if nemi_embed and nemi_time and datetime.now(UTC) < nemi_time + timedelta(minutes=5):
-            await ctx.send(embed=nemi_embed)
+        if self.nemi_embed and self.nemi_time and datetime.now(UTC) < self.nemi_time + timedelta(minutes=5):
+            await ctx.send(embed=self.nemi_embed)
             return
 
         submissions = reddit.subreddit('NemiForest').new(limit=5)
@@ -427,18 +431,18 @@ class DNDCommands(commands.Cog):
                 sub = s
                 break
 
-        if not sub and not nemi_embed:
-            raise commands.CommandError(message=f'No nemi forest layout found. Please try again later.')
-        elif not sub:
-            await ctx.send(embed=nemi_embed)
+        if not sub and isinstance(self.nemi_embed, discord.Embed):
+            await ctx.send(embed=self.nemi_embed)
             return
+        elif not sub:
+            raise commands.CommandError(message=f'No nemi forest layout found. Please try again later.')
 
         embed = discord.Embed(title=f'/r/NemiForest', colour=0x00b2ff, timestamp=datetime.utcfromtimestamp(int(sub.created_utc)), url=sub.shortlink, description=sub.title)
         embed.set_image(url=sub.url)
         embed.set_author(name=sub.author.name, icon_url=sub.author.icon_img)
 
-        nemi_embed = embed
-        nemi_time = datetime.now(UTC)
+        self.nemi_embed = embed
+        self.nemi_time = datetime.now(UTC)
 
         await ctx.send(embed=embed)
     
@@ -450,11 +454,8 @@ class DNDCommands(commands.Cog):
         increment_command_counter()
         await ctx.channel.typing()
 
-        global peng_embed
-        global peng_time
-
-        if peng_embed and peng_time and ((datetime.now(UTC).weekday() != 2 and datetime.now(UTC) < peng_time + timedelta(hours=1)) or (datetime.now(UTC).weekday() == 2 and datetime.now(UTC) < peng_time + timedelta(minutes=5))):
-            await ctx.send(embed=peng_embed)
+        if self.peng_embed and self.peng_time and ((datetime.now(UTC).weekday() != 2 and datetime.now(UTC) < self.peng_time + timedelta(hours=1)) or (datetime.now(UTC).weekday() == 2 and datetime.now(UTC) < self.peng_time + timedelta(minutes=5))):
+            await ctx.send(embed=self.peng_embed)
             return
 
         submissions = reddit.subreddit('World60Pengs').new(limit=5)
@@ -465,11 +466,11 @@ class DNDCommands(commands.Cog):
                 sub = s
                 break
         
-        if not sub and not peng_embed:
-            raise commands.CommandError(message=f'No penguin locations found. Please try again later.')
-        elif not sub:
-            await ctx.send(embed=peng_embed)
+        if not sub and isinstance(self.peng_embed, discord.Embed):
+            await ctx.send(embed=self.peng_embed)
             return
+        elif not sub:
+            raise commands.CommandError(message=f'No penguin locations found. Please try again later.')
 
         text = sub.selftext
         text = text.split('#Please post locations below as you spy!')[0].strip()
@@ -543,8 +544,8 @@ class DNDCommands(commands.Cog):
 
         embed.add_field(name='Notes', value=notes)
 
-        peng_embed = embed
-        peng_time = datetime.now(UTC)
+        self.peng_embed = embed
+        self.peng_time = datetime.now(UTC)
 
         await ctx.send(embed=embed)
     
@@ -560,10 +561,10 @@ class DNDCommands(commands.Cog):
         
         txt = f'Current: {self.bot.wilderness_flash_event["current"]}\nNext: {self.bot.wilderness_flash_event["next"]}' if self.bot.wilderness_flash_event["current"] else f'Next: {self.bot.wilderness_flash_event["next"]}'
         embed = discord.Embed(title='Wilderness flash event', colour=0x00b2ff, description=txt)
-        embed.set_footer(text=time_diff_to_string(self.bot.next_wilderness_flash_event - now))
+        embed.set_footer(text=time_diff_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now))
         
         await ctx.send(embed=embed)
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(DNDCommands(bot))

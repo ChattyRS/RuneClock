@@ -1,13 +1,13 @@
 import asyncio
 import discord
 from discord.ext import commands, tasks
+from discord.ext.commands import Cog
 import os
 import sys
 sys.path.append('../')
-from main import config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem, BannedGuild
+from main import Bot, config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem, BannedGuild
 from datetime import datetime, timedelta, date, UTC
 import psutil
-from cogs.logs import get_events_logged
 from pathlib import Path
 import traceback
 import textwrap
@@ -93,12 +93,12 @@ def uptime_fraction(events, year=0, month=0, day=0):
         return sum(percentages) / len(percentages)
 
 
-class Management(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Management(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
         self._last_result = None
         self.sessions = set()
-        commands.Bot.remove_command(self.bot, 'help')
+        commands.AutoShardedBot.remove_command(self.bot, 'help')
         self.uptime_tracking.start()
         
     def cog_unload(self):
@@ -141,7 +141,7 @@ class Management(commands.Cog):
         extension = ''
         if command:
             cmd = self.bot.get_command(command)
-            custom_command = commands.Bot.get_command(self.bot, 'custom_command')
+            custom_command = commands.AutoShardedBot.get_command(self.bot, 'custom_command')
             if not cmd:
                 if not self.bot.get_cog(command):
                     raise commands.CommandError(message=f'Invalid argument: `{command}`.')
@@ -649,7 +649,7 @@ class Management(commands.Cog):
                 notification_channels += 1
 
         notifications = round(delta.total_seconds() / 3600 * 3.365 * notification_channels)
-        processed = f'**Commands:** {get_command_counter()}\n**Events:** {get_events_logged()}\n**Notifications:** {notifications}'
+        processed = f'**Commands:** {get_command_counter()}\n**Events:** {self.bot.events_logged}\n**Notifications:** {notifications}'
         embed.add_field(name='__Processed__', value=processed)
 
         embed.set_author(name='@schattie', url='https://github.com/ChattyRS/Portables', icon_url=config['profile_picture_url'])
@@ -1348,5 +1348,5 @@ class Management(commands.Cog):
         await ctx.send(f'Guild `{banned_guild.name}` with ID `{guild_id}` has been unbanned.')
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Management(bot))

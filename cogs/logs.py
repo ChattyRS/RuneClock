@@ -2,25 +2,19 @@ import asyncio
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from main import config_load, Guild, Role
+from main import Bot, config_load, Guild, Role
 from datetime import datetime, UTC
 
 config = config_load()
 
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-events_logged = 0
-
-def log_event():
-    global events_logged
-    events_logged += 1
-
-def get_events_logged():
-    return events_logged
-
-class Logs(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Logs(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
+
+    def log_event(self):
+        self.bot.events_logged += 1
 
     @Cog.listener()
     async def on_command_error(self, ctx: commands.Context, error):
@@ -50,7 +44,7 @@ class Logs(commands.Cog):
                 channel = member.guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        log_event()
+        self.log_event()
         title = f'**Member Joined**'
         colour = 0x00e400
         timestamp = datetime.now(UTC)
@@ -91,7 +85,7 @@ class Logs(commands.Cog):
                     return
         except discord.Forbidden:
             pass
-        log_event()
+        self.log_event()
         title = f'**Member Left**'
         colour = 0xff0000
         timestamp = datetime.now(UTC)
@@ -118,7 +112,7 @@ class Logs(commands.Cog):
                 channel = guild.get_channel(g.log_channel_id)
         if not channel:
             return
-        log_event()
+        self.log_event()
         title = f'**Member Banned**'
         colour = 0xff0000
         timestamp = datetime.now(UTC)
@@ -145,7 +139,7 @@ class Logs(commands.Cog):
                 channel = guild.get_channel(g.log_channel_id)
         if not channel:
             return
-        log_event()
+        self.log_event()
         title = f'**Member Unbanned**'
         colour = 0xff7b1f
         timestamp = datetime.now(UTC)
@@ -174,7 +168,7 @@ class Logs(commands.Cog):
             return
         if guild.log_bots == False and message.author.bot:
             return
-        log_event()
+        self.log_event()
         
         txt = (f'By: {message.author.mention} ({message.author.name})\n'
                f'In: {message.channel.mention}')
@@ -205,7 +199,7 @@ class Logs(commands.Cog):
                 channel = messages[0].guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        log_event()
+        self.log_event()
 
         txt = f'{len(messages)} messages deleted in {messages[0].channel.mention}'
         embed = discord.Embed(title='**Bulk delete**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
@@ -234,7 +228,7 @@ class Logs(commands.Cog):
         if member.bot or before.embeds or after.embeds: # don't log edits for bots or embeds
             return
         if after.content != before.content:
-            log_event()
+            self.log_event()
             title = f'**Message Edited**'
             colour = 0x00b2ff
             timestamp = datetime.now(UTC)
@@ -276,7 +270,7 @@ class Logs(commands.Cog):
                 logChannel = channel.guild.get_channel(guild.log_channel_id)
         if not logChannel:
             return
-        log_event()
+        self.log_event()
         title = f'**Channel Deleted**'
         colour = 0xff0000
         timestamp = datetime.now(UTC)
@@ -306,7 +300,7 @@ class Logs(commands.Cog):
                 log_channel = channel.guild.get_channel(guild.log_channel_id)
         if not log_channel:
             return
-        log_event()
+        self.log_event()
         title = f'**Channel Created**'
         colour = 0x00e400
         timestamp = datetime.now(UTC)
@@ -333,7 +327,7 @@ class Logs(commands.Cog):
             return
 
         if before.nick != after.nick:
-            log_event()
+            self.log_event()
             title = f'**Nickname Changed**'
             colour = 0x00b2ff
             timestamp = datetime.now(UTC)
@@ -357,7 +351,7 @@ class Logs(commands.Cog):
             except discord.Forbidden:
                 return
         elif set(before.roles) != set(after.roles):
-            log_event()
+            self.log_event()
             added_roles = []
             removed_roles = []
             for r in before.roles:
@@ -411,7 +405,7 @@ class Logs(commands.Cog):
         if not channel:
             return
         if before.name != after.name:
-            log_event()
+            self.log_event()
             owner = after.owner
             title = f'**Server Name Changed**'
             colour = 0x00b2ff
@@ -447,7 +441,7 @@ class Logs(commands.Cog):
                 channel = role.guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        log_event()
+        self.log_event()
         title = f'**Role Created**'
         colour = 0x00e400
         timestamp = datetime.now(UTC)
@@ -481,7 +475,7 @@ class Logs(commands.Cog):
                 channel = role.guild.get_channel(guild.log_channel_id)
         if not channel:
             return
-        log_event()
+        self.log_event()
         title = f'**Role Deleted**'
         colour = 0xff0000
         timestamp = datetime.now(UTC)
@@ -507,7 +501,7 @@ class Logs(commands.Cog):
         if not channel:
             return
         if before.name != after.name:
-            log_event()
+            self.log_event()
             title = f'**Role Name Changed**'
             colour = 0x00b2ff
             timestamp = datetime.now(UTC)
@@ -539,7 +533,7 @@ class Logs(commands.Cog):
             return
 
         if len(before) != len(after):
-            log_event()
+            self.log_event()
             added = False
             new_emoji = None
             animated = False
@@ -615,7 +609,7 @@ class Logs(commands.Cog):
                         afterEmoji = e
                         break
         if old_name and new_name:
-            log_event()
+            self.log_event()
             title = f'Emoji name changed'
             colour = 0x00b2ff
             timestamp = datetime.now(UTC)

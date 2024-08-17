@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands
+from discord.ext.commands import AutoShardedBot as DiscordBot, Cog, CommandError, Context,
 import sys
 sys.path.append('../')
-from main import config_load, increment_command_counter, Command
+from main import Bot, config_load, increment_command_counter, Command
 import re
 import utils
 from utils import is_admin
@@ -21,22 +22,23 @@ async def get_aliases():
                     aliases.append(alias)
     return aliases
 
-class CustomCommands(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
-        self.bot = bot
+class CustomCommands(Cog):
+    bot: Bot
 
+    def __init__(self, bot: Bot):
+        self.bot = bot
         self.bot.loop.create_task(self.refresh_custom_command_aliases())
     
     async def refresh_custom_command_aliases(self):
-        custom_command = commands.Bot.get_command(self.bot, 'custom_command')
+        custom_command = DiscordBot.get_command(self.bot, 'custom_command')
         if custom_command:
-            commands.Bot.remove_command(self.bot, 'custom_command')
+            DiscordBot.remove_command(self.bot, 'custom_command')
             custom_command.aliases = await get_aliases()
-            commands.Bot.add_command(self.bot, custom_command)
+            DiscordBot.add_command(self.bot, custom_command)
 
     @commands.command()
     @is_admin()
-    async def custom(self, ctx: commands.Context):
+    async def custom(self, ctx: Context):
         '''
         Command to add/remove custom commands. (Admin+)
         Arguments: name, response.
@@ -63,21 +65,21 @@ class CustomCommands(commands.Cog):
             custom_command = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==command).gino.first()
             if custom_command:
                 await custom_command.delete()
-                custom_command = commands.Bot.get_command(self.bot, 'custom_command')
-                commands.Bot.remove_command(self.bot, 'custom_command')
+                custom_command = DiscordBot.get_command(self.bot, 'custom_command')
+                DiscordBot.remove_command(self.bot, 'custom_command')
                 custom_command.aliases = await get_aliases()
-                commands.Bot.add_command(self.bot, custom_command)
+                DiscordBot.add_command(self.bot, custom_command)
                 await ctx.send(f'Command `{command}` has been removed.')
                 return
-            raise commands.CommandError(message=f'Please specify what your command should do. See `help custom`.')
+            raise CommandError(message=f'Please specify what your command should do. See `help custom`.')
         else:
             name = command.split()[0].lower()
             command = command.replace(name, '', 1).strip()
 
-        cmd = commands.Bot.get_command(self.bot, name)
-        custom_command = commands.Bot.get_command(self.bot, 'custom_command')
+        cmd = DiscordBot.get_command(self.bot, name)
+        custom_command = DiscordBot.get_command(self.bot, 'custom_command')
         if cmd and cmd != custom_command:
-            raise commands.CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
+            raise CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
         
         custom_command = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==name).gino.first()
         if custom_command:
@@ -88,10 +90,10 @@ class CustomCommands(commands.Cog):
             new_custom_command = await Command.create(guild_id=ctx.guild.id, name=name, function=command, aliases=None, description='N/A')
 
         if not cmd: # alias didn't exist yet, so we need to add it
-            custom_command = commands.Bot.get_command(self.bot, 'custom_command')
-            commands.Bot.remove_command(self.bot, 'custom_command')
+            custom_command = DiscordBot.get_command(self.bot, 'custom_command')
+            DiscordBot.remove_command(self.bot, 'custom_command')
             custom_command.aliases = await get_aliases()
-            commands.Bot.add_command(self.bot, custom_command)
+            DiscordBot.add_command(self.bot, custom_command)
 
         if edit:
             await ctx.send(f'Edited command `{name}` to:\n```{command}```')
@@ -105,6 +107,8 @@ class CustomCommands(commands.Cog):
         Internal function used to call custom commands.
         Do not call this command directly.
         '''
+        if not ctx.invoked_with:
+            raise CommandError(message=f'Could not find the alias that was used to invoke the command. This is unexpected.')
         alias = ctx.invoked_with.lower()
         custom_command = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==alias).gino.first()
         if not custom_command:
@@ -127,15 +131,15 @@ class CustomCommands(commands.Cog):
             begin = command.index('{require:')
             end = command.find('}', begin)
             if end == -1:
-                raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             input = command[begin+9:end]
             role_name = input.strip()
             role = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
             if not role:
-                raise commands.CommandError(message=f'Missing role: `{str(role_name)}`. Please verify that the role name is spelled correctly.')
+                raise CommandError(message=f'Missing role: `{str(role_name)}`. Please verify that the role name is spelled correctly.')
             command = command.replace('{require:' + input + '}', '')
             if not role in ctx.author.roles:
-                raise commands.CommandError(message=f'Insufficient permissions: `{role_name}`.')
+                raise CommandError(message=f'Insufficient permissions: `{role_name}`.')
 
         # {user} will add the name of the user calling the command
         command = command.replace('{user}', ctx.author.name)
@@ -171,14 +175,14 @@ class CustomCommands(commands.Cog):
                         to_replace.append(['$' + str(number), arg])
                         continue
                     except:
-                        raise commands.CommandError(message=f'Error: required arguments missing. Use `help {alias}`.')
+                        raise CommandError(message=f'Error: required arguments missing. Use `help {alias}`.')
                 else:
                     arguments = []
                     for i, arg in enumerate(args):
                         if i >= number:
                             arguments.append(arg)
                     if not arguments and number != 0:
-                        raise commands.CommandError(message=f'Error: required arguments missing. Use `help {alias}`.')
+                        raise CommandError(message=f'Error: required arguments missing. Use `help {alias}`.')
                     arg_string = ''
                     for arg in arguments:
                         arg_string += arg + ' '
@@ -196,12 +200,12 @@ class CustomCommands(commands.Cog):
             begin = command.index('{@')
             end = command.find('}', begin)
             if end == -1:
-                raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             input = command[begin+2:end]
             user_name = input.strip()
             member = discord.utils.find(lambda m: m.name == user_name, ctx.guild.members)
             if not member:
-                raise commands.CommandError(message=f'Missing user: `{user_name}`.')
+                raise CommandError(message=f'Missing user: `{user_name}`.')
             command = command.replace('{@' + input + '}', member.mention)
 
         # {&role} will add a mention for a specific role by name
@@ -209,12 +213,12 @@ class CustomCommands(commands.Cog):
             begin = command.index('{&')
             end = command.find('}', begin)
             if end == -1:
-                raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             input = command[begin+2:end]
             role_name = input.strip()
             role = discord.utils.find(lambda r: r.name.lower() == role_name.lower(), ctx.guild.roles)
             if not role:
-                raise commands.CommandError(message=f'Missing role: `{role_name}`.')
+                raise CommandError(message=f'Missing role: `{role_name}`.')
             command = command.replace('{&' + input + '}', role.mention)
 
         # {#channel} will add a mention of a specific channel by name
@@ -223,14 +227,14 @@ class CustomCommands(commands.Cog):
             begin = command.index('{#')
             end = command.find('}', begin)
             if end == -1:
-                raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             input = command[begin+2:end]
             channelName = input.strip()
             channel = discord.utils.find(lambda c: str(c.id) == channelName, ctx.guild.channels)
             if not channel:
                 channel = discord.utils.find(lambda c: c.name == channelName, ctx.guild.channels)
             if not channel:
-                raise commands.CommandError(message=f'Missing channel: `{channelName}`.')
+                raise CommandError(message=f'Missing channel: `{channelName}`.')
             command = command.replace('{#' + input + '}', channel.mention)
 
         # {!command} calls a built-in bot command (no custom commands)
@@ -238,7 +242,7 @@ class CustomCommands(commands.Cog):
             begin = command.index('{!')
             end = command.find('}', begin)
             if end == -1:
-                raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             command_string = command[begin+2:end]
             command = command.replace('{!' + command_string + '}', '')
             space = command_string.find(' ')
@@ -246,22 +250,22 @@ class CustomCommands(commands.Cog):
                 space = len(command_string)
             commandName = command_string[:space]
             if commandName == 'customCommand':
-                raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             command_arguments = command_string[space:]
             cmd = self.bot.get_command(commandName)
             if not cmd:
-                raise commands.CommandError(message=f'Missing command: `{commandName}`.')
-            customCommand = commands.Bot.get_command(self.bot, 'customCommand')
+                raise CommandError(message=f'Missing command: `{commandName}`.')
+            customCommand = DiscordBot.get_command(self.bot, 'customCommand')
             if cmd == customCommand:
-                raise commands.CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             arguments = command_arguments.split()
             try:
                 for check in cmd.checks:
                     if not await check(ctx):
-                        raise commands.CommandError(message='Error: `Insufficient permissions`.')
+                        raise CommandError(message='Error: `Insufficient permissions`.')
                 await cmd.callback(self, ctx, *arguments)
             except Exception as e:
-                raise commands.CommandError(message=f'Error: `{type(e).__name__} : {e}`.')
+                raise CommandError(message=f'Error: `{type(e).__name__} : {e}`.')
 
         # {delete} will delete the message
         if '{delete}' in command:
@@ -269,7 +273,7 @@ class CustomCommands(commands.Cog):
                 await ctx.message.delete()
                 command = command.replace('{delete}', '')
             except discord.Forbidden:
-                raise commands.CommandError(message=f'Missing permissions: `delete_message`.')
+                raise CommandError(message=f'Missing permissions: `delete_message`.')
             except:
                 command = command.replace('{delete}', '')
 
@@ -288,7 +292,7 @@ class CustomCommands(commands.Cog):
         custom_commands = await Command.query.where(Command.guild_id==ctx.guild.id).gino.all()
 
         if not custom_commands:
-            raise commands.CommandError(message=f'This server does not have any custom commands.')
+            raise CommandError(message=f'This server does not have any custom commands.')
     
         for command in custom_commands:
             name = command.name
@@ -316,14 +320,14 @@ class CustomCommands(commands.Cog):
                 try:
                     await ctx.send(embed=embed)
                 except:
-                    raise commands.CommandError(message=f'Error: `character limit exceeded`.')
+                    raise CommandError(message=f'Error: `character limit exceeded`.')
                 embed.clear_fields()
                 embed.add_field(name=name, value=txt, inline=False)
 
         try:
             await ctx.send(embed=embed)
         except:
-            raise commands.CommandError(message=f'Error: `character limit exceeded`.')
+            raise CommandError(message=f'Error: `character limit exceeded`.')
 
     @commands.command(aliases=['description'])
     @is_admin()
@@ -334,13 +338,13 @@ class CustomCommands(commands.Cog):
         increment_command_counter()
 
         if not command or not description:
-            raise commands.CommandError(message=f'Error: `required arguments missing`')
+            raise CommandError(message=f'Error: `required arguments missing`')
         
         description = ' '.join(description)
 
         custom_command = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==command).gino.first()
         if not custom_command:
-            raise commands.CommandError(message=f'Error: no such command: `{command}`.')
+            raise CommandError(message=f'Error: no such command: `{command}`.')
 
         await custom_command.update(description=description).apply()
 
@@ -355,17 +359,17 @@ class CustomCommands(commands.Cog):
         increment_command_counter()
 
         if not command or not alias:
-            raise commands.CommandError(message=f'Error: `required arguments missing`.')
+            raise CommandError(message=f'Error: `required arguments missing`.')
 
-        cmd = commands.Bot.get_command(self.bot, alias)
-        custom_command = commands.Bot.get_command(self.bot, 'custom_command')
+        cmd = DiscordBot.get_command(self.bot, alias)
+        custom_command = DiscordBot.get_command(self.bot, 'custom_command')
         if cmd and cmd != custom_command:
-            raise commands.CommandError(message=f'Error: `alias already in use`.')
+            raise CommandError(message=f'Error: `alias already in use`.')
         
         msg = ''
         custom_command = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==command).gino.first()
         if not custom_command:
-            raise commands.CommandError(message=f'Error: no such command: `{command}`.')
+            raise CommandError(message=f'Error: no such command: `{command}`.')
 
         if custom_command.aliases:
             if alias in custom_command.aliases:
@@ -380,10 +384,10 @@ class CustomCommands(commands.Cog):
         await ctx.send(msg)
 
         if not cmd:
-            custom_command = commands.Bot.get_command(self.bot, 'custom_command')
-            commands.Bot.remove_command(self.bot, 'custom_command')
+            custom_command = DiscordBot.get_command(self.bot, 'custom_command')
+            DiscordBot.remove_command(self.bot, 'custom_command')
             custom_command.aliases = await get_aliases()
-            commands.Bot.add_command(self.bot, custom_command)
+            DiscordBot.add_command(self.bot, custom_command)
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(CustomCommands(bot))

@@ -194,8 +194,8 @@ def is_name(member_name, member):
         return False
 
 class RoleConverter(commands.Converter):
-    async def convert(self, ctx: commands.Context, argument):
-        if not argument:
+    async def convert(self, ctx: commands.Context, argument) -> discord.Role:
+        if not argument or not ctx.guild:
             raise commands.CommandError(message=f'Required argument missing: `role`.')
         if len(ctx.message.role_mentions) == 1:
             return ctx.message.role_mentions[0]

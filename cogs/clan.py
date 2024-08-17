@@ -3,12 +3,12 @@ import traceback
 from typing import List
 import discord
 from discord import TextStyle, app_commands
-from discord.ext import commands
+from discord.ext.commands import Cog, CommandError
 import sys
 import random
 import copy
 sys.path.append('../')
-from main import config_load, Guild
+from main import Bot, config_load, Guild
 import re
 from utils import is_int
 
@@ -298,7 +298,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         data = None
         async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
             if r.status != 201:
-                raise commands.CommandError(message=f'Error status: {r.status}.')
+                raise CommandError(message=f'Error status: {r.status}.')
             data = await r.json()
             
         competition = data['competition']
@@ -390,8 +390,8 @@ async def get_excluded_metrics(interaction: discord.Interaction):
     else:
         return []
 
-class Clan(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Clan(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     def cog_unload(self):
@@ -512,5 +512,5 @@ class Clan(commands.Cog):
     async def set_exclude(self, interaction: discord.Interaction):
          await interaction.response.send_modal(WOMExcludeModal(self.bot))
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Clan(bot))

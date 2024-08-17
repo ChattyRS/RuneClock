@@ -1,6 +1,9 @@
-from sqlite3 import Date
-from sqlalchemy import MetaData, Table, Column, PrimaryKeyConstraint, ForeignKey
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession, async_sessionmaker, AsyncAttrs
+from sqlalchemy import PrimaryKeyConstraint, ForeignKey
 from sqlalchemy import BigInteger, Integer, String, Boolean, DateTime, ARRAY, JSON
+from sqlalchemy.orm import DeclarativeBase, registry, Mapped, mapped_column
+from typing import Optional, List
+from datetime import datetime
 import codecs
 import json
 
@@ -11,216 +14,220 @@ def config_load():
     with codecs.open('data/config.json', 'r', encoding='utf-8-sig') as doc:
         #  Please make sure encoding is correct, especially after editing the config file
         return json.load(doc)
+    
+config = config_load()
 
-metadata_obj = MetaData()
+class Base(AsyncAttrs, DeclarativeBase):
+    pass
 
-users = Table(
-    'users',
-    metadata_obj,
-    Column('id', BigInteger, primary_key=True),
-    Column('rsn', String),
-    Column('osrs_rsn', String),
-    Column('timezone', String)
-)
+class User(Base):
+    __tablename__ = 'users'
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    rsn: Mapped[Optional[str]] = mapped_column(String)
+    osrs_rsn: Mapped[Optional[str]] = mapped_column(String)
+    timezone: Mapped[Optional[str]] = mapped_column(String)
 
-guilds = Table(
-    'guilds',
-    metadata_obj,
-    Column('id', BigInteger, primary_key=True),
-    Column('prefix', String(100)),
-    Column('welcome_channel_id', BigInteger),
-    Column('welcome_message', String),
-    Column('rs3_news_channel_id', BigInteger),
-    Column('osrs_news_channel_id', BigInteger),
-    Column('log_channel_id', BigInteger),
-    Column('notification_channel_id', BigInteger),
-    Column('role_channel_id', BigInteger),
-    Column('delete_channel_ids', ARRAY(BigInteger)),
-    Column('disabled_commands', ARRAY(String)),
-    Column('log_bots', Boolean),
-    Column('modmail_public', BigInteger),
-    Column('modmail_private', BigInteger),
-    Column('hall_of_fame_channel_id', BigInteger),
-    Column('hall_of_fame_react_num', BigInteger),
-    Column('bank_role_id', BigInteger),
-    Column('wom_role_id', BigInteger),
-    Column('wom_group_id', BigInteger),
-    Column('wom_verification_code', String),
-    Column('wom_excluded_metrics', String),
-    Column('custom_role_reaction_channel_id', BigInteger),
-    Column('role_reaction_management_role_id', BigInteger),
-    Column('custom_role_reaction_message', String)
-)
+class Guild(Base):
+    __tablename__ = 'guilds'
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    prefix: Mapped[Optional[str]] = mapped_column(String)
+    welcome_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    welcome_message: Mapped[Optional[str]] = mapped_column(String)
+    rs3_news_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    osrs_news_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    log_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    notification_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    role_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    delete_channel_ids: Mapped[Optional[List[int]]] = mapped_column(ARRAY(BigInteger))
+    disabled_commands: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String))
+    log_bots: Mapped[Optional[Boolean]] = mapped_column(Boolean)
+    modmail_public: Mapped[Optional[int]] = mapped_column(BigInteger)
+    modmail_private: Mapped[Optional[int]] = mapped_column(BigInteger)
+    hall_of_fame_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    hall_of_fame_react_num: Mapped[Optional[int]] = mapped_column(BigInteger)
+    bank_role_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    wom_role_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    wom_group_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    wom_verification_code: Mapped[Optional[str]] = mapped_column(String)
+    wom_excluded_metrics: Mapped[Optional[str]] = mapped_column(String)
+    custom_role_reaction_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    role_reaction_management_role_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    custom_role_reaction_message: Mapped[Optional[str]] = mapped_column(String)
 
-roles = Table(
-    'roles',
-    metadata_obj,
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('name', String),
-    Column('role_id', BigInteger),
+class Role(Base):
+    __tablename__ = 'roles'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'name', name='role_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    role_id: Mapped[BigInteger] = mapped_column(BigInteger)
 
-    PrimaryKeyConstraint('guild_id', 'name', name='role_pkey')
-)
+class Mute(Base):
+    __tablename__ = 'mutes'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'user_id', name='mute_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    user_id: Mapped[int] = mapped_column(BigInteger)
+    expiration: Mapped[datetime] = mapped_column(DateTime)
+    reason: Mapped[str] = mapped_column(String)
 
-mutes = Table(
-    'mutes',
-    metadata_obj,
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('user_id', BigInteger),
-    Column('expiration', DateTime),
-    Column('reason', String),
+class Command(Base):
+    __tablename__ = 'commands'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'name', name='command_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    name: Mapped[str] = mapped_column(String)
+    function: Mapped[str] = mapped_column(String)
+    aliases: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String))
+    description: Mapped[Optional[str]] = mapped_column(String)
 
-    PrimaryKeyConstraint('guild_id', 'user_id', name='mute_pkey')
-)
+class Repository(Base):
+    __tablename__ = 'repositories'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'user_name', 'repo_name', name='repo_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    channel_id: Mapped[int] = mapped_column(BigInteger)
+    user_name: Mapped[str] = mapped_column(String)
+    repo_name: Mapped[str] = mapped_column(String)
+    sha: Mapped[str] = mapped_column(String)
 
-commands = Table(
-    'commands',
-    metadata_obj,
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('name', String),
-    Column('function', String),
-    Column('aliases', ARRAY(String)),
-    Column('description', String),
+class Notification(Base):
+    __tablename__ = 'notifications'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'notification_id', name='notification_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    notification_id: Mapped[int] = mapped_column(Integer)
+    channel_id: Mapped[int] = mapped_column(BigInteger)
+    time: Mapped[datetime] = mapped_column(DateTime)
+    interval: Mapped[int] = mapped_column(Integer)
+    message: Mapped[str] = mapped_column(String)
 
-    PrimaryKeyConstraint('guild_id', 'name', name='command_pkey')
-)
+class OnlineNotification(Base):
+    __tablename__ = 'online_notifications'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'author_id', 'member_id', name='online_notification_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    author_id: Mapped[int] = mapped_column(BigInteger)
+    member_id: Mapped[int] = mapped_column(BigInteger)
+    channel_id: Mapped[int] = mapped_column(BigInteger)
+    type: Mapped[int] = mapped_column(Integer)
 
-repositories = Table(
-    'repositories',
-    metadata_obj,
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('channel_id', BigInteger),
-    Column('user_name', String),
-    Column('repo_name', String),
-    Column('sha', String),
+class Poll(Base):
+    __tablename__ = 'polls'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'message_id', name='poll_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    author_id: Mapped[int] = mapped_column(BigInteger)
+    channel_id: Mapped[int] = mapped_column(BigInteger)
+    message_id: Mapped[int] = mapped_column(BigInteger)
+    end_time: Mapped[datetime] = mapped_column(DateTime)  
 
-    PrimaryKeyConstraint('guild_id', 'user_name', 'repo_name', name='repo_pkey')
-)
+class NewsPost(Base):
+    __tablename__ = 'news_posts'
+    link: Mapped[str] = mapped_column(String, primary_key=True)
+    game: Mapped[str] = mapped_column(String)
+    title: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(String)
+    time: Mapped[datetime] = mapped_column(DateTime)
+    category: Mapped[str] = mapped_column(String)
+    image_url: Mapped[str] = mapped_column(String)
 
-notifications = Table(
-    'notifications',
-    metadata_obj,
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('notification_id', Integer),
-    Column('channel_id', BigInteger),
-    Column('time', DateTime),
-    Column('interval', Integer),
-    Column('message', String),
+class Uptime(Base):
+    __tablename__ = 'uptime'
+    time: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    status: Mapped[str] = mapped_column(String)
 
-    PrimaryKeyConstraint('guild_id', 'notification_id', name='notification_pkey')
-)
+class RS3Item(Base):
+    __tablename__ = 'rs3_items'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    icon_url: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(String)
+    members: Mapped[bool] = mapped_column(Boolean)
+    current: Mapped[str] = mapped_column(String)
+    today: Mapped[str] = mapped_column(String)
+    day30: Mapped[str] = mapped_column(String)
+    day90: Mapped[str] = mapped_column(String)
+    day180: Mapped[str] = mapped_column(String)
+    graph_data: Mapped[dict] = mapped_column(JSON)
 
-online_notifications = Table(
-    'online_notifications',
-    metadata_obj,
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('author_id', BigInteger),
-    Column('member_id', BigInteger),
-    Column('channel_id', BigInteger),
-    Column('type', Integer),
+class OSRSItem(Base):
+    __tablename__ = 'osrs_items'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    icon_url: Mapped[str] = mapped_column(String)
+    type: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(String)
+    members: Mapped[bool] = mapped_column(Boolean)
+    current: Mapped[str] = mapped_column(String)
+    today: Mapped[str] = mapped_column(String)
+    day30: Mapped[str] = mapped_column(String)
+    day90: Mapped[str] = mapped_column(String)
+    day180: Mapped[str] = mapped_column(String)
+    graph_data: Mapped[dict] = mapped_column(JSON)
 
-    PrimaryKeyConstraint('guild_id', 'author_id', 'member_id', name='online_notification_pkey')
-)
+class ClanBankTransaction(Base):
+    __tablename__ = 'clan_bank_transactions'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    member_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String)
 
-polls = Table(
-    'polls',
-    metadata_obj,
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('author_id', BigInteger),
-    Column('channel_id', BigInteger),
-    Column('message_id', BigInteger),
-    Column('end_time', DateTime),
+class CustomRoleReaction(Base):
+    __tablename__ = 'custom_role_reactions'
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    emoji_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    role_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
-    PrimaryKeyConstraint('guild_id', 'message_id', name='poll_pkey')
-)
+class BannedGuild(Base):
+    __tablename__ = 'banned_guilds'
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    reason: Mapped[str] = mapped_column(String)
 
-news_posts = Table(
-    'news_posts',
-    metadata_obj,
-    Column('link', String, primary_key=True),
-    Column('game', String),
-    Column('title', String),
-    Column('description', String),
-    Column('time', DateTime),
-    Column('category', String),
-    Column('image_url', String),
-)
+'''
+Get AsyncEngine to connect with the database
+'''
+def get_engine() -> AsyncEngine:
+    connection_string = (f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}'
+        + f'@{config["postgres_ip"]}:{config["postgres_port"]}/{config["postgres_db_name"]}')
+    engine = create_async_engine(connection_string)
+    return engine
 
-uptime = Table(
-    'uptime',
-    metadata_obj,
-    Column('time', DateTime, primary_key=True),
-    Column('status', String)
-)
-
-rs3_items = Table(
-    'rs3_items',
-    metadata_obj,
-    Column('id', Integer, primary_key=True),
-    Column('name', String),
-    Column('icon_url', String),
-    Column('type', String),
-    Column('description', String),
-    Column('members', Boolean),
-    Column('current', String),
-    Column('today', String),
-    Column('day30', String),
-    Column('day90', String),
-    Column('day180', String),
-    Column('graph_data', JSON),
-)
-
-osrs_items = Table(
-    'osrs_items',
-    metadata_obj,
-    Column('id', Integer, primary_key=True),
-    Column('name', String),
-    Column('icon_url', String),
-    Column('type', String),
-    Column('description', String),
-    Column('members', Boolean),
-    Column('current', String),
-    Column('today', String),
-    Column('day30', String),
-    Column('day90', String),
-    Column('day180', String),
-    Column('graph_data', JSON),
-)
-
-clan_bank_transactions = Table(
-    'clan_bank_transactions',
-    metadata_obj,
-    Column('id', Integer, primary_key=True),
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('member_id', BigInteger, nullable=False),
-    Column('time', DateTime, nullable=False),
-    Column('amount', BigInteger, nullable=False),
-    Column('description', String),
-)
-
-custom_role_reactions = Table(
-    'custom_role_reactions',
-    metadata_obj,
-    Column('id', BigInteger, primary_key=True),
-    Column('guild_id', BigInteger, ForeignKey('guilds.id'), nullable=False),
-    Column('emoji_id', BigInteger, nullable=False),
-    Column('role_id', BigInteger, nullable=False),
-)
-
-banned_guilds = Table(
-    'banned_guilds',
-    metadata_obj,
-    Column('id', BigInteger, primary_key=True),
-    Column('name', String),
-    Column('reason', String),
-)
-
-async def setup():
+'''
+Initialize the database engine and session.
+Ensure all tables are created.
+'''
+async def setup(bot):
     print('Setting up database connection...')
-    config = config_load()
-    await db.set_bind(f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}@{config["postgres_ip"]}:{config["postgres_port"]}/{config["postgres_db_name"]}')
-    await db.gino.create_all()
+
+    engine: AsyncEngine = get_engine()
+    bot.engine = engine
+
+    # async_sessionmaker: a factory for new AsyncSession objects.
+    # expire_on_commit - don't expire objects after transaction commit
+    async_session: async_sessionmaker[AsyncSession] = async_sessionmaker(engine, expire_on_commit=False)
+    bot.async_session = async_session
+
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
     print('Database ready!')
 
-async def close_connection():
-    await db.pop_bind().close()
+'''
+Close the database connection by disposing the engine.
+'''
+async def close_connection(bot):
+    engine: AsyncEngine = bot.engine
+    await engine.dispose()

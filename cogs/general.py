@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands
+from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, increment_command_counter, Poll
+from main import Bot, config_load, increment_command_counter, Poll
 import random
 from datetime import datetime, timedelta, UTC
 from operator import attrgetter
@@ -65,8 +66,8 @@ def get_paragraph_lengths(paragraphs, words):
         lengths[random.randint(0, paragraphs-1)] -= 1
     return lengths
 
-class General(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class General(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     @commands.command(pass_context=True, aliases=['flip', 'coin', 'coinflip'])
@@ -529,5 +530,5 @@ class General(commands.Cog):
         await ctx.send(embed=embed)
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(General(bot))

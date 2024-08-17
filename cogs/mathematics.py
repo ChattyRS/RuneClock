@@ -1,10 +1,11 @@
 from multiprocessing.managers import DictProxy
-from typing import Union
+from typing import Any, Union
 import discord
 from discord.ext import commands
+from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, increment_command_counter
+from main import Bot, config_load, increment_command_counter
 import math
 import re
 import cmath
@@ -35,11 +36,11 @@ rho = 1.32471795724474602596090885447809734
 e = math.e
 i = complex(0,1)
 inf = math.inf
-pattern = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!inf)(?<!x)(?<!sum)(?<!product)(?<!wrap_fn)\('
+pattern = r'(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!inf)(?<!x)(?<!sum)(?<!product)(?<!wrap_fn)\('
 legal = ['log', 'sqrt', 'floor', 'ceil', 'sin', 'cos', 'tan', 'round', 'abs', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'i', 'inf', 'mod', 'x', 'sum', 'product']
-pattern_graph = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!x)\('
+pattern_graph = r'(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!x)\('
 legal_graph = ['log', 'sqrt', 'floor', 'ceil', 'sin', 'cos', 'tan', 'round', 'abs', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'mod', 'x']
-pattern_solve = '(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!sin)(?<!cos)(?<!tan)(?<!x)\('
+pattern_solve = r'(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!sin)(?<!cos)(?<!tan)(?<!x)\('
 legal_solve = ['log', 'sqrt', 'sin', 'cos', 'tan', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'x', 'i']
 
 def get_alias(unit: str) -> str:
@@ -79,7 +80,7 @@ def calcproduct(start: int, end: int, f: str) -> numeric:
         product *= res
     return product
 
-def wrap_fn(fn: str, input: str) -> numeric:
+def wrap_fn(fn: str, input: Any) -> numeric:
     '''
     Wraps function calls to convert complex to real numbers.
     '''
@@ -98,7 +99,7 @@ def format_input(input: str, style: int) -> str:
     Style 0 = math, 1 = graph, 2 = solve
     '''
     # Get list of 'words' included in the user input
-    word_list = re.sub('(?:[0-9]|[^\w])', ' ', input).split()
+    word_list = re.sub(r'(?:[0-9]|[^\w])', ' ', input).split()
 
     # Validate for each distinct style if all word occurrences are allowed
     if style == 0:
@@ -148,21 +149,21 @@ def format_input(input: str, style: int) -> str:
         input = re.sub(pattern_graph, '*(', input)
     elif style == 2:
         input = re.sub(pattern_solve, '*(', input)
-    input = re.sub('\)(?=[0-9a-z])', ')*', input)
+    input = re.sub(r'\)(?=[0-9a-z])', ')*', input)
 
     # For any indices where a number is followed by a letter or vice versa,
     # Insert a multiplication symbol
     indices = []
     for index, char in enumerate(input):
         if len(input) > index+1:
-            if re.search('[\d]', char):
+            if re.search(r'[\d]', char):
                 next_char = input[index+1]
-                if re.search('[a-z]', next_char):
+                if re.search(r'[a-z]', next_char):
                     indices.append(index)
         if len(input) > index+1:
-            if re.search('[a-z]', char):
+            if re.search(r'[a-z]', char):
                 next_char = input[index+1]
-                if re.search('[\d]', next_char):
+                if re.search(r'[\d]', next_char):
                     indices.append(index)
     for index in reversed(indices):
         input = input[:index+1] + '*' + input[index+1:]
@@ -238,12 +239,12 @@ def format_input(input: str, style: int) -> str:
                     input = 'math.factorial(' + input
                     break
                 # If this is a number and the next (i.e. preceding) character is not a number, insert here
-                elif parentheses == 0 and re.search('[\d]', char):
-                    if not re.search('[\d]', input[index-i-2]):
+                elif parentheses == 0 and re.search(r'[\d]', char):
+                    if not re.search(r'[\d]', input[index-i-2]):
                         input = input[:index-i-1] + 'math.factorial(' + input[index-i-1:]
                         break
                 # If this character is not a number and not a letter, decimal point, or underscore, insert here
-                elif parentheses == 0 and not re.search('[a-z]|\.|_', char):
+                elif parentheses == 0 and not re.search(r'[a-z]|\.|_', char):
                     input = input[:index-i-1] + 'math.factorial(' + input[index-i-1:]
                     break
                 
@@ -274,7 +275,7 @@ def index_of_occurrence(input: str, sub: str, n: int) -> int:
         occurrence += 1
     return index
 
-def format_output(result: numeric) -> str:
+def format_output(result: numeric | str) -> str:
     '''
     Format the output result as a mathematical expression
     '''
@@ -385,8 +386,8 @@ def plot_func(x: np.ndarray, input: str, val: DictProxy):
             val[i] = e
             return
 
-class Mathematics(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Mathematics(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     @commands.command(pass_context=True)
@@ -711,11 +712,11 @@ class Mathematics(commands.Cog):
                 exp += 1
 
             # Remove non-significant digits and trailing decimal point
-            significant_digits = max([i for i, d in enumerate([n for n in num if re.match('[\d]', n)]) if d != '0']) + 1
-            digits = len([i for i in num if re.match('[\d]', i)])
+            significant_digits = max([i for i, d in enumerate([n for n in num if re.match(r'[\d]', n)]) if d != '0']) + 1
+            digits = len([i for i in num if re.match(r'[\d]', i)])
             while digits > significant_digits:
                 num = num[:len(num)-1]
-                digits = len([i for i in num if re.match('[\d]', i)])
+                digits = len([i for i in num if re.match(r'[\d]', i)])
             if num.endswith('.'):
                 num = num[:len(num)-1]
             
@@ -727,5 +728,5 @@ class Mathematics(commands.Cog):
             raise commands.CommandError(message=f'Error: output exceeds character limit.')
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Mathematics(bot))

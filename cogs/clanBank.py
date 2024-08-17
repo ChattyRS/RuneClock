@@ -1,15 +1,15 @@
-from typing import List
 import discord
 from discord import app_commands, TextStyle
-from discord.ext import commands
+from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, ClanBankTransaction, Guild
+from main import Bot, config_load, ClanBankTransaction, Guild
 from datetime import datetime, UTC
 from utils import is_int, max_cash, get_coins_image_name, digits
 import traceback
 import io
 import imageio
+from typing import List
 
 config = config_load()
 
@@ -283,8 +283,8 @@ class SubtractTransactionModal(discord.ui.Modal, title='Clan bank subtraction'):
         print(error)
         traceback.print_tb(error.__traceback__)
 
-class ClanBank(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class ClanBank(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     def cog_unload(self):
@@ -401,5 +401,5 @@ class ClanBank(commands.Cog):
         await interaction.response.send_message('Choose a role to allow management of your clan bank:', view=view, ephemeral=True)
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(ClanBank(bot))

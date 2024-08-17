@@ -4,21 +4,24 @@ import json
 import logging
 from pathlib import Path
 import sys
+from typing import Any
 import discord
 from discord.ext import commands
 import codecs
+from sqlalchemy import delete, insert, select
 import utils
 import string
-import aiohttp
+from aiohttp import ClientSession, ClientTimeout
 import gspread_asyncio
 import feedparser
 import traceback
 from github import Github
 from difflib import SequenceMatcher
 from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction, BannedGuild
-from database import setup as database_setup
+from database import setup as database_setup, close_connection as close_database
 import io
 from utils import safe_send_coroutine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 '''
 Load config file with necessary information
@@ -80,42 +83,35 @@ async def run():
     try:
         await bot.start(config['token'])
     except KeyboardInterrupt:
-        await bot.logout()
-
-async def purge_guild(guild):
-    '''
-    Purge all data relating to a specific Guild from the database
-    '''
-    roles = await Role.query.where(Role.guild_id == guild.id).gino.all()
-    for i in roles:
-        await i.delete()
-    mutes = await Mute.query.where(Mute.guild_id == guild.id).gino.all()
-    for i in mutes:
-        await i.delete()
-    commands = await Command.query.where(Command.guild_id == guild.id).gino.all()
-    for i in commands:
-        await i.delete()
-    repos = await Repository.query.where(Repository.guild_id == guild.id).gino.all()
-    for i in repos:
-        await i.delete()
-    notifications = await Notification.query.where(Notification.guild_id == guild.id).gino.all()
-    for i in notifications:
-        await i.delete()
-    online_notifications = await OnlineNotification.query.where(OnlineNotification.guild_id == guild.id).gino.all()
-    for i in online_notifications:
-        await i.delete()
-    polls = await Poll.query.where(Poll.guild_id == guild.id).gino.all()
-    for i in polls:
-        await i.delete()
-    transactions = await ClanBankTransaction.query.where(ClanBankTransaction.guild_id == guild.id).gino.all()
-    for i in transactions:
-        await i.delete()
-    reactions = await CustomRoleReaction.query.where(CustomRoleReaction.guild_id == guild.id).gino.all()
-    for i in reactions:
-        await i.delete()
-    await guild.delete()
+        await bot.close()
 
 class Bot(commands.AutoShardedBot):
+    bot: commands.AutoShardedBot
+    async_session: async_sessionmaker[AsyncSession]
+    engine: AsyncEngine
+    start_time: datetime
+    app_info: discord.AppInfo
+    aiohttp: ClientSession
+    agcm: gspread_asyncio.AsyncioGspreadClientManager
+
+    next_warband: datetime | None
+    next_vos: datetime | None
+    next_cache: datetime | None
+    next_yews48: datetime | None
+    next_yews140: datetime | None
+    next_goebies: datetime | None
+    next_sinkhole: datetime | None
+    next_merchant: datetime | None
+    next_spotlight: datetime | None
+    next_wilderness_flash_event: datetime | None
+
+    vos: Any
+    merchant: Any
+    spotlight: Any
+    wilderness_flash_event: Any
+
+    events_logged: int = 0
+
     def __init__(self, **kwargs):
         intents = discord.Intents.all()
         super().__init__(
@@ -125,11 +121,25 @@ class Bot(commands.AutoShardedBot):
             case_insensitive=True,
             intents=intents
         )
-        self.start_time = None
-        self.app_info = None
-        self.aiohttp = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
-        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
         self.bot = self
+        self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
+        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
+
+    async def purge_guild(self, guild: Guild):
+        '''
+        Purge all data relating to a specific Guild from the database
+        '''
+        async with self.async_session() as session:
+            await session.execute(delete(Role).where(Role.guild_id == guild.id))
+            await session.execute(delete(Mute).where(Mute.guild_id == guild.id))
+            await session.execute(delete(Command).where(Command.guild_id == guild.id))
+            await session.execute(delete(Repository).where(Repository.guild_id == guild.id))
+            await session.execute(delete(Notification).where(Notification.guild_id == guild.id))
+            await session.execute(delete(OnlineNotification).where(OnlineNotification.guild_id == guild.id))
+            await session.execute(delete(Poll).where(Poll.guild_id == guild.id))
+            await session.execute(delete(ClanBankTransaction).where(ClanBankTransaction.guild_id == guild.id))
+            await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id))
+            await session.delete(guild)
     
     async def setup_hook(self):
         await self.track_start()
@@ -147,16 +157,25 @@ class Bot(commands.AutoShardedBot):
         print(f'Initializing...')
         config = config_load()
         await asyncio.sleep(10) # Wait to ensure database is running on boot
-        await database_setup()
+
+        await database_setup(self)
+
         await asyncio.sleep(5) # Ensure database is up before we continue
-        await Uptime.create(time=self.start_time, status='started')
+
+        async with self.async_session() as session:
+            session.add(Uptime(time=self.start_time, status='started'))
+            await session.commit()
+
         self.loop.create_task(self.load_all_extensions())
+
         print(f'Loading Discord...')
+
         await self.wait_until_ready()
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='@RuneClock help'))
+
         channel = self.get_channel(config['testChannel'])
         self.app_info = await self.application_info()
-        msg = (f'Logged in to Discord as: {self.user.name}\n'
+        msg = (f'Logged in to Discord as: {self.user.name if self.user else "???"}\n'
             f'Using Discord.py version: {discord.__version__}\n'
             f'Owner: {self.app_info.owner}\n'
             f'Time: {str(self.start_time)} UTC')
@@ -166,10 +185,11 @@ class Bot(commands.AutoShardedBot):
 
         self.loop.create_task(self.check_guilds())
         self.loop.create_task(self.role_setup())
+
         if self.start_time:
             if self.start_time > datetime.now(UTC) - timedelta(minutes=5):
                 try:
-                    if channel:
+                    if channel and isinstance(channel, discord.TextChannel):
                         await channel.send(msg)
                 except:
                     pass
@@ -191,17 +211,18 @@ class Bot(commands.AutoShardedBot):
             self.loop.create_task(self.price_tracking_rs3())
             self.loop.create_task(self.price_tracking_osrs())
 
-    async def get_prefix_(self, bot, message):
+    async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message):
         '''
         A coroutine that returns a prefix.
         Looks in database for prefix corresponding to the server the message was sent in
         If none found, return default prefix '-'
         '''
         prefix = '-'
-        guild = await Guild.get(message.guild.id)
-        if guild:
-            if guild.prefix:
-                prefix = guild.prefix
+        if message.guild:
+            async with self.async_session() as session:
+                guild = (await session.execute(select(Guild).where(Guild.id == message.guild.id))).scalar_one_or_none()
+                if guild and guild.prefix:
+                    prefix = guild.prefix
         return commands.when_mentioned_or(prefix)(bot, message)
 
     async def load_all_extensions(self):

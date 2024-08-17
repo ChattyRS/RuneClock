@@ -1,6 +1,8 @@
+from typing import Any
 import discord
 from discord.ext import commands
-from main import config_load, increment_command_counter, Guild, Notification, OnlineNotification
+from discord.ext.commands import Cog
+from main import Bot, config_load, increment_command_counter, Guild, Notification, OnlineNotification
 import sys
 sys.path.append('../')
 from datetime import datetime, timedelta, UTC
@@ -12,8 +14,8 @@ ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys'
          'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',
          'Spotlight', 'WildernessFlashEvents']
 
-class Notifications(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Notifications(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     @commands.command(aliases=['rsnewschannel', 'newschannel'])
@@ -25,6 +27,9 @@ class Notifications(commands.Cog):
         If no channel is given, RS3 news messages will be disabled.
         '''
         increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'Required argument missing: `guild`.')
 
         guild = await Guild.get(ctx.guild.id)
 
@@ -53,6 +58,9 @@ class Notifications(commands.Cog):
                 if not found:
                     raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
             
+            if not isinstance(channel, discord.TextChannel):
+                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+            
             await guild.update(rs3_news_channel_id=channel.id).apply()
 
             await ctx.send(f'The RS3 news channel has been set to {channel.mention}.')
@@ -67,6 +75,9 @@ class Notifications(commands.Cog):
         If no channel is given, OSRS news messages will be disabled.
         '''
         increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'Required argument missing: `guild`.')
 
         guild = await Guild.get(ctx.guild.id)
 
@@ -94,6 +105,9 @@ class Notifications(commands.Cog):
                         break
                 if not found:
                     raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+                
+            if not isinstance(channel, discord.TextChannel):
+                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
             
             await guild.update(osrs_news_channel_id=channel.id).apply()
 
@@ -109,6 +123,9 @@ class Notifications(commands.Cog):
         '''
         increment_command_counter()
         await ctx.channel.typing()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'Required argument missing: `guild`.')
 
         if ctx.message.channel_mentions:
             channel = ctx.message.channel_mentions[0]
@@ -129,6 +146,9 @@ class Notifications(commands.Cog):
                 return
             else:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')
+            
+        if not isinstance(channel, discord.TextChannel):
+            raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
 
         permissions = discord.Permissions.none()
         colour = discord.Colour.default()
@@ -160,6 +180,9 @@ class Notifications(commands.Cog):
         '''
         increment_command_counter()
         await ctx.channel.typing()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'Required argument missing: `guild`.')
 
         guild = ctx.guild
         msg = ctx.message
@@ -405,6 +428,9 @@ class Notifications(commands.Cog):
         '''
         increment_command_counter()
 
+        if not ctx.guild:
+            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
         if not is_int(id):
@@ -438,6 +464,9 @@ class Notifications(commands.Cog):
         message: string
         '''
         increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'Required argument missing: `guild`.')
 
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
@@ -477,7 +506,7 @@ class Notifications(commands.Cog):
             if temp:
                 channel = temp
             else:
-                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+                raise commands.CommandError(message=f'Could not find channel: `{value}`.')
             await notification.update(channel_id=channel.id).apply()
         
         elif key == 'time':
@@ -652,6 +681,9 @@ class Notifications(commands.Cog):
         '''
         increment_command_counter()
 
+        if not ctx.guild:
+            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+        
         if not member:
             raise commands.CommandError(message=f'Required argument missing: `member`.')
         type = 1
@@ -661,8 +693,9 @@ class Notifications(commands.Cog):
                 type = int(potential_type)
                 member = member[0:len(member) - 1]
 
-        if ctx.message.mentions:
-            member = ctx.message.mentions[0]
+        member_mentions = [mention for mention in ctx.message.mentions if isinstance(mention, discord.Member)]
+        if member_mentions:
+            member = member_mentions[0]
         else:
             name = ""
             for m in member:
@@ -691,6 +724,9 @@ class Notifications(commands.Cog):
                         break
             if not found:
                 raise commands.CommandError(message=f'Could not find member: `{name}`.')
+        
+        if not isinstance(member, discord.Member):
+            raise commands.CommandError(message=f'Could not find member.')
         
         members = await ctx.guild.query_members(user_ids=[member.id], presences=True)
         member = members[0]
@@ -781,5 +817,5 @@ class Notifications(commands.Cog):
                     pass
                 await online_notification.delete()
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Notifications(bot))

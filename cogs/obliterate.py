@@ -6,7 +6,7 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, Guild, increment_command_counter
+from main import Bot, config_load, Guild, increment_command_counter
 from datetime import datetime, timedelta, UTC
 import re
 import gspread
@@ -58,7 +58,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         member_to_appreciate = self.member_to_appreciate
 
         if not 'Y' in anonymous.upper() and not 'N' in anonymous.upper():
-            interaction.response.send_message(f'Error: invalid value for anonymous: `{anonymous}`', ephemeral=True)
+            await interaction.response.send_message(f'Error: invalid value for anonymous: `{anonymous}`', ephemeral=True)
             return
         anonymous = 'Y' in anonymous.upper()
 
@@ -106,7 +106,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
                 member_row, member_index = member, i
                 break
         if not member_row:
-            interaction.response.send_message(f'Could not find member on roster: `{member_to_appreciate.name}#{member_to_appreciate.discriminator}`')
+            await interaction.response.send_message(f'Could not find member on roster: `{member_to_appreciate.name}#{member_to_appreciate.discriminator}`')
             return
 
         if not is_int(member_row[appreciation_col]):
@@ -140,6 +140,10 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
     async def on_submit(self, interaction: discord.Interaction):
         new_name = self.new_name.value.strip()
         member_to_rename = self.member_to_rename
+
+        if not interaction.guild:
+            await interaction.response.send_message(f'Error: could not find guild.', ephemeral=True)
+            return
 
         if not new_name or re.match('^[A-z0-9 -]+$', new_name) is None or len(new_name) > 12:
             await interaction.response.send_message(f'Error: invalid RSN: `{new_name}`', ephemeral=True)
@@ -179,7 +183,7 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
                 member_row, member_index = member, i
                 break
         if not member_row:
-            interaction.response.send_message(f'Could not find member on roster: `{member_to_rename.name}#{member_to_rename.discriminator}`')
+            await interaction.response.send_message(f'Could not find member on roster: `{member_to_rename.name}#{member_to_rename.discriminator}`')
             return
 
         member_row[notes_col] = (member_row[notes_col].strip() + ('.' if member_row[notes_col].strip() and not member_row[notes_col].strip().endswith('.') else '') + f' Formerly known as {member_row[name_col]}.').strip()
@@ -430,8 +434,8 @@ class AccountInfoModal(discord.ui.Modal, title='Account information'):
         print(error)
         traceback.print_tb(error.__traceback__)
 
-class Obliterate(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Obliterate(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
         self.track_discord_levels.start()
 
@@ -1095,5 +1099,5 @@ class Obliterate(commands.Cog):
         await ctx.send(embed=embed)
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Obliterate(bot))
