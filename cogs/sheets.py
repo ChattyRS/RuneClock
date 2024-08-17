@@ -1,5 +1,4 @@
 import discord
-import asyncio
 from discord.ext import commands, tasks
 import sys
 sys.path.append('../')
@@ -9,9 +8,8 @@ import re
 import validators
 import utils
 import copy
-import gspread_asyncio
 import gspread
-from utils import is_owner, is_admin, portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
+from utils import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 import logging
 
 config = config_load()
@@ -544,7 +542,7 @@ class Sheets(commands.Cog):
         last_ports = get_last_ports()
         boxes = last_ports[17].value
 
-        embed = discord.Embed(title='__Deposit boxes__', description=boxes, colour=0xff0000, url=config['publicSheets'], timestamp=datetime.utcnow())
+        embed = discord.Embed(title='__Deposit boxes__', description=boxes, colour=0xff0000, url=config['publicSheets'], timestamp=datetime.now(UTC))
         embed.set_thumbnail(url='https://i.imgur.com/Hccdnts.png')
 
         await ctx.send(embed=embed)
@@ -582,7 +580,7 @@ class Sheets(commands.Cog):
             return
         top_row, mid_row, bot_row = last_ports[:9], last_ports[9:18], last_ports[18:]
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         time_val = str(now.year) + " " + bot_row[2].value + ":" + str(now.second)
         time = datetime.strptime(time_val, '%Y %d %b, %H:%M:%S')
 
@@ -638,7 +636,7 @@ class Sheets(commands.Cog):
         increment_command_counter()
         await ctx.channel.typing()
 
-        timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         portables = self.bot.get_guild(config['portablesServer'])
         if not portables:
@@ -789,7 +787,7 @@ class Sheets(commands.Cog):
                 helpers = helpers[:i]
                 break
 
-        timestamp = datetime.utcnow().strftime("%b %#d, %Y")
+        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         username = ctx.author.display_name
         username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
 
@@ -858,7 +856,7 @@ class Sheets(commands.Cog):
             if smiley is None or not smiley:
                 smileys = smileys[:i]
                 break
-        timestamp = datetime.utcnow().strftime("%b %#d, %Y")
+        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         username = ctx.author.display_name
         username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
 
@@ -1093,7 +1091,7 @@ class Sheets(commands.Cog):
                     break
         if not row:
             raise commands.CommandError(message=f'Unexpected error: Could not find row in spreadsheet.')
-        timestamp = datetime.utcnow().strftime("%b %#d, %Y")
+        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         end_time = ''
         values = [name, type, f'{member_name} alt', '', '', '', '', '', '', '', '', '', '', 'Pending', timestamp, end_time]
 
@@ -1173,7 +1171,7 @@ class Sheets(commands.Cog):
             else:
                 raise commands.CommandError(message=f'The `{portable}` location `{format(new_ports)}` was already on the sheet.')
 
-        timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         name = '' # initialize empty name of user
         is_helper = False # boolean value representing whether or not the user is a rank
@@ -1262,7 +1260,7 @@ class Sheets(commands.Cog):
             else:
                 raise commands.CommandError(message=f'The `{portable}` location `{format(old_ports)}` was not found.')
 
-        timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         name = '' # initialize empty name of user
         is_helper = False # boolean value representing whether or not the user is a rank
@@ -1339,7 +1337,7 @@ class Sheets(commands.Cog):
             else:
                 raise commands.CommandError(message=f'Portable `{port}` had no locations listed.')
 
-        timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         name = '' # initialize empty name of user
         is_rank = False # boolean value representing whether or not the user is a rank
@@ -1399,7 +1397,7 @@ class Sheets(commands.Cog):
             is_rank = True # then set isRank to true
             name = utils.get_user_name(member) # and get the name of the user
 
-        timestamp = datetime.utcnow().strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         if input.replace('/', '').replace(' ', '') in ['NA', 'NO', 'NONE', '0', 'ZERO']: # if input was 'N/A' or a variation, remove all locations and return
             await update_sheet(self.bot.agcm, col, 'N/A', timestamp, name, is_rank)
@@ -1475,7 +1473,7 @@ class Sheets(commands.Cog):
             if not player:
                 watchlist = watchlist[:i]
                 break
-        timestamp = datetime.utcnow().strftime("%b %#d, %Y")
+        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         username = ctx.author.display_name
         username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
         count = 1
@@ -1518,7 +1516,7 @@ class Sheets(commands.Cog):
         sheet = await ss.worksheet('Rank Reports')
         header_rows = 4
 
-        month = datetime.utcnow().strftime("%B")
+        month = datetime.now(UTC).strftime("%B")
         sheet_month_cell = await sheet.cell(3, 1)
         sheet_month = sheet_month_cell.value
         if month.upper().strip() != sheet_month.upper().strip():
@@ -1529,7 +1527,7 @@ class Sheets(commands.Cog):
             if rank is None or not rank:
                 ranks = ranks[:i]
                 break
-        timestamp = datetime.utcnow().strftime("%#d")
+        timestamp = datetime.now(UTC).strftime("%#d")
         row = 0
         for i, rank in enumerate(ranks):
             if rank in rank_titles:
@@ -1555,7 +1553,7 @@ class Sheets(commands.Cog):
             raise commands.CommandError(message=f'`{name}` has already been noted active for today.')
         col = 4 + len(activity)
         await sheet.update_cell(row, col, timestamp)
-        await ctx.send(f'**{name}** has been noted as active for **{timestamp}** **{datetime.utcnow().strftime("%b")}**.')
+        await ctx.send(f'**{name}** has been noted as active for **{timestamp}** **{datetime.now(UTC).strftime("%b")}**.')
 
     @commands.command(pass_context=True, hidden=True)
     @portables_admin()
@@ -1586,7 +1584,7 @@ class Sheets(commands.Cog):
         sheet = await ss.worksheet('Rank Reports')
         header_rows = 4
 
-        month = datetime.utcnow().strftime("%B")
+        month = datetime.now(UTC).strftime("%B")
         sheet_month_cell = await sheet.cell(3, 1)
         sheet_month = sheet_month_cell.value
         if month != sheet_month:
@@ -1597,7 +1595,7 @@ class Sheets(commands.Cog):
             if rank is None or not rank:
                 ranks = ranks[:i]
                 break
-        timestamp = datetime.utcnow().strftime("%#d")
+        timestamp = datetime.now(UTC).strftime("%#d")
         row = 0
         for i, rank in enumerate(ranks):
             if rank in rank_titles:
@@ -1627,7 +1625,7 @@ class Sheets(commands.Cog):
             raise commands.CommandError(message=f'`{name}` has already been noted active for today.')
         sheet_col = 35 + len(sheet_activity)
         await sheet.update_cell(row, sheet_col, timestamp)
-        await ctx.send(f'**{name}** has been noted as active on sheets for **{timestamp}** **{datetime.utcnow().strftime("%b")}**.')
+        await ctx.send(f'**{name}** has been noted as active on sheets for **{timestamp}** **{datetime.now(UTC).strftime("%b")}**.')
 
 
 async def setup(bot):

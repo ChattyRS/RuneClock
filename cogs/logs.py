@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
 from main import config_load, Guild, Role
-from datetime import datetime
+from datetime import datetime, UTC
 
 config = config_load()
 
@@ -53,7 +53,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Member Joined**'
         colour = 0x00e400
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'User ID: {member.id}'
         creation_time = member.created_at
         min = creation_time.minute
@@ -94,7 +94,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Member Left**'
         colour = 0xff0000
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'User ID: {member.id}'
         txt = f'{member.mention} ({member.name})'
         url = member.display_avatar.url
@@ -121,7 +121,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Member Banned**'
         colour = 0xff0000
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'User ID: {user.id}'
         txt = f'{user.mention} ({user.name})'
         url = user.display_avatar.url
@@ -148,7 +148,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Member Unbanned**'
         colour = 0xff7b1f
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'User ID: {user.id}'
         txt = f'{user.name}'
         url = user.display_avatar.url
@@ -178,7 +178,7 @@ class Logs(commands.Cog):
         
         txt = (f'By: {message.author.mention} ({message.author.name})\n'
                f'In: {message.channel.mention}')
-        embed = discord.Embed(title='**Message Deleted**', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
+        embed = discord.Embed(title='**Message Deleted**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
         msg = message.content
         if len(msg) > 1000:
             msg = msg[:1000] + '\n...'
@@ -208,7 +208,7 @@ class Logs(commands.Cog):
         log_event()
 
         txt = f'{len(messages)} messages deleted in {messages[0].channel.mention}'
-        embed = discord.Embed(title='**Bulk delete**', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
+        embed = discord.Embed(title='**Bulk delete**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
 
         try:
             await channel.send(embed=embed)
@@ -237,7 +237,7 @@ class Logs(commands.Cog):
             log_event()
             title = f'**Message Edited**'
             colour = 0x00b2ff
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             id = f'Message ID: {after.id}'
             txt = (f'By: {member.mention} ({member.name})\n'
                    f'In: {after.channel.mention}')
@@ -279,7 +279,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Channel Deleted**'
         colour = 0xff0000
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'Channel ID: {channel.id}'
         creation_time = channel.created_at
         time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{creation_time.minute}'
@@ -309,7 +309,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Channel Created**'
         colour = 0x00e400
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'Channel ID: {channel.id}'
         txt = f'{channel.mention}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
@@ -336,7 +336,7 @@ class Logs(commands.Cog):
             log_event()
             title = f'**Nickname Changed**'
             colour = 0x00b2ff
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             id = f'User ID: {after.id}'
             txt = f'{after.mention} ({after.name})'
             url = after.display_avatar.url
@@ -368,7 +368,7 @@ class Logs(commands.Cog):
                     added_roles.append(r)
             title = f'**Roles Changed**'
             colour = 0x00b2ff
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             id = f'User ID: {after.id}'
             txt = f'{after.mention} ({after.name})'
             url = after.display_avatar.url
@@ -415,7 +415,7 @@ class Logs(commands.Cog):
             owner = after.owner
             title = f'**Server Name Changed**'
             colour = 0x00b2ff
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             id = f'Server ID: {after.id}'
             txt = f'Owner: {owner.mention} ({owner.name})'
             url = after.icon.url
@@ -450,7 +450,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Role Created**'
         colour = 0x00e400
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'Role ID: {role.id}'
         txt = f'{role.mention}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
@@ -484,7 +484,7 @@ class Logs(commands.Cog):
         log_event()
         title = f'**Role Deleted**'
         colour = 0xff0000
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         id = f'Role ID: {role.id}'
         txt = f'{role.name}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
@@ -510,7 +510,7 @@ class Logs(commands.Cog):
             log_event()
             title = f'**Role Name Changed**'
             colour = 0x00b2ff
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             id = f'Role ID: {after.id}'
             txt = f'Role: {after.mention}'
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
@@ -565,7 +565,7 @@ class Logs(commands.Cog):
                 if animated:
                     title = 'Animated Emoji Added'
                 colour = 0x00e400
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             id = f'Server ID: {guild.id}'
             txt = ''
             if added:
@@ -618,7 +618,7 @@ class Logs(commands.Cog):
             log_event()
             title = f'Emoji name changed'
             colour = 0x00b2ff
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
             txt = f'Before: {old_name}\nAfter: {new_name}\n{str(afterEmoji)}'
             id = f'Server ID: {guild.id}'
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)

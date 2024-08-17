@@ -4,7 +4,7 @@ import sys
 sys.path.append('../')
 from main import config_load, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import praw
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
@@ -81,7 +81,7 @@ def translate_age(age):
     age = age.replace('geleden', 'ago')
     return age
 
-vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.utcnow(), description='Today\'s vis wax combo has not been released yet.')
+vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.now(UTC), description='Today\'s vis wax combo has not been released yet.')
 vis_wax_combo = []
 vis_wax_released = False
 vis_wax_check_frequency = 60*15 # seconds
@@ -165,10 +165,10 @@ class Runescape(commands.Cog):
         global vis_wax_embed
         global vis_wax_combo
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         colour = 0x00b2ff
 
-        reset = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        reset = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         if now < reset + timedelta(seconds=vis_wax_check_frequency):
             vis_wax_released = False
             vis_wax_embed = discord.Embed(title='Vis wax combination', colour=colour, timestamp=now, description='Today\'s vis wax combo has not been released yet.')
@@ -339,7 +339,7 @@ class Runescape(commands.Cog):
         txt = txt.strip()
         txt = f'```{txt}```'
 
-        embed = discord.Embed(title=f'{name}\'s Adventurer\'s log', description=txt, colour=0x00b2ff, timestamp=datetime.utcnow(), url=f'https://apps.runescape.com/runemetrics/app/overview/player/{name.replace(" ", "%20")}')
+        embed = discord.Embed(title=f'{name}\'s Adventurer\'s log', description=txt, colour=0x00b2ff, timestamp=datetime.now(UTC), url=f'https://apps.runescape.com/runemetrics/app/overview/player/{name.replace(" ", "%20")}')
         embed.set_thumbnail(url=f'https://services.runescape.com/m=avatar-rs/{name.replace(" ", "%20")}/chat.png')
 
         await ctx.send(embed=embed)
@@ -357,7 +357,7 @@ class Runescape(commands.Cog):
         submissions = reddit.subreddit('2007scape').hot(limit=5)
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=f'/r/2007scape', colour=colour, timestamp=timestamp)
 
         for s in submissions:
@@ -377,7 +377,7 @@ class Runescape(commands.Cog):
         submissions = reddit.subreddit('runescape').hot(limit=5)
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=f'/r/runescape', colour=colour, timestamp=timestamp)
 
         for s in submissions:
@@ -414,7 +414,7 @@ class Runescape(commands.Cog):
         urls = data[3]
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=f'__Old School RuneScape Wiki__', colour=colour, timestamp=timestamp, url='https://oldschool.runescape.wiki/')
         embed.set_thumbnail(url='https://oldschool.runescape.wiki/images/b/bc/Wiki.png')
 
@@ -457,7 +457,7 @@ class Runescape(commands.Cog):
         urls = data[3]
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=f'__RuneScape Wiki__', colour=colour, timestamp=timestamp, url='https://runescape.wiki/')
         embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
 
@@ -560,7 +560,7 @@ class Runescape(commands.Cog):
             day180 = '+' + day180
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=link, description=description)
         embed.set_thumbnail(url=icon)
 
@@ -691,7 +691,7 @@ class Runescape(commands.Cog):
             day180 = '+' + day180
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=link, description=description)
         embed.set_thumbnail(url=icon)
 
@@ -850,7 +850,7 @@ class Runescape(commands.Cog):
 
         hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
        #  player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
@@ -988,7 +988,7 @@ class Runescape(commands.Cog):
         osrs_icon = discord.File(osrs_icon, filename='osrs.png')
 
         hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name_1}'.replace(' ', '+')
-        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url)
+        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)
@@ -1095,7 +1095,7 @@ class Runescape(commands.Cog):
 
         msg = f'```\n{msg}\n```'
 
-        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'))
+        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.now(UTC), description=msg, url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'))
         embed.set_author(name=f'Wise Old Man', url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'), icon_url='https://wiseoldman.net/img/logo.png')
 
         await ctx.send(embed=embed)
@@ -1196,7 +1196,7 @@ class Runescape(commands.Cog):
 
         hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=hiscore_page_url)
         embed.set_author(name='RuneScape HiScores', url='https://secure.runescape.com/m=hiscore/ranking', icon_url='attachment://rs3.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
@@ -1348,7 +1348,7 @@ class Runescape(commands.Cog):
         rs3_icon = discord.File(rs3_icon, filename='rs3.png')
 
         hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name_1}'.replace(' ', '+')
-        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url)
+        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='RuneScape HiScores', url='https://secure.runescape.com/m=hiscore/ranking', icon_url='attachment://rs3.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)
@@ -1459,7 +1459,7 @@ class Runescape(commands.Cog):
 
         msg = f'```\n{msg}\n```'
 
-        embed = discord.Embed(title=f'RS3 gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'))
+        embed = discord.Embed(title=f'RS3 gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.now(UTC), description=msg, url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'))
         embed.set_author(name=f'RunePixels', url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'), icon_url='https://pbs.twimg.com/profile_images/1579124090958479362/LbR9PDfv_400x400.png')
 
         await ctx.send(embed=embed)
@@ -1471,7 +1471,7 @@ class Runescape(commands.Cog):
         '''
         increment_command_counter()
 
-        time = datetime.utcnow()
+        time = datetime.now(UTC)
         time = time.strftime('%H:%M')
 
         await ctx.send(f'Current game time is: `{time}`.')
@@ -1492,7 +1492,7 @@ class Runescape(commands.Cog):
             raise commands.CommandError(message=f'Error fetching videos.')
 
         colour = 0xff0000
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title='RuneScape', colour=colour, timestamp=timestamp, url='https://www.youtube.com/runescape/videos')
         embed.set_thumbnail(url='https://imgur.com/JvKu58G.png')
 
@@ -1520,7 +1520,7 @@ class Runescape(commands.Cog):
             raise commands.CommandError(message=f'Error fetching videos.')
 
         colour = 0xff0000
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title='Old School RuneScape', colour=colour, timestamp=timestamp, url='https://www.youtube.com/OldSchoolRSCommunity/videos')
         embed.set_thumbnail(url='https://imgur.com/JvKu58G.png')
 
@@ -1657,11 +1657,11 @@ class Runescape(commands.Cog):
         '''
         increment_command_counter()
 
-        araxxor_rotation, next_araxxor = araxxor(datetime.utcnow())
-        vorago_rotation, next_vorago = vorago(datetime.utcnow())
-        rots_rotation, next_rots = rots(datetime.utcnow())
+        araxxor_rotation, next_araxxor = araxxor(datetime.now(UTC))
+        vorago_rotation, next_vorago = vorago(datetime.now(UTC))
+        rots_rotation, next_rots = rots(datetime.now(UTC))
 
-        embed = discord.Embed(title='PVM Rotations', colour=0xff0000, timestamp=datetime.utcnow())
+        embed = discord.Embed(title='PVM Rotations', colour=0xff0000, timestamp=datetime.now(UTC))
         embed.add_field(name='Araxxor', value=f'Blocked path: **{araxxor_rotation}**\nThe next path will close in `{next_araxxor}`.', inline=False)
         embed.add_field(name='Vorago', value=f'Current rotation: **{vorago_rotation}**\nThe next rotation will start in `{next_vorago}`.', inline=False)
         embed.add_field(name='Barrows: Rise Of The Six', value=f'Current rotation:\nWest: **{", ".join(rots_rotation[0])}**\nEast: **{", ".join(rots_rotation[1])}**\nThe next rotation will start in `{next_rots}`.', inline=False)
@@ -1790,7 +1790,7 @@ class Runescape(commands.Cog):
         if (any([lvls_required > 0 for lvls_required in levels_required])):
             description += '\nYou can level up by getting any of the following levels:'
 
-        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url, description=description)
+        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url, description=description)
         embed.set_author(name=name, icon_url=f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '%20'))
 
         for i, lvls_required in enumerate(levels_required):
@@ -1872,7 +1872,7 @@ class Runescape(commands.Cog):
         if (any([lvls_required > 0 for lvls_required in levels_required])):
             description += '\nYou can level up by getting any of the following levels:'
 
-        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url, description=description)
+        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url, description=description)
         embed.set_author(name=name, icon_url=f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '%20'))
 
         for i, lvls_required in enumerate(levels_required):

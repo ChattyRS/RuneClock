@@ -8,7 +8,7 @@ import sys
 
 sys.path.append('../')
 from main import config_load, increment_command_counter, ClanBankTransaction, Guild
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 import re
 import copy
 from bs4 import BeautifulSoup
@@ -103,7 +103,7 @@ async def create_transaction(amount: int, description: str, guild_id: int, membe
     '''
     Creates a ClanBankTransaction.
     '''
-    await ClanBankTransaction.create(amount=amount, description=description, guild_id=guild_id, member_id=member_id, time=datetime.utcnow())
+    await ClanBankTransaction.create(amount=amount, description=description, guild_id=guild_id, member_id=member_id, time=datetime.now(UTC))
 
 class Dropdown(discord.ui.Select):
     def __init__(self, options):

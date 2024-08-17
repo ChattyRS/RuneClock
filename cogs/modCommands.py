@@ -4,7 +4,7 @@ from discord.ext import commands
 import sys
 sys.path.append('../')
 from main import config_load, increment_command_counter, Mute, Guild
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import re
 from utils import is_int, RoleConverter
 from utils import is_admin
@@ -173,7 +173,7 @@ class ModCommands(commands.Cog):
                 raise commands.CommandError(message=f'Invalid argument: `duration`.')
             duration = timedelta(days=days, hours=hours, minutes=minutes)
 
-            end = str(datetime.utcnow().replace(second=0, microsecond=0) + duration)
+            end = str(datetime.now(UTC).replace(second=0, microsecond=0) + duration)
 
             await Mute.create(guild_id=ctx.guild.id, user_id=member.id, expiration=end, reason=reason)
 

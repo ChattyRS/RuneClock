@@ -5,7 +5,7 @@ import os
 import sys
 sys.path.append('../')
 from main import config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem, BannedGuild
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, UTC
 import psutil
 from cogs.logs import get_events_logged
 from pathlib import Path
@@ -47,7 +47,7 @@ def uptime_fraction(events, year=0, month=0, day=0):
             return 0
         elapsed = timedelta(hours=24)
         up = timedelta(seconds=0)
-        start_time = datetime.utcnow().replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+        start_time = datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
         for i, event in enumerate(events):
             if event.time.year == year and event.time.month == month and event.time.day == day:
                 if event.status == 'started':
@@ -56,10 +56,10 @@ def uptime_fraction(events, year=0, month=0, day=0):
                     up += event.time - start_time
             elif event.time > start_time:
                 last_event = events[i-1]
-                elapsed = last_event.time - datetime.utcnow().replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+                elapsed = last_event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
                 break
             if i == len(events) - 1:
-                elapsed = event.time - datetime.utcnow().replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+                elapsed = event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
         return up.total_seconds() / elapsed.total_seconds()
     elif year and month:
         start, end = None, None
@@ -108,7 +108,7 @@ class Management(commands.Cog):
 
     @tasks.loop(seconds=60)
     async def uptime_tracking(self):
-        now = datetime.utcnow().replace(microsecond=0)
+        now = datetime.now(UTC).replace(microsecond=0)
         today = now.replace(hour=0, minute=0, second=0)
         
         latest_event_today = await Uptime.query.where(Uptime.time >= today).order_by(Uptime.time.desc()).gino.first()
@@ -163,7 +163,7 @@ class Management(commands.Cog):
                         alias_str += f'`{alias}`'
                         if i < len(aliases)-1:
                             alias_str += ' | '
-                embed = discord.Embed(title=f'Help', description=f'`{command}`{alias_str}\n```{function}```\n{description}', colour=0x00e400, timestamp=datetime.utcnow())
+                embed = discord.Embed(title=f'Help', description=f'`{command}`{alias_str}\n```{function}```\n{description}', colour=0x00e400, timestamp=datetime.now(UTC))
                 embed.set_author(name=ctx.guild.me.display_name, url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
                 embed.set_footer(text=f'You can change the description of your custom command using the command \"description\".')
                 await ctx.send(embed=embed)
@@ -182,15 +182,15 @@ class Management(commands.Cog):
                         alias_str += f'{alias}'
                         if i < len(cmd.aliases)-1:
                             alias_str += ' | '
-                embed = discord.Embed(title=f'Help', description=f'`{cmd.name}{alias_str} {param_text}`\n{cmd.help}', colour=0x00e400, timestamp=datetime.utcnow())
+                embed = discord.Embed(title=f'Help', description=f'`{cmd.name}{alias_str} {param_text}`\n{cmd.help}', colour=0x00e400, timestamp=datetime.now(UTC))
                 embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
                 embed.set_footer(text=f'For more help, use the support command')
                 await ctx.send(embed=embed)
                 await ctx.message.add_reaction('✅')
                 return
 
-        embed = discord.Embed(title=f'Help', description=f'{config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=config['github_link'], timestamp=datetime.utcnow())
-        embed_short = discord.Embed(title=f'Help', description=f'{config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=config['github_link'], timestamp=datetime.utcnow())
+        embed = discord.Embed(title=f'Help', description=f'{config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=config['github_link'], timestamp=datetime.now(UTC))
+        embed_short = discord.Embed(title=f'Help', description=f'{config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=config['github_link'], timestamp=datetime.now(UTC))
 
         guild = await Guild.get(ctx.guild.id)
         guild_prefix = guild.prefix
@@ -584,7 +584,7 @@ class Management(commands.Cog):
         increment_command_counter()
         await ctx.channel.typing()
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         time = now.replace(microsecond=0)
         start_time = self.bot.start_time
         delta = time - start_time.replace(microsecond=0)
@@ -606,7 +606,7 @@ class Management(commands.Cog):
         ram_percent = ram[2]
         title = f'**Status**'
         colour = 0x00e400
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         txt = f'**OK**. :white_check_mark:'
         txt += f'\n**Shards:** {self.bot.shard_count}'
 
@@ -753,7 +753,7 @@ class Management(commands.Cog):
         except discord.Forbidden:
             ctx.send(f'Missing permissions: `delete_message`.')
 
-        embed = discord.Embed(title=title, colour=0x00b2ff, timestamp=datetime.utcnow(), description=msg)
+        embed = discord.Embed(title=title, colour=0x00b2ff, timestamp=datetime.now(UTC), description=msg)
         embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 
         await c.send(embed=embed)
@@ -969,7 +969,7 @@ class Management(commands.Cog):
 
         events = await Uptime.query.order_by(Uptime.time.asc()).gino.all()
 
-        now = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        now = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
         uptime_today = uptime_fraction(events, now.year, now.month, now.day)
         uptime_today_round = '{:.1f}'.format(uptime_today*100)
@@ -1013,7 +1013,7 @@ class Management(commands.Cog):
         
         txt = f'Today: `{uptime_today_round}%`\nMonthly: `{uptime_month_round}%`'
         
-        embed = discord.Embed(title='Uptime', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
+        embed = discord.Embed(title='Uptime', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
         
         image = discord.File(file, filename='uptime.png')
         embed.set_image(url=f'attachment://uptime.png')

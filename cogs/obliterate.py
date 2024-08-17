@@ -8,7 +8,7 @@ import sys
 
 sys.path.append('../')
 from main import config_load, Guild, increment_command_counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import re
 import gspread
 import traceback
@@ -81,7 +81,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         members_col = await appreciations.col_values(1)
         rows = len(members_col)
 
-        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
         new_row = [interaction.user.display_name, member_to_appreciate.display_name, date_str, message]
 
@@ -289,7 +289,7 @@ class ApplicationView(discord.ui.View):
         members_col = await roster.col_values(1)
         rows = len(members_col)
 
-        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
         new_row = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str]
         cell_list = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
@@ -517,7 +517,7 @@ class Obliterate(commands.Cog):
                                 beforeName = f'{before.name}#{before.discriminator}'
                                 afterName = f'{after.name}#{after.discriminator}'
                                 txt = f'{member.mention} {afterName}'
-                                embed = discord.Embed(title=f'**Name Changed**', colour=0x00b2ff, timestamp=datetime.utcnow(), description=txt)
+                                embed = discord.Embed(title=f'**Name Changed**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
                                 embed.add_field(name='Previously', value=beforeName, inline=False)
                                 embed.set_footer(text=f'User ID: {after.id}')
                                 embed.set_thumbnail(url=after.display_avatar.url)
@@ -798,7 +798,7 @@ class Obliterate(commands.Cog):
         event_col = await events.col_values(1)
         rows = len(event_col)
 
-        date_str = datetime.utcnow().strftime('%d %b %Y')
+        date_str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
         new_row = [event_name, host, date_str, ', '.join(participants)]
         cell_list = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
@@ -893,7 +893,7 @@ class Obliterate(commands.Cog):
 
             rows_to_update.append([roster, member_index+2, member_row])# +2 for header row and 1-indexing
 
-            date_str = datetime.utcnow().strftime('%d %b %Y')
+            date_str = datetime.now(UTC).strftime('%d %b %Y')
             date_str = date_str if not date_str.startswith('0') else date_str[1:]
             new_row = [m.display_name, ctx.author.display_name, date_str]
 
@@ -949,7 +949,7 @@ class Obliterate(commands.Cog):
             metric = metric[0].upper() + metric[1:]
             participants = data['participations']
 
-            if datetime.utcnow() < datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ'):
+            if datetime.now(UTC) < datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ'):
                 ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'This competition has not ended yet. It will end at `{data["endsAt"]}`.')
             
@@ -1065,7 +1065,7 @@ class Obliterate(commands.Cog):
             try:
                 join_date = datetime.strptime(m[6], '%d %b %Y')
             except:
-                join_date = datetime.utcnow()
+                join_date = datetime.now(UTC)
             if rank in reqs:
                 req = reqs[rank]
                 reqs_met = 0
@@ -1079,7 +1079,7 @@ class Obliterate(commands.Cog):
                     reqs_met += 1
                 if top3 >= req['top3']:
                     reqs_met += 1
-                if join_date <= datetime.utcnow() - timedelta(days=req['months']*30):
+                if join_date <= datetime.now(UTC) - timedelta(days=req['months']*30):
                     reqs_met += 1
                 if reqs_met >= req['number']:
                     eligible.append(m)

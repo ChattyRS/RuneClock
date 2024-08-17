@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import traceback
 from typing import List
 import discord
@@ -281,7 +281,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         guild = await Guild.get(interaction.guild.id)
 
         # Calculate start and end datetimes
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         start = now + timedelta(days=-now.weekday(), weeks=1)
         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(weeks=1)

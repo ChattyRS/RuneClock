@@ -4,7 +4,7 @@ import sys
 import copy
 sys.path.append('../')
 from main import config_load, increment_command_counter, districts
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from utils import time_diff_to_string
 from utils import item_emojis
 import json
@@ -67,7 +67,7 @@ class DNDCommands(commands.Cog):
         self.bot.wilderness_flash_event = None
     
     def next_update(self):
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
 
         next_times = [self.bot.next_warband, self.bot.next_vos, self.bot.next_cache, self.bot.next_yews48, self.bot.next_yews140, 
@@ -118,7 +118,7 @@ class DNDCommands(commands.Cog):
         if next_time.total_seconds() > 0:
             return
         
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
 
         wiki_headers = {'x-user-agent': config['wiki_user_agent']}
@@ -215,7 +215,7 @@ class DNDCommands(commands.Cog):
                         time = row.find('td').find('span').text.strip()
                         schedule.append([minigame, time])
 
-                    next_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                    next_date = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
                     next_day_and_month = datetime.strptime(schedule[1][1], '%d %b')
                     next_date = next_date.replace(day=next_day_and_month.day, month=next_day_and_month.month)
                     if datetime.strptime('1 Jan', '%d %b') <= next_day_and_month <= datetime.strptime('3 Jan', '%d %b'):
@@ -261,7 +261,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
 
         msg = (f'Future:\n'
@@ -285,7 +285,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(second=0, microsecond=0)
         time_to_vos = self.bot.next_vos - now
         time_to_vos = time_diff_to_string(time_to_vos)
@@ -311,10 +311,10 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
 
-        embed = discord.Embed(title='Traveling Merchant\'s Shop', colour=0x00b2ff, timestamp=datetime.utcnow(), url='https://runescape.wiki/w/Travelling_Merchant%27s_Shop', description=self.bot.merchant)
+        embed = discord.Embed(title='Traveling Merchant\'s Shop', colour=0x00b2ff, timestamp=datetime.now(UTC), url='https://runescape.wiki/w/Travelling_Merchant%27s_Shop', description=self.bot.merchant)
         embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
         embed.set_footer(text=f'Reset in {time_diff_to_string(self.bot.next_merchant - now)}.')
         
@@ -327,7 +327,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
         
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
         msg = config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + time_diff_to_string(self.bot.next_warband - now) + "."
@@ -341,7 +341,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
         
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
         msg = config['cacheEmoji'] + " **Guthixian caches** will begin in " + time_diff_to_string(self.bot.next_cache - now) + "."
@@ -355,7 +355,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
         msg = config['yewsEmoji'] + " **Divine yews** will begin in " + time_diff_to_string(self.bot.next_yews48 - now) + " in w48 bu, and in " + time_diff_to_string(self.bot.next_yews140 - now) + " in w140 bu."
@@ -369,7 +369,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
         
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
         msg = config['goebiesEmoji'] + " **Goebies supply run** will begin in " + time_diff_to_string(self.bot.next_goebies - now) + "."
@@ -383,7 +383,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
         
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
         msg = config['sinkholeEmoji'] + " **Sinkhole** will spawn in " + time_diff_to_string(self.bot.next_sinkhole - now) + "."
@@ -397,7 +397,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
         
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
         embed = discord.Embed(title='Minigame Spotlight', colour=0x00b2ff, description=self.bot.spotlight)
@@ -416,7 +416,7 @@ class DNDCommands(commands.Cog):
         global nemi_embed
         global nemi_time
 
-        if nemi_embed and nemi_time and datetime.utcnow() < nemi_time + timedelta(minutes=5):
+        if nemi_embed and nemi_time and datetime.now(UTC) < nemi_time + timedelta(minutes=5):
             await ctx.send(embed=nemi_embed)
             return
 
@@ -439,7 +439,7 @@ class DNDCommands(commands.Cog):
         embed.set_author(name=sub.author.name, icon_url=sub.author.icon_img)
 
         nemi_embed = embed
-        nemi_time = datetime.utcnow()
+        nemi_time = datetime.now(UTC)
 
         await ctx.send(embed=embed)
     
@@ -454,7 +454,7 @@ class DNDCommands(commands.Cog):
         global peng_embed
         global peng_time
 
-        if peng_embed and peng_time and ((datetime.utcnow().weekday() != 2 and datetime.utcnow() < peng_time + timedelta(hours=1)) or (datetime.utcnow().weekday() == 2 and datetime.utcnow() < peng_time + timedelta(minutes=5))):
+        if peng_embed and peng_time and ((datetime.now(UTC).weekday() != 2 and datetime.now(UTC) < peng_time + timedelta(hours=1)) or (datetime.now(UTC).weekday() == 2 and datetime.now(UTC) < peng_time + timedelta(minutes=5))):
             await ctx.send(embed=peng_embed)
             return
 
@@ -545,7 +545,7 @@ class DNDCommands(commands.Cog):
         embed.add_field(name='Notes', value=notes)
 
         peng_embed = embed
-        peng_time = datetime.utcnow()
+        peng_time = datetime.now(UTC)
 
         await ctx.send(embed=embed)
     
@@ -556,7 +556,7 @@ class DNDCommands(commands.Cog):
         '''
         increment_command_counter()
         
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
         txt = f'Current: {self.bot.wilderness_flash_event["current"]}\nNext: {self.bot.wilderness_flash_event["next"]}' if self.bot.wilderness_flash_event["current"] else f'Next: {self.bot.wilderness_flash_event["next"]}'

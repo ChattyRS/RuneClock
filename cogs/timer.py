@@ -4,7 +4,7 @@ from discord.ext import commands
 import sys
 sys.path.append('../')
 from main import increment_command_counter, User
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from utils import time_diff_to_string
 import pytz
 from utils import countries, is_int
@@ -196,7 +196,7 @@ class Timer(commands.Cog):
                 raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
             hours = int(hours)
         
-        t_0 = datetime.utcnow().replace(microsecond=0, second=0, minute=minutes, hour=hours)
+        t_0 = datetime.now(UTC).replace(microsecond=0, second=0, minute=minutes, hour=hours)
         t_0 += am_pm_offset
         
         msg = []
@@ -219,7 +219,7 @@ class Timer(commands.Cog):
         msg = sorted(msg, key=lambda x: x[0])
         msg = '\n'.join([x[1] for x in msg])
         
-        embed = discord.Embed(title=f'{input} UTC', colour=0x00b2ff, timestamp=datetime.utcnow(), description=msg)
+        embed = discord.Embed(title=f'{input} UTC', colour=0x00b2ff, timestamp=datetime.now(UTC), description=msg)
         embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 
         await ctx.send(embed=embed)

@@ -1,11 +1,10 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import json
 import logging
 from pathlib import Path
 import sys
 import discord
-from discord import app_commands
 from discord.ext import commands
 import codecs
 import utils
@@ -18,10 +17,7 @@ from github import Github
 from difflib import SequenceMatcher
 from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction, BannedGuild
 from database import setup as database_setup
-from database import close_connection as close_database
 import io
-import html
-import oauthlib
 from utils import safe_send_coroutine
 
 '''
@@ -145,7 +141,7 @@ class Bot(commands.AutoShardedBot):
         Can be used to work out uptime.
         '''
         # await self.wait_until_ready()
-        self.start_time = datetime.utcnow().replace(microsecond=0)
+        self.start_time = datetime.now(UTC).replace(microsecond=0)
 
     async def initialize(self):
         print(f'Initializing...')
@@ -171,7 +167,7 @@ class Bot(commands.AutoShardedBot):
         self.loop.create_task(self.check_guilds())
         self.loop.create_task(self.role_setup())
         if self.start_time:
-            if self.start_time > datetime.utcnow() - timedelta(minutes=5):
+            if self.start_time > datetime.now(UTC) - timedelta(minutes=5):
                 try:
                     if channel:
                         await channel.send(msg)
@@ -521,7 +517,7 @@ class Bot(commands.AutoShardedBot):
                 if message.channel.id in guild.delete_channel_ids:
                     await message.delete()
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         msg = message.content
         prefix = '-'
         if guild.prefix:
@@ -551,14 +547,14 @@ class Bot(commands.AutoShardedBot):
                     await portables_command.callback(self, context)
 
         if msg.startswith(prefix):
-            txt = f'{datetime.utcnow()}: Command \"{msg}\" received; processing...'
+            txt = f'{datetime.now(UTC)}: Command \"{msg}\" received; processing...'
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
 
         await self.process_commands(message)
 
         if msg.startswith(prefix):
-            time = (datetime.utcnow() - now).total_seconds() * 1000
+            time = (datetime.now(UTC) - now).total_seconds() * 1000
             txt = f'Command \"{msg}\" processed in {time} ms.'
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
@@ -597,7 +593,7 @@ class Bot(commands.AutoShardedBot):
         notified_this_day_merchant = False
         notified_this_day_spotlight = False
         reset = False
-        current_time = datetime.utcnow()
+        current_time = datetime.now(UTC)
         async for m in channel.history(limit=100):
             if m.created_at.day == current_time.day:
                 if 'Merchant' in m.content:
@@ -643,7 +639,7 @@ class Bot(commands.AutoShardedBot):
         i = 0
         while True:
             try:
-                now = datetime.utcnow()
+                now = datetime.now(UTC)
 
                 # Used to send messages concurrently
                 coroutines = []
@@ -868,7 +864,7 @@ class Bot(commands.AutoShardedBot):
                     for chunk in [coroutines[j:j + chunk_size] for j in range(0, len(coroutines), chunk_size)]:
                         await asyncio.gather(*chunk)
                         await asyncio.sleep(1) # Sleep for a second after each chunk of requests to avoid rate limits
-                    print(f'Notifications sent in {(datetime.utcnow() - now) / timedelta(milliseconds=1)} ms')
+                    print(f'Notifications sent in {(datetime.now(UTC) - now) / timedelta(milliseconds=1)} ms')
 
                 if now.minute > 1 and reset:
                     reset = False
@@ -917,11 +913,11 @@ class Bot(commands.AutoShardedBot):
                             continue
                         time = notification.time
                         interval = timedelta(seconds = notification.interval)
-                        if time > datetime.utcnow():
+                        if time > datetime.now(UTC):
                             continue
                         to_notify.append([channel, notification.message])
                         if interval.total_seconds() != 0:
-                            while time < datetime.utcnow():
+                            while time < datetime.now(UTC):
                                 time += interval
                             await notification.update(time=time).apply()
                         else:
@@ -972,7 +968,7 @@ class Bot(commands.AutoShardedBot):
                         await mute.delete()
                         continue
                     expires = mute.expiration
-                    if expires < datetime.utcnow():
+                    if expires < datetime.now(UTC):
                         await mute.delete()
                         mute_role = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), guild.roles)
                         if mute_role:
@@ -1007,7 +1003,7 @@ class Bot(commands.AutoShardedBot):
         '''
         Function to send a message for a runescape newspost
         '''
-        embed = discord.Embed(title=f'**{post.title}**', description=post.description, url=post.link, timestamp=datetime.utcnow())
+        embed = discord.Embed(title=f'**{post.title}**', description=post.description, url=post.link, timestamp=datetime.now(UTC))
         if osrs:
             embed.set_author(name='Old School RuneScape News', url='http://services.runescape.com/m=news/archive?oldschool=1', icon_url='https://i.imgur.com/2d5RrGi.png')
         else:
@@ -1134,7 +1130,7 @@ class Bot(commands.AutoShardedBot):
         logging.info('Initializing polls...')
         while True:
             polls = await Poll.query.gino.all()
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
             for poll in polls:
                 end_time = poll.end_time
                 if now > end_time:

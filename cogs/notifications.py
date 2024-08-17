@@ -3,7 +3,7 @@ from discord.ext import commands
 from main import config_load, increment_command_counter, Guild, Notification, OnlineNotification
 import sys
 sys.path.append('../')
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from utils import is_int, is_admin
 
 config = config_load()
@@ -212,7 +212,7 @@ class Notifications(commands.Cog):
             minutes = int(minutes)
             if minutes < 0 or minutes > 59:
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 20.')
-            time = datetime.utcnow()
+            time = datetime.now(UTC)
             time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours)
         elif len(parts) == 3: # format: DD-MM HH:MM
             day = parts[0]
@@ -226,7 +226,7 @@ class Notifications(commands.Cog):
             if not is_int(day):
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 23.')
             day = int(day)
-            year = datetime.utcnow().year
+            year = datetime.now(UTC).year
             if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 24.')
             elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
@@ -250,7 +250,7 @@ class Notifications(commands.Cog):
             minutes = int(minutes)
             if minutes < 0 or minutes > 59:
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 32.')
-            time = datetime.utcnow()
+            time = datetime.now(UTC)
             time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month)
         elif len(parts) == 4:
             day = parts[0]
@@ -260,7 +260,7 @@ class Notifications(commands.Cog):
             if not is_int(year):
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 1.')
             year = int(year)
-            if year < datetime.utcnow().year or year > datetime.utcnow().year+1:
+            if year < datetime.now(UTC).year or year > datetime.now(UTC).year+1:
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 2.')
             if not is_int(month):
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 3.')
@@ -293,11 +293,11 @@ class Notifications(commands.Cog):
             minutes = int(minutes)
             if minutes < 0 or minutes > 59:
                 raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 14.')
-            time = datetime.utcnow()
+            time = datetime.now(UTC)
             time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month, year=year)
         else:
             raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 15.')
-        if time < datetime.utcnow():
+        if time < datetime.now(UTC):
             raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 16.')
 
         # Handle input time interval
@@ -507,7 +507,7 @@ class Notifications(commands.Cog):
                 minutes = int(minutes)
                 if minutes < 0 or minutes > 59:
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.utcnow()
+                time = datetime.now(UTC)
                 time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours)
             elif len(parts) == 3: # format: DD-MM HH:MM
                 day = parts[0]
@@ -521,7 +521,7 @@ class Notifications(commands.Cog):
                 if not is_int(day):
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
                 day = int(day)
-                year = datetime.utcnow().year
+                year = datetime.now(UTC).year
                 if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
                 elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
@@ -545,7 +545,7 @@ class Notifications(commands.Cog):
                 minutes = int(minutes)
                 if minutes < 0 or minutes > 59:
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.utcnow()
+                time = datetime.now(UTC)
                 time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month)
             elif len(parts) == 4:
                 day = parts[0]
@@ -555,7 +555,7 @@ class Notifications(commands.Cog):
                 if not is_int(year):
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
                 year = int(year)
-                if year < datetime.utcnow().year or year > datetime.utcnow().year+1:
+                if year < datetime.now(UTC).year or year > datetime.now(UTC).year+1:
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
                 if not is_int(month):
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
@@ -588,11 +588,11 @@ class Notifications(commands.Cog):
                 minutes = int(minutes)
                 if minutes < 0 or minutes > 59:
                     raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.utcnow()
+                time = datetime.now(UTC)
                 time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month, year=year)
             else:
                 raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-            if time < datetime.utcnow():
+            if time < datetime.now(UTC):
                 raise commands.CommandError(message=f'Invalid argument: `{time}`.')
 
             await notification.update(time=time).apply()

@@ -4,7 +4,7 @@ import sys
 sys.path.append('../')
 from main import config_load, increment_command_counter, Poll
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from operator import attrgetter
 from utils import is_int
 import validators
@@ -158,7 +158,7 @@ class General(commands.Cog):
 
         title = f'Server info for: **{ctx.guild.name}**'
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
         embed.add_field(name='Owner', value=ctx.guild.owner.mention)
         embed.add_field(name='Channels', value=f'{len(ctx.guild.channels)}')
@@ -216,7 +216,7 @@ class General(commands.Cog):
         member = members[0]
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
         if member.display_avatar.url:
             embed.set_author(name=member.name, url=None, icon_url=member.display_avatar.url)
@@ -466,7 +466,7 @@ class General(commands.Cog):
             i += 1
         txt += f'\n\nThis poll will be open for {hours} hours!'
         
-        embed = discord.Embed(title='**Poll**', description=f'Created by {ctx.message.author.mention}\n{txt}', timestamp=datetime.utcnow())
+        embed = discord.Embed(title='**Poll**', description=f'Created by {ctx.message.author.mention}\n{txt}', timestamp=datetime.now(UTC))
         
         msg = await ctx.send(embed=embed)
         embed.set_footer(text=f'ID: {msg.id}')
@@ -474,7 +474,7 @@ class General(commands.Cog):
         for num in range(i):
             await msg.add_reaction(num_emoji[num])
         
-        await Poll.create(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
+        await Poll.create(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.now(UTC)+timedelta(hours=hours))
 
     @commands.command()
     async def close(self, ctx: commands.Context, msg_id=''):
@@ -534,7 +534,7 @@ class General(commands.Cog):
             txt += f'\nOption {winner} won with {percentage}% of the votes!'
         else:
             txt += f'It\'s a tie! Options {winner} each have {percentage}% of the votes!'
-        embed = discord.Embed(title='**Poll Results**', description=txt, timestamp=datetime.utcnow())
+        embed = discord.Embed(title='**Poll Results**', description=txt, timestamp=datetime.now(UTC))
         await ctx.send(embed=embed)
 
 
