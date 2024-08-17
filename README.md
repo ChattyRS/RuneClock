@@ -15,7 +15,7 @@ RuneClock is a general-purpose Discord bot for RuneScape Discord servers, origin
 
 ## Software and installation
 
-* [Python 3.10](https://www.python.org/)
+* [Python 3.12](https://www.python.org/)
 * [PostgreSQL 14](https://www.postgresql.org/)
 * [Discord.py v2.4](https://github.com/Rapptz/discord.py)
 
