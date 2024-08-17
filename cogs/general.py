@@ -54,15 +54,6 @@ def perm_string(p):
 
     return s
 
-# Create a simple list from the weirdly formatted dictionary, excluding non-alphabetic words
-word_list = []
-for lst in load_words()['*']:
-    lst = lst['a']['*']
-    for item in lst:
-        word = item['title']
-        if word.isalpha():
-            word_list.append(word)
-
 # Divide total number of words pseudo-randomly over number of paragraphs
 def get_paragraph_lengths(paragraphs, words):
     lower = round(words/paragraphs/2) # minimum words per paragraph
