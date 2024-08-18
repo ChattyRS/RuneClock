@@ -224,10 +224,3 @@ async def setup(bot):
         await connection.run_sync(Base.metadata.create_all)
 
     print('Database ready!')
-
-'''
-Close the database connection by disposing the engine.
-'''
-async def close_connection(bot):
-    engine: AsyncEngine = bot.engine
-    await engine.dispose()

@@ -5,7 +5,7 @@ from discord.ext.commands import Cog
 import os
 import sys
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, close_database, RS3Item, OSRSItem, BannedGuild
+from main import Bot, config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
 from datetime import datetime, timedelta, date, UTC
 import psutil
 from pathlib import Path
@@ -668,7 +668,7 @@ class Management(Cog):
         Restarts the bot.
         '''
         try:
-            await close_database()
+            await self.bot.close_database_connection()
         except:
             pass
         try:
@@ -684,7 +684,7 @@ class Management(Cog):
         Restarts the system.
         '''
         try:
-            await close_database()
+            await self.bot.close_database_connection()
         except:
             pass
         try:

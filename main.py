@@ -17,10 +17,13 @@ import feedparser
 import traceback
 from github import Github
 from difflib import SequenceMatcher
-from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction, BannedGuild
-from database import setup as database_setup, close_connection as close_database
 import io
 from utils import safe_send_coroutine
+
+# Other cogs import database classes from main
+# so even though some of these classes may appear not to be in use, they should not be removed here
+from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction, BannedGuild
+from database import setup as database_setup
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 '''
@@ -124,6 +127,12 @@ class Bot(commands.AutoShardedBot):
         self.bot = self
         self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
+    
+    '''
+    Close the database connection by disposing the engine.
+    '''
+    async def close_database_connection(self):
+        await self.engine.dispose()
 
     async def purge_guild(self, guild: Guild):
         '''
