@@ -196,20 +196,21 @@ class BannedGuild(Base):
     name: Mapped[str] = mapped_column(String)
     reason: Mapped[str] = mapped_column(String)
 
-'''
-Get AsyncEngine to connect with the database
-'''
 def get_engine() -> AsyncEngine:
+    '''
+    Get AsyncEngine to connect with the database
+    '''
     connection_string = (f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}'
         + f'@{config["postgres_ip"]}:{config["postgres_port"]}/{config["postgres_db_name"]}')
     engine = create_async_engine(connection_string)
     return engine
 
-'''
-Initialize the database engine and session.
-Ensure all tables are created.
-'''
 async def setup(bot):
+    '''
+    Initialize the database engine and session.
+    Ensure all tables are created.
+    '''
+
     print('Setting up database connection...')
 
     engine: AsyncEngine = get_engine()

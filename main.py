@@ -128,10 +128,10 @@ class Bot(commands.AutoShardedBot):
         self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
     
-    '''
-    Close the database connection by disposing the engine.
-    '''
     async def close_database_connection(self):
+        '''
+        Close the database connection by disposing the engine.
+        '''
         await self.engine.dispose()
 
     async def purge_guild(self, guild: Guild):
@@ -264,7 +264,7 @@ class Bot(commands.AutoShardedBot):
         logging.critical(msg)
 
         try:
-            if 'Failed' in msg:
+            if 'Failed' in msg and isinstance(channel, discord.TextChannel):
                 await channel.send(discord_msg)
         except discord.Forbidden:
             return
@@ -283,7 +283,7 @@ class Bot(commands.AutoShardedBot):
         for guild in self.guilds:
             if not guild.id == config['portablesServer']:
                 continue
-            for channel in guild.channels:
+            for channel in [c for c in guild.channels if isinstance(c, discord.TextChannel)]:
                 async for message in channel.history(limit=100):
                     self.messages.append(message)
 
