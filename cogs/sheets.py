@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands, tasks
+from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, increment_command_counter
+from main import Bot, config_load, increment_command_counter
 from datetime import datetime, timedelta, UTC
 import re
 import validators
@@ -461,8 +462,8 @@ def split(txt, seps):
         txt = txt.replace(sep, default_sep)
     return [i.strip() for i in txt.split(default_sep)]
 
-class Sheets(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Sheets(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
         self.track_location_updates.start()
 
@@ -1628,5 +1629,5 @@ class Sheets(commands.Cog):
         await ctx.send(f'**{name}** has been noted as active on sheets for **{timestamp}** **{datetime.now(UTC).strftime("%b")}**.')
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Sheets(bot))

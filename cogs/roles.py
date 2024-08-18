@@ -1,7 +1,8 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from main import config_load, increment_command_counter, Guild, Role
+from discord.ext.commands import Cog
+from main import Bot, config_load, increment_command_counter, Guild, Role
 import sys
 sys.path.append('../')
 import random
@@ -15,8 +16,8 @@ ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys'
          'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',
          'Spotlight', 'WildernessFlashEvents']
 
-class Roles(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Roles(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     @commands.command(pass_context=True)
@@ -371,5 +372,5 @@ class Roles(commands.Cog):
         return [app_commands.Choice(name=r.name, value=str(r.id)) for r in roles]
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Roles(bot))

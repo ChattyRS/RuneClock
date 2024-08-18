@@ -1,12 +1,11 @@
 from typing import List
 import discord
 from discord import TextStyle, app_commands
-from discord.ext import commands
 from discord.ext.commands import Cog
 import sys
 import traceback
 sys.path.append('../')
-from main import config_load, Guild, CustomRoleReaction
+from main import Bot, config_load, Guild, CustomRoleReaction
 
 config = config_load()
 
@@ -235,8 +234,8 @@ class SetMessageModal(discord.ui.Modal, title='Role-reactions: message'):
         print(error)
         traceback.print_tb(error.__traceback__)
 
-class RoleReactions(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class RoleReactions(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     def cog_unload(self):
@@ -459,5 +458,5 @@ class RoleReactions(commands.Cog):
         await interaction.response.send_message('Choose a role to allow management of your role-reactions:', view=view, ephemeral=True)
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(RoleReactions(bot))

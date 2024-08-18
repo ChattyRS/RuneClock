@@ -1,9 +1,10 @@
-import asyncio
 import discord
 from discord.ext import commands
+from discord.ext.commands import Cog
+import asyncio
 import sys
 sys.path.append('../')
-from main import increment_command_counter, User
+from main import Bot, increment_command_counter, User
 from datetime import datetime, timedelta, UTC
 from utils import time_diff_to_string
 import pytz
@@ -63,8 +64,8 @@ def string_to_timezone(timezone):
         raise commands.CommandError(message=f'Invalid argument: timezone `{timezone}`.')
     return timezone
 
-class Timer(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Timer(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
     @commands.command(pass_context=True, aliases=['reminder', 'remind', 'remindme'])
@@ -256,5 +257,5 @@ class Timer(commands.Cog):
             await ctx.send(f'{ctx.author.mention} your timezone has been removed.')
 
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Timer(bot))

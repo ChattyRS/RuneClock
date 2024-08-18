@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands, tasks
+from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import config_load, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
+from main import Bot, config_load, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
 import re
 from datetime import datetime, timedelta, UTC
 import praw
@@ -137,8 +138,8 @@ def rots(t):
     rotation, next = get_rotation(t, 20, 1, 0)
     return (rotations[rotation], time_diff_to_string(next))
 
-class Runescape(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
+class Runescape(Cog):
+    def __init__(self, bot: Bot):
         self.bot = bot
         self.vis_wax.start()
 
@@ -1824,5 +1825,5 @@ class Runescape(commands.Cog):
 
         await ctx.send(embed=embed)
 
-async def setup(bot):
+async def setup(bot: Bot):
     await bot.add_cog(Runescape(bot))
