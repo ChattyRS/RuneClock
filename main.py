@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, List, Sequence
 import discord
 from discord.ext import commands
 import codecs
@@ -162,6 +162,23 @@ class Bot(commands.AutoShardedBot):
         # await self.wait_until_ready()
         self.start_time = datetime.now(UTC).replace(microsecond=0)
 
+    # Helper methods
+
+    def find_text_channel(self, id: int | None) -> discord.TextChannel | None:
+        channel = self.get_channel(id) if id else None
+        return channel if isinstance(channel, discord.TextChannel) else None
+    
+    def get_text_channel(self, id: int | None) -> discord.TextChannel:
+        if id:
+            channel = self.get_channel(id)
+        if not isinstance(channel, discord.TextChannel):
+            raise Exception(f'Channel with id {id if id else "None"} was not found.')
+        return channel
+    
+    async def find_db_guild(self, id: int | None) -> Guild | None:
+        async with self.async_session() as session:
+            return (await session.execute(select(Guild).where(Guild.id == id))).scalar_one_or_none()
+
     async def initialize(self):
         print(f'Initializing...')
         config = config_load()
@@ -277,33 +294,16 @@ class Bot(commands.AutoShardedBot):
         '''
         logging.info('Checking guilds...')
         print(f'Checking guilds...')
-        config = config_load()
 
-        # Adds 100 old messages to cache for each channel in Portables
-        for guild in self.guilds:
-            if not guild.id == config['portablesServer']:
-                continue
-            for channel in [c for c in guild.channels if isinstance(c, discord.TextChannel)]:
-                async for message in channel.history(limit=100):
-                    self.messages.append(message)
+        async with self.async_session() as session:
+            guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.id.not_in([g.id for g in self.guilds])))).scalars().all()
+            for guild in guilds:
+                await self.purge_guild(guild)
 
-        guilds = await Guild.query.gino.all()
-        for guild in guilds:
-            in_guild = False
-            for guild_2 in self.guilds:
-                if guild.id == guild_2.id:
-                    in_guild = True
-                    break
-            if not in_guild:
-                await purge_guild(guild)
-            elif not guild.prefix:
-                await guild.update(prefix='-').apply()
-
-        msg = f'{str(len(self.guilds))} guilds checked and messages cached'
+        msg = f'{str(len(self.guilds))} guilds checked'
         print(msg)
         print('-' * 10)
         logging.info(msg)
-
 
     async def role_setup(self):
         '''
@@ -315,28 +315,28 @@ class Bot(commands.AutoShardedBot):
         logging.info('Initializing role management...')
         config = config_load()
 
-        channels = []
-        guilds = await Guild.query.gino.all()
-        if guilds:
-            for guild in guilds:
-                g = self.get_guild(guild.id)
-                if guild:
-                    if guild.role_channel_id:
-                        channel = g.get_channel(guild.role_channel_id)
-                        if channel:
-                            channels.append(channel)
+        guilds: Sequence[Guild]
+        async with self.async_session() as session:
+            guilds = (await session.execute(select(Guild).where(Guild.role_channel_id.isnot(None)))).scalars().all()
+
+        channels: List[discord.TextChannel] = []
+        for db_guild in guilds:
+            channel = self.find_text_channel(db_guild.role_channel_id)
+            if channel:
+                channels.append(channel)
 
         if not channels:
-            logChannel = self.get_channel(config['testChannel'])
             msg = f'Sorry, I was unable to retrieve any role management channels. Role management is down.'
             print(msg)
             print('-' * 10)
             logging.critical(msg)
             try:
+                logChannel = self.get_text_channel(config['testChannel'])
                 await logChannel.send(f'Sorry, I was unable to retrieve any role management channels. Role management is down.')
-                return
-            except discord.Forbidden:
-                return
+            except Exception:
+                pass
+            return
+            
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
         notif_emojis = []
         for r in notif_roles:
@@ -360,67 +360,50 @@ class Bot(commands.AutoShardedBot):
                         print(f'Exception: {e}')
             except discord.Forbidden:
                 continue
+
         msg = f'Role management ready'
         print(msg)
         print('-' * 10)
         logging.info(msg)
 
-
-    async def on_member_join(self, member):
+    async def on_member_join(self, member: discord.Member):
         '''
         Function to send welcome messages
         '''
-        config = config_load()
+        guild: Guild | None = await self.find_db_guild(member.guild.id)
 
-        #Automatically ban players with problematic names, and do not send welcome messages
-        if str(member.guild.id) == config['portablesServer']:
-            if 'DISCORD.GG' in member.name.upper() or 'PORTABLE' in member.name.upper():
-                try:
-                    await member.ban()
-                    return
-                except discord.Forbidden:
-                    return
-        try:
-            guild = await Guild.get(member.guild.id)
-        except:
+        if not guild or not guild.welcome_message or not guild.welcome_channel_id:
             return
-        if not guild:
+        
+        welcome_channel = member.guild.get_channel(guild.welcome_channel_id)
+        if not isinstance(welcome_channel, discord.TextChannel):
             return
-        if not guild.welcome_message:
-            return
+        
         welcome_message = guild.welcome_message.replace('[user]', member.mention)
         welcome_message = welcome_message.replace('[server]', member.guild.name)
-        if not guild.welcome_channel_id:
-            return
-        welcome_channel = member.guild.get_channel(guild.welcome_channel_id)
         
         try:
             await welcome_channel.send(welcome_message)
         except discord.Forbidden:
             return
 
-    async def on_raw_reaction_add(self, payload):
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         '''
         Function to add roles on reactions
         '''
         channel = self.get_channel(payload.channel_id)
 
-        if not channel or not channel.guild:
+        if not isinstance(channel, discord.TextChannel):
             return
 
         user = await channel.guild.fetch_member(payload.user_id)
 
-        if not user:
-            return
-
-        if user.bot:
+        if not user or user.bot:
             return
 
         role = None
-        try:
-            guild = await Guild.get(channel.guild.id)
-        except:
-            return
+
+        guild: Guild | None = await self.find_db_guild(channel.guild.id)
         if not guild:
             return
 
