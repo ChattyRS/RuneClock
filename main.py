@@ -175,9 +175,31 @@ class Bot(commands.AutoShardedBot):
             raise Exception(f'Channel with id {id if id else "None"} was not found.')
         return channel
     
-    async def find_db_guild(self, id: int | None) -> Guild | None:
+    async def find_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild | None:
+        id = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
         async with self.async_session() as session:
             return (await session.execute(select(Guild).where(Guild.id == id))).scalar_one_or_none()
+
+    async def get_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild:
+        id = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
+        if not id:
+            raise Exception(f'Attempted to get a guild from the database but ID was None.')
+        guild = await self.find_db_guild(id)
+        if not guild:
+            raise Exception(f'Guild with id {id} was not found.')
+        return guild
+    
+    async def create_db_guild(self, guild_or_id: discord.Guild | int):
+        id = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
+        async with self.async_session() as session:
+            instance = Guild(id=id, prefix='-')
+            session.add(instance)
+            await session.commit()
+        return instance
+    
+    async def find_or_create_db_guild(self, guild_or_id: discord.Guild | int):
+        db_guild = await self.find_db_guild(guild_or_id)
+        return db_guild if db_guild else await self.create_db_guild(guild_or_id)
 
     async def initialize(self):
         print(f'Initializing...')
@@ -370,9 +392,9 @@ class Bot(commands.AutoShardedBot):
         '''
         Function to send welcome messages
         '''
-        guild: Guild | None = await self.find_db_guild(member.guild.id)
+        guild: Guild = await self.get_db_guild(member.guild)
 
-        if not guild or not guild.welcome_message or not guild.welcome_channel_id:
+        if not guild.welcome_message or not guild.welcome_channel_id:
             return
         
         welcome_channel = member.guild.get_channel(guild.welcome_channel_id)
@@ -401,11 +423,7 @@ class Bot(commands.AutoShardedBot):
         if not user or user.bot:
             return
 
-        role = None
-
-        guild: Guild | None = await self.find_db_guild(channel.guild.id)
-        if not guild:
-            return
+        guild: Guild = await self.get_db_guild(channel.guild)
 
         if guild.role_channel_id == channel.id:
             emoji = payload.emoji
@@ -421,72 +439,47 @@ class Bot(commands.AutoShardedBot):
                 except discord.Forbidden:
                     pass
         
-        if guild.hall_of_fame_channel_id:
+        if str(payload.emoji) == '🌟' and guild.hall_of_fame_channel_id and guild.hall_of_fame_react_num:
+            message = await channel.fetch_message(payload.message_id)
             hof_channel = self.get_channel(guild.hall_of_fame_channel_id)
-            if hof_channel:
-                if str(payload.emoji) == '🌟':
-                    message = await channel.fetch_message(payload.message_id)
-                    if message:
-                        if not message.author.bot and (message.content or message.attachments):
-                            for r in message.reactions:
-                                if r.emoji == '🌟':
-                                    if r.count >= guild.hall_of_fame_react_num:
-                                        found = False
-                                        hof_msg = None
-                                        hof_embed = None
-                                        async for msg in hof_channel.history(limit=1000, after=message.created_at):
-                                            if msg.embeds:
-                                                for embed in msg.embeds:
-                                                    footer = embed.footer.text
-                                                    if str(message.id) in footer:
-                                                        found = True
-                                                        hof_msg = msg
-                                                        hof_embed = embed
-                                                        break
-                                        if not found:
-                                            embed = discord.Embed(title=f'Hall of fame 🌟 {r.count}', description=message.content, colour=0xffd700, url=message.jump_url, timestamp=message.created_at)
-                                            embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
-                                            if message.attachments:
-                                                for a in message.attachments:
-                                                    if 'image' in a.content_type:
-                                                        embed.set_image(url=a.url)
-                                                        break
-                                            embed.set_footer(text=f'Message ID: {message.id}')
-                                            await hof_channel.send(embed=embed)
-                                        else:
-                                            hof_embed.title = f'Hall of fame 🌟 {r.count}'
-                                            await hof_msg.edit(embed=hof_embed)
-                                    break
+            if isinstance(hof_channel, discord.TextChannel) and message and not message.author.bot and (message.content or message.attachments):
+                reactions = [r for r in message.reactions if r.emoji == '🌟' and r.count >= guild.hall_of_fame_react_num]
+                reaction = reactions[0] if reactions else None
+                if reaction:
+                    hof_msg = None
+                    hof_embed = None
+                    async for msg in hof_channel.history(limit=1000, after=message.created_at):
+                        for embed in [em for em in msg.embeds if em.footer.text and str(message.id) in em.footer.text]:
+                            hof_msg = msg
+                            hof_embed = embed
+                            break
+                        if hof_msg and hof_embed:
+                            break
+
+                    if not hof_msg or not hof_embed:
+                        embed = discord.Embed(title=f'Hall of fame 🌟 {reaction.count}', description=message.content, colour=0xffd700, url=message.jump_url, timestamp=message.created_at)
+                        embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
+                        attachments = [a for a in message.attachments if a.content_type and 'image' in a.content_type]
+                        attachment = attachments[0] if attachments else None
+                        if attachment:
+                            embed.set_image(url=attachment.url)
+                        embed.set_footer(text=f'Message ID: {message.id}')
+                        await hof_channel.send(embed=embed)
+                    else:
+                        hof_embed.title = f'Hall of fame 🌟 {reaction.count}'
+                        await hof_msg.edit(embed=hof_embed)
 
 
-    async def on_raw_reaction_remove(self, payload):
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
         '''
         Function to remove roles on reactions
         '''
-        channel = self.get_channel(payload.channel_id)
-
-        if not channel or not channel.guild:
+        channel = self.find_text_channel(payload.channel_id)
+        if not channel:
             return
-
-        try:
-            user = await channel.guild.fetch_member(payload.user_id)
-        except discord.NotFound:
-            return
-
-        if not user:
-            return
-
-        if user.bot:
-            return
-
-        role = None
-        try:
-            guild = await Guild.get(channel.guild.id)
-        except:
-            return
-        if not guild:
-            return
-        if not guild.role_channel_id == channel.id:
+        
+        guild = await self.get_db_guild(channel.guild)
+        if guild.role_channel_id == channel.id:
             return
 
         emoji = payload.emoji
@@ -495,56 +488,49 @@ class Bot(commands.AutoShardedBot):
             role = discord.utils.get(channel.guild.roles, name=role_name)
         elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
             role = discord.utils.get(channel.guild.roles, name=role_name)
+        if not role:
+            return
+        
+        try:
+            user = await channel.guild.fetch_member(payload.user_id)
+        except discord.NotFound:
+            return
+        if user.bot:
+            return
+        
+        try:
+            await user.remove_roles(role)
+        except discord.Forbidden:
+            return
 
-        if role:
-            try:
-                await user.remove_roles(role)
-            except discord.Forbidden:
-                return
-
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message):
         '''
         This event triggers on every message received by the bot. Including ones that it sent itself.
-        Processes commands
-        Also checks if message was a command, and logs processing time
-        Tracks message counts for Portables ranks
-        Checks Portables applications for plagiarism
+        Processes commands and logs processing time.
         '''
-        config = config_load()
-
         if message.author.bot:
             return  # ignore all bots
 
         # For now, ignore messages that were not sent from guilds, because this might break certain commands
         if message.guild is None:
             return
-        try:
-            guild = await Guild.get(message.guild.id)
-        except:
-            return
-        if not guild:
-            guild = await Guild.create(id=message.guild.id, prefix='-')
+        
+        guild = await self.find_or_create_db_guild(message.guild)
 
-        if not message.author.id == message.guild.me.id:
-            if guild.delete_channel_ids:
-                if message.channel.id in guild.delete_channel_ids:
-                    await message.delete()
+        if guild.delete_channel_ids and message.channel.id in guild.delete_channel_ids and not message.author.id == message.guild.me.id:
+            await message.delete()
 
         now = datetime.now(UTC)
         msg = message.content
-        prefix = '-'
-        if guild.prefix:
-            prefix = guild.prefix
-        disabled_commands = guild.disabled_commands
+        prefix = guild.prefix if guild.prefix else '-'
 
-        if disabled_commands:
-            for command_name in guild.disabled_commands:
-                if msg.startswith(f'{prefix}{command_name}') or msg.startswith(f'{self.user.mention} {command_name}'):
-                    try:
-                        await message.channel.send(f'Sorry, the command **{command_name}** has been disabled in this server. Please contact a server admin to enable it.')
-                        return
-                    except discord.Forbidden:
-                        return
+        for command_name in (guild.disabled_commands if guild.disabled_commands else []):
+            if msg.startswith(f'{prefix}{command_name}') or (self.user and msg.startswith(f'{self.user.mention} {command_name}')):
+                try:
+                    await message.channel.send(f'The command `{command_name}` has been disabled in this server. Please contact a server admin to enable it.')
+                    return
+                except discord.Forbidden:
+                    return
 
         if msg.startswith(prefix):
             txt = f'{datetime.now(UTC)}: Command \"{msg}\" received; processing...'
@@ -570,18 +556,19 @@ class Bot(commands.AutoShardedBot):
         print(f'Initializing notifications...')
         logging.info('Initializing notifications...')
         config = config_load()
-        channel = self.get_channel(config['testNotificationChannel'])
+        channel = self.find_text_channel(config['testNotificationChannel'])
         
         if not channel:
-            log_channel = self.get_channel(config['testChannel'])
+            log_channel = self.find_text_channel(config['testChannel'])
             msg = f'Sorry, I was unable to retrieve any notification channels. Notifications are down.'
             print(msg)
             logging.critical(msg)
-            try:
-                await log_channel.send(msg)
-                return
-            except discord.Forbidden:
-                return
+            if log_channel:
+                try:
+                    await log_channel.send(msg)
+                except discord.Forbidden:
+                    pass
+            return
         notified_this_hour_warbands = False
         notified_this_hour_vos = False
         notified_this_hour_cache = False
@@ -645,26 +632,18 @@ class Bot(commands.AutoShardedBot):
                 coroutines = []
 
                 if not notified_this_day_merchant and now.hour <= 2:
-                    if self.bot.next_merchant > now + timedelta(hours=1):
-                        txt = self.bot.merchant
+                    if self.next_merchant and self.next_merchant > now + timedelta(hours=1):
+                        txt = self.merchant
 
-                        channels = []
-                        guilds = await Guild.query.gino.all()
-                        for guild in guilds:
-                            if guild.notification_channel_id:
-                                c = self.get_channel(guild.notification_channel_id)
-                                if c:
-                                    channels.append(c)
+                        async with self.async_session() as session:
+                            guilds = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
+                        
+                        channels: List[discord.TextChannel] = [channel for channel in [self.find_text_channel(guild.notification_channel_id) for guild in guilds] if channel]
 
                         for c in channels:
-                            role = ''
-                            for r in c.guild.roles:
-                                if 'MERCHANT' in r.name.upper():
-                                    role = r
-                                    break
-                            if role:
-                                role = role.mention
-                            coroutines.append(safe_send_coroutine(c, f'{role}\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{txt}'))
+                            roles = [r for r in c.guild.roles if 'MERCHANT' in r.name.upper()]
+                            role_mention = roles[0].mention if roles else ''
+                            coroutines.append(safe_send_coroutine(c, f'{role_mention}\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{txt}'))
                         notified_this_day_merchant = True
 
                 if not notified_this_day_spotlight and now.hour <= 1:
