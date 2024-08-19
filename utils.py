@@ -183,7 +183,7 @@ def get_coins_image_name(amount: number):
 def get_gspread_creds():
     return ServiceAccountCredentials.from_json_keyfile_name('data/gspread.json',
       ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/spreadsheets'])
+      'https://www.googleapis.com/auth/spreadsheets']) # type: ignore
 
 def is_name(member_name, member):
     pattern = re.compile('[\W_]+')
