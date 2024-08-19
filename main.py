@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Any, List, Sequence
+from typing import Any, Coroutine, List, Sequence
 import discord
 from discord.ext import commands
 import codecs
@@ -108,10 +108,10 @@ class Bot(commands.AutoShardedBot):
     next_spotlight: datetime | None
     next_wilderness_flash_event: datetime | None
 
-    vos: Any
-    merchant: Any
-    spotlight: Any
-    wilderness_flash_event: Any
+    vos: dict | None
+    merchant: str | None
+    spotlight: str | None
+    wilderness_flash_event: dict | None
 
     events_logged: int = 0
 
@@ -545,6 +545,32 @@ class Bot(commands.AutoShardedBot):
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
                     
+    async def send_notifications(self, message: str, role_dict: dict[str, str] | None = None):
+        '''
+        Get coroutines to send notifications to the configured notification channels.
+
+        Args:
+            message (str): The notification message.
+            role_name (str): The name of the role to mentioned (if found).
+
+        Returns:
+            _type_: A list of coroutines which can be awaited to send the notifications.
+        '''
+        coroutines: List[Coroutine[discord.TextChannel, str, Any]] = []
+
+        async with self.async_session() as session:
+            guilds = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
+        
+        channels: List[discord.TextChannel] = [channel for channel in [self.find_text_channel(guild.notification_channel_id) for guild in guilds] if channel]
+
+        for c in channels:
+            for role_name, text_to_replace in (role_dict if role_dict else []):
+                roles = [r for r in c.guild.roles if role_name.upper() in r.name.upper()]
+                role_mention = roles[0].mention if roles else ''
+                msg: str = message.replace(text_to_replace, role_mention)
+            coroutines.append(safe_send_coroutine(c, msg))
+
+        return coroutines
 
     async def notify(self):
         '''
@@ -633,68 +659,23 @@ class Bot(commands.AutoShardedBot):
 
                 if not notified_this_day_merchant and now.hour <= 2:
                     if self.next_merchant and self.next_merchant > now + timedelta(hours=1):
-                        txt = self.merchant
-
-                        async with self.async_session() as session:
-                            guilds = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
-                        
-                        channels: List[discord.TextChannel] = [channel for channel in [self.find_text_channel(guild.notification_channel_id) for guild in guilds] if channel]
-
-                        for c in channels:
-                            roles = [r for r in c.guild.roles if 'MERCHANT' in r.name.upper()]
-                            role_mention = roles[0].mention if roles else ''
-                            coroutines.append(safe_send_coroutine(c, f'{role_mention}\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{txt}'))
+                        msg = f'__role_mention__\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{self.merchant}'
+                        coroutines.append(self.send_notifications(msg, {'MERCHANT': '__role_mention__'}))
                         notified_this_day_merchant = True
 
                 if not notified_this_day_spotlight and now.hour <= 1:
-                    if self.bot.next_spotlight > now + timedelta(days=2, hours=1):
-                        minigame = self.bot.spotlight
-                        emoji = config['spotlightEmoji']
-
-                        channels = []
-                        guilds = await Guild.query.gino.all()
-                        for guild in guilds:
-                            if guild.notification_channel_id:
-                                c = self.get_channel(guild.notification_channel_id)
-                                if c:
-                                    channels.append(c)
-
-                        for c in channels:
-                            role = ''
-                            for r in c.guild.roles:
-                                if 'SPOTLIGHT' in r.name.upper():
-                                    role = r
-                                    break
-                            if role:
-                                role = role.mention
-                            msg = f'{emoji} **{minigame}** is now the spotlighted minigame. {role}'
-                            coroutines.append(safe_send_coroutine(c, msg))
+                    if self.next_spotlight and self.next_spotlight > now + timedelta(days=2, hours=1):
+                        msg = f'{config["spotlightEmoji"]} **{self.spotlight}** is now the spotlighted minigame. __role_mention__'
+                        coroutines.append(self.send_notifications(msg, {'SPOTLIGHT': '__role_mention__'}))
                         notified_this_day_spotlight = True
+
                 if not notified_this_hour_vos and now.minute <= 1:
-                    if self.bot.next_vos > now + timedelta(minutes=1):
-                        channels = []
-                        guilds = await Guild.query.gino.all()
-                        for guild in guilds:
-                            if guild.notification_channel_id:
-                                c = self.get_channel(guild.notification_channel_id)
-                                if c:
-                                    channels.append(c)
+                    if self.vos and self.next_vos and self.next_vos > now + timedelta(minutes=1):
+                        msg = '\n'.join([config[f'msg{d}'] + f'__role_{d}__' for d in self.vos['vos']])
+                        role_dict: dict[str, str] = {d: f'__role_{d}__' for d in self.vos['vos']}
+                        coroutines.append(self.send_notifications(msg, role_dict))
+                        notified_this_hour_vos = True
                         
-                        for c in channels:
-                            msg = ''
-                            for d in self.vos['vos']:
-                                msgName = f'msg{d}'
-                                role = ''
-                                for r in c.guild.roles:
-                                    if d.upper() in r.name.upper():
-                                        role = r
-                                        break
-                                if role:
-                                    role = role.mention
-                                msg += config[msgName] + role + '\n'
-                            if msg:
-                                notified_this_hour_vos = True
-                                coroutines.append(safe_send_coroutine(c, msg))
                 if not notified_this_hour_warbands and now.minute >= 45 and now.minute <= 46:
                     if self.bot.next_warband - now <= timedelta(minutes=15):
                         channels = []

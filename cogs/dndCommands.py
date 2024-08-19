@@ -292,8 +292,11 @@ class DNDCommands(Cog):
         time_to_vos = (self.bot.next_vos if self.bot.next_vos else datetime.now(UTC)) - now
         time_to_vos = time_diff_to_string(time_to_vos)
 
-        current = self.bot.vos['vos']
-        next_vos = self.bot.vos['next']
+        current = self.bot.vos['vos'] if self.bot.vos else None
+        next_vos = self.bot.vos['next'] if self.bot.vos else None
+
+        if not current or not next_vos:
+            raise commands.CommandError('Voice of Seren status not found. Please try again and contact an administrator if the problem persists.')
         
         emoji0 = config[current[0].lower()+'Emoji']
         emoji1 = config[current[1].lower()+'Emoji']
@@ -558,6 +561,9 @@ class DNDCommands(Cog):
         
         now = datetime.now(UTC)
         now = now.replace(microsecond=0)
+
+        if not self.bot.wilderness_flash_event:
+            raise commands.CommandError('Wilderness flash event status not found. Please try again and contact an administrator if the problem persists.')
         
         txt = f'Current: {self.bot.wilderness_flash_event["current"]}\nNext: {self.bot.wilderness_flash_event["next"]}' if self.bot.wilderness_flash_event["current"] else f'Next: {self.bot.wilderness_flash_event["next"]}'
         embed = discord.Embed(title='Wilderness flash event', colour=0x00b2ff, description=txt)

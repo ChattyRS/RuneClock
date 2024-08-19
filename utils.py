@@ -1058,7 +1058,7 @@ def float_to_formatted_string(input):
     output += end
     return output
 
-async def safe_send_coroutine(channel, message):
+async def safe_send_coroutine(channel: discord.TextChannel, message: str):
     try:
         await channel.send(message)
     except discord.Forbidden:
