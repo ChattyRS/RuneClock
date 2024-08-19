@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Any, Coroutine, List, NoReturn, Sequence
+from typing import Any, Coroutine, List, NoReturn, Sequence, Tuple
 import discord
 from discord.abc import PrivateChannel
 from discord.ext import commands
@@ -164,6 +164,10 @@ class Bot(commands.AutoShardedBot):
         self.start_time = datetime.now(UTC).replace(microsecond=0)
 
     # Helper methods
+
+    def find_guild_text_channel(self, guild: discord.Guild, id: int | None) -> discord.TextChannel | None:
+        channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | discord.Thread | PrivateChannel | None = guild.get_channel(id) if id else None
+        return channel if isinstance(channel, discord.TextChannel) else None
 
     def find_text_channel(self, id: int | None) -> discord.TextChannel | None:
         channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | discord.Thread | PrivateChannel | None = self.get_channel(id) if id else None
@@ -401,7 +405,7 @@ class Bot(commands.AutoShardedBot):
         if not guild.welcome_message or not guild.welcome_channel_id:
             return
         
-        welcome_channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | None = member.guild.get_channel(guild.welcome_channel_id)
+        welcome_channel: discord.TextChannel | None = self.find_guild_text_channel(member.guild, guild.welcome_channel_id)
         if not isinstance(welcome_channel, discord.TextChannel):
             return
         
@@ -756,51 +760,52 @@ class Bot(commands.AutoShardedBot):
         logging.info('Initializing custom notifications...')
         while True:
             try:
-                to_notify = []
-                deleted = []
-                notifications = await Notification.query.gino.all()
-                if notifications:
-                    for notification in notifications:
-                        guild = self.get_guild(notification.guild_id)
-                        if not guild:
-                            continue
-                        channel = guild.get_channel(notification.channel_id)
-                        if not channel:
-                            continue
-                        time = notification.time
-                        interval = timedelta(seconds = notification.interval)
-                        if time > datetime.now(UTC):
-                            continue
-                        to_notify.append([channel, notification.message])
-                        if interval.total_seconds() != 0:
-                            while time < datetime.now(UTC):
-                                time += interval
-                            await notification.update(time=time).apply()
-                        else:
-                            deleted.append(notification.guild_id)
-                            await notification.delete()
+                to_notify: List[Tuple[discord.TextChannel, str]] = []
 
-                    for x in to_notify:
-                        channel, message = x
-                        try:
-                            await channel.send(message)
-                        except discord.Forbidden:
-                            pass
+                async with self.async_session() as session:
+                    deleted_from_guild_ids: List[int] = []
+                    notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
+                    for notification in notifications:
+                        guild: discord.Guild | None = self.get_guild(notification.guild_id)
+                        if not guild or not notification.message:
+                            await session.delete(notification)
+                            continue
+                        channel: discord.TextChannel | None = self.find_guild_text_channel(guild, notification.channel_id)
+                        if not channel:
+                            await session.delete(notification)
+                            continue
+                        to_notify.append((channel, notification.message))
+
+                        interval = timedelta(seconds = notification.interval)
+                        if interval.total_seconds() != 0:
+                            while notification.time < datetime.now(UTC):
+                                notification.time += interval
+                        else:
+                            deleted_from_guild_ids.append(notification.guild_id)
+                            await session.delete(notification)
                     
-                    if deleted:
-                        for guild_id in deleted:
-                            notifications = await Notification.query.where(Notification.guild_id==guild_id).order_by(Notification.notification_id.asc()).gino.all()
-                            if notifications:
-                                for i, notification in enumerate(notifications):
-                                    await notification.update(notification_id=i).apply()
+                    for guild_id in deleted_from_guild_ids:
+                        guild_notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == guild_id))).scalars().all()
+                        for i, notification in enumerate(guild_notifications):
+                            notification.notification_id = i
+
+                    await session.commit()
+
+                for channel, message in to_notify:
+                    try:
+                        await channel.send(message)
+                    except discord.Forbidden:
+                        pass
+
                 await asyncio.sleep(30)
             except Exception as e:
                 error = f'Encountered the following error in custom notification loop:\n{type(e).__name__}: {e}'
                 logging.critical(error)
                 print(error)
                 try:
-                    log_channel = self.get_channel(config['testChannel'])
-                    await log_channel.send(error)
+                    log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
+                    if log_channel:
+                        await log_channel.send(error)
                 except:
                     pass
                 await asyncio.sleep(30)
