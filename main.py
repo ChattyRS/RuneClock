@@ -168,6 +168,12 @@ class Bot(commands.AutoShardedBot):
     def find_guild_text_channel(self, guild: discord.Guild, id: int | None) -> discord.TextChannel | None:
         channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | discord.Thread | PrivateChannel | None = guild.get_channel(id) if id else None
         return channel if isinstance(channel, discord.TextChannel) else None
+    
+    def get_guild_text_channel(self, guild: discord.Guild, id: int | None) -> discord.TextChannel:
+        channel: discord.TextChannel | None = self.find_guild_text_channel(guild, id)
+        if not channel:
+            raise Exception(f'Guild channel with id {id if id else "None"} was not found.')
+        return channel
 
     def find_text_channel(self, id: int | None) -> discord.TextChannel | None:
         channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | discord.Thread | PrivateChannel | None = self.get_channel(id) if id else None
@@ -811,53 +817,40 @@ class Bot(commands.AutoShardedBot):
                 await asyncio.sleep(30)
                 
 
-    async def unmute(self):
+    async def unmute(self) -> NoReturn:
         '''
         Function to unmute members when mutes expire
         '''
         logging.info('Initializing unmute...')
         while True:
-            to_unmute = []
-            mutes = await Mute.query.gino.all()
-            if mutes:
+            to_unmute: List[Tuple[discord.Member, discord.Role, discord.Guild]] = []
+            async with self.async_session() as session:
+                mutes: Sequence[Mute] = (await session.execute(select(Mute).where(Mute.expiration <= datetime.now(UTC)))).scalars().all()
                 for mute in mutes:
-                    guild = self.get_guild(mute.guild_id)
-                    if not guild:
+                    guild: discord.Guild | None = self.get_guild(mute.guild_id)
+                    member: discord.Member | None = await guild.fetch_member(mute.user_id) if guild else None
+                    mute_role: discord.Role | None = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), guild.roles if guild else [])
+                    await session.delete(mute)
+                    if not guild or not member or not mute_role or not mute_role in member.roles:
                         continue
-                    member = await guild.fetch_member(mute.member_id)
-                    if not member:
-                        await mute.delete()
-                        continue
-                    expires = mute.expiration
-                    if expires < datetime.now(UTC):
-                        await mute.delete()
-                        mute_role = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), guild.roles)
-                        if mute_role:
-                            if mute_role in member.roles:
-                                to_unmute.append([member, mute_role, guild])
-                for x in to_unmute:
-                    member, mute_role, guild = x
-                    try:
-                        await member.remove_roles(mute_role, reason='Temp mute expired.')
+                    to_unmute.append((member, mute_role, guild))
 
-                        for c in guild.text_channels:
-                            send = c.permissions_for(member).send_messages
-                            if send:
-                                continue
-                            if member in c.overwrites:
-                                overwrite = c.overwrites[member]
-                                if not overwrite.pair()[1].send_messages:
-                                    try:
-                                        await c.set_permissions(member, send_messages=None)
-                                        c = guild.get_channel(c.id)
-                                        if member in c.overwrites:
-                                            overwrite = c.overwrites[member]
-                                            if overwrite[1].is_empty():
-                                                await c.set_permissions(member, overwrite=None)
-                                    except discord.Forbidden:
-                                        pass
-                    except discord.Forbidden:
-                        continue
+            for member, mute_role, guild in to_unmute:
+                try:
+                    await member.remove_roles(mute_role, reason='Temp mute expired.')
+                    for channel in [c for c in guild.text_channels if not c.permissions_for(member).send_messages]:
+                        overwrite: discord.PermissionOverwrite | None = channel.overwrites[member] if member in channel.overwrites else None
+                        if overwrite and not overwrite.pair()[1].send_messages:
+                            try:
+                                await channel.set_permissions(member, send_messages=None)
+                                channel: discord.TextChannel = self.get_guild_text_channel(guild, channel.id)
+                                overwrite = channel.overwrites[member] if member in channel.overwrites else None
+                                if overwrite and overwrite.is_empty():
+                                    await channel.set_permissions(member, overwrite=None)
+                            except discord.Forbidden:
+                                pass
+                except discord.Forbidden:
+                    continue
             await asyncio.sleep(60)
 
     async def send_news(self, post, osrs):
