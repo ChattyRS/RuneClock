@@ -545,7 +545,7 @@ class Bot(commands.AutoShardedBot):
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
                     
-    async def send_notifications(self, message: str, role_dict: dict[str, str] | None = None):
+    async def send_notifications(self, message: str, role_dict: dict[str, str] | None = None) -> List[Coroutine[discord.TextChannel, str, None]]:
         '''
         Get coroutines to send notifications to the configured notification channels.
 
@@ -556,7 +556,7 @@ class Bot(commands.AutoShardedBot):
         Returns:
             _type_: A list of coroutines which can be awaited to send the notifications.
         '''
-        coroutines: List[Coroutine[discord.TextChannel, str, Any]] = []
+        coroutines: List[Coroutine[discord.TextChannel, str, None]] = []
 
         async with self.async_session() as session:
             guilds = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
@@ -583,9 +583,9 @@ class Bot(commands.AutoShardedBot):
         logging.info('Initializing notifications...')
         config = config_load()
         channel = self.find_text_channel(config['testNotificationChannel'])
+        log_channel = self.find_text_channel(config['testChannel'])
         
         if not channel:
-            log_channel = self.find_text_channel(config['testChannel'])
             msg = f'Sorry, I was unable to retrieve any notification channels. Notifications are down.'
             print(msg)
             logging.critical(msg)
@@ -655,166 +655,57 @@ class Bot(commands.AutoShardedBot):
                 now = datetime.now(UTC)
 
                 # Used to send messages concurrently
-                coroutines = []
+                coroutines: List[Coroutine[discord.TextChannel, str, None]] = []
 
-                if not notified_this_day_merchant and now.hour <= 2:
-                    if self.next_merchant and self.next_merchant > now + timedelta(hours=1):
-                        msg = f'__role_mention__\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{self.merchant}'
-                        coroutines.append(self.send_notifications(msg, {'MERCHANT': '__role_mention__'}))
-                        notified_this_day_merchant = True
+                if not notified_this_day_merchant and now.hour <= 2 and self.next_merchant and self.next_merchant > now + timedelta(hours=1):
+                    msg = f'__role_mention__\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{self.merchant}'
+                    coroutines += await self.send_notifications(msg, {'MERCHANT': '__role_mention__'})
+                    notified_this_day_merchant = True
 
-                if not notified_this_day_spotlight and now.hour <= 1:
-                    if self.next_spotlight and self.next_spotlight > now + timedelta(days=2, hours=1):
-                        msg = f'{config["spotlightEmoji"]} **{self.spotlight}** is now the spotlighted minigame. __role_mention__'
-                        coroutines.append(self.send_notifications(msg, {'SPOTLIGHT': '__role_mention__'}))
-                        notified_this_day_spotlight = True
+                if not notified_this_day_spotlight and now.hour <= 1 and self.next_spotlight and self.next_spotlight > now + timedelta(days=2, hours=1):
+                    msg = f'{config["spotlightEmoji"]} **{self.spotlight}** is now the spotlighted minigame. __role_mention__'
+                    coroutines += await self.send_notifications(msg, {'SPOTLIGHT': '__role_mention__'})
+                    notified_this_day_spotlight = True
 
-                if not notified_this_hour_vos and now.minute <= 1:
-                    if self.vos and self.next_vos and self.next_vos > now + timedelta(minutes=1):
-                        msg = '\n'.join([config[f'msg{d}'] + f'__role_{d}__' for d in self.vos['vos']])
-                        role_dict: dict[str, str] = {d: f'__role_{d}__' for d in self.vos['vos']}
-                        coroutines.append(self.send_notifications(msg, role_dict))
-                        notified_this_hour_vos = True
+                if not notified_this_hour_vos and now.minute <= 1 and self.vos and self.next_vos and self.next_vos > now + timedelta(minutes=1):
+                    msg = '\n'.join([config[f'msg{d}'] + f'__role_{d}__' for d in self.vos['vos']])
+                    role_dict: dict[str, str] = {d: f'__role_{d}__' for d in self.vos['vos']}
+                    coroutines += await self.send_notifications(msg, role_dict)
+                    notified_this_hour_vos = True
                         
-                if not notified_this_hour_warbands and now.minute >= 45 and now.minute <= 46:
-                    if self.bot.next_warband - now <= timedelta(minutes=15):
-                        channels = []
-                        guilds = await Guild.query.gino.all()
-                        for guild in guilds:
-                            if guild.notification_channel_id:
-                                c = self.get_channel(guild.notification_channel_id)
-                                if c:
-                                    channels.append(c)
-                        for c in channels:
-                            role = ''
-                            for r in c.guild.roles:
-                                if 'WARBAND' in r.name.upper():
-                                    role = r
-                                    break
-                            if role:
-                                role = role.mention
-                            coroutines.append(safe_send_coroutine(c, config['msgWarbands'] + role))
-                            notified_this_hour_warbands = True
+                if not notified_this_hour_warbands and now.minute >= 45 and now.minute <= 46 and self.next_warband and self.next_warband - now <= timedelta(minutes=15):
+                    msg = config['msgWarbands'] + '__role_mention__'
+                    coroutines += await self.send_notifications(msg, {'WARBAND': '__role_mention__'})
+                    notified_this_hour_warbands = True
                             
                 if not notified_this_hour_cache and now.minute >= 55 and now.minute <= 56:
-                    channels = []
-                    guilds = await Guild.query.gino.all()
-                    for guild in guilds:
-                        if guild.notification_channel_id:
-                            c = self.get_channel(guild.notification_channel_id)
-                            if c:
-                                channels.append(c)
-                    
-                    for c in channels:
-                        role = ''
-                        for r in c.guild.roles:
-                            if 'CACHE' in r.name.upper():
-                                role = r
-                                break
-                        if role:
-                            role = role.mention
-                        coroutines.append(safe_send_coroutine(c, config['msgCache'] + role))
+                    msg = config['msgCache'] + '__role_mention__'
+                    coroutines += await self.send_notifications(msg, {'CACHE': '__role_mention__'})
                     notified_this_hour_cache = True
+
                 if not notified_this_hour_yews_48 and now.hour == 23 and now.minute >= 45 and now.minute <= 46:
-                    channels = []
-                    guilds = await Guild.query.gino.all()
-                    for guild in guilds:
-                        if guild.notification_channel_id:
-                            c = self.get_channel(guild.notification_channel_id)
-                            if c:
-                                channels.append(c)
-
-                    for c in channels:
-                        role = ''
-                        for r in c.guild.roles:
-                            if 'YEW' in r.name.upper():
-                                role = r
-                                break
-                        if role:
-                            role = role.mention
-                        coroutines.append(safe_send_coroutine(c, config['msgYews48'] + role))
+                    msg = config['msgYews48'] + '__role_mention__'
+                    coroutines += await self.send_notifications(msg, {'YEW': '__role_mention__'})
                     notified_this_hour_yews_48 = True
+
                 if not notified_this_hour_yews_140 and now.hour == 16 and now.minute >= 45 and now.minute <= 46:
-                    channels = []
-                    guilds = await Guild.query.gino.all()
-                    for guild in guilds:
-                        if guild.notification_channel_id:
-                            c = self.get_channel(guild.notification_channel_id)
-                            if c:
-                                channels.append(c)
-
-                    for c in channels:
-                        role = ''
-                        for r in c.guild.roles:
-                            if 'YEW' in r.name.upper():
-                                role = r
-                                break
-                        if role:
-                            role = role.mention
-                        coroutines.append(safe_send_coroutine(c, config['msgYews140'] + role))
+                    msg = config['msgYews140'] + '__role_mention__'
+                    coroutines += await self.send_notifications(msg, {'YEW': '__role_mention__'})
                     notified_this_hour_yews_140 = True
+                    
                 if not notified_this_hour_goebies and now.hour in [11, 23] and now.minute >= 45 and now.minute <= 46:
-                    channels = []
-                    guilds = await Guild.query.gino.all()
-                    for guild in guilds:
-                        if guild.notification_channel_id:
-                            c = self.get_channel(guild.notification_channel_id)
-                            if c:
-                                channels.append(c)
-
-                    for c in channels:
-                        role = ''
-                        for r in c.guild.roles:
-                            if 'GOEBIE' in r.name.upper():
-                                role = r
-                                break
-                        if role:
-                            role = role.mention
-                        coroutines.append(safe_send_coroutine(c, config['msgGoebies'] + role))
+                    msg = config['msgGoebies'] + '__role_mention__'
+                    coroutines += await self.send_notifications(msg, {'GOEBIE': '__role_mention__'})
                     notified_this_hour_goebies = True
-                if not notified_this_hour_sinkhole and now.minute >= 25 and now.minute <= 26:
-                    channels = []
-                    guilds = await Guild.query.gino.all()
-                    for guild in guilds:
-                        if guild.notification_channel_id:
-                            c = self.get_channel(guild.notification_channel_id)
-                            if c:
-                                channels.append(c)
 
-                    for c in channels:
-                        role = ''
-                        for r in c.guild.roles:
-                            if 'SINKHOLE' in r.name.upper():
-                                role = r
-                                break
-                        if role:
-                            role = role.mention
-                        coroutines.append(safe_send_coroutine(c, config['msgSinkhole'] + role))
+                if not notified_this_hour_sinkhole and now.minute >= 25 and now.minute <= 26:
+                    msg = config['msgSinkhole'] + '__role_mention__'
+                    coroutines += await self.send_notifications(msg, {'SINKHOLE': '__role_mention__'})
                     notified_this_hour_sinkhole = True
                 
-                # Notify of wilderness flash events
-                if not notified_this_hour_wilderness_flash and now.minute >= 55 and now.minute <= 56:
-                    flash_event = self.bot.wilderness_flash_event['next']
-                    emoji = config['wildernessflasheventsEmoji']
-
-                    channels = []
-                    guilds = await Guild.query.gino.all()
-                    for guild in guilds:
-                        if guild.notification_channel_id:
-                            c = self.get_channel(guild.notification_channel_id)
-                            if c:
-                                channels.append(c)
-
-                    for c in channels:
-                        role = ''
-                        for r in c.guild.roles:
-                            if 'WILDERNESSFLASHEVENT' in r.name.upper():
-                                role = r
-                                break
-                        if role:
-                            role = role.mention
-                        msg = f'{emoji} The next **Wilderness Flash Event** will start in 5 minutes: **{flash_event}**. {role}'
-                        coroutines.append(safe_send_coroutine(c, msg))
+                if not notified_this_hour_wilderness_flash and now.minute >= 55 and now.minute <= 56 and self.wilderness_flash_event:
+                    msg = f'{config["wildernessflasheventsEmoji"]} The next **Wilderness Flash Event** will start in 5 minutes: **{self.wilderness_flash_event["next"]}**. __role_mention__'
+                    coroutines += await self.send_notifications(msg, {'WILDERNESSFLASHEVENT': '__role_mention__'})
                     notified_this_hour_wilderness_flash = True
 
                 # Send messages concurrently if there are any
@@ -847,10 +738,11 @@ class Bot(commands.AutoShardedBot):
                 error = f'Encountered the following error in notification loop:\n{type(e).__name__}: {e}'
                 logging.critical(error)
                 print(error)
-                try:
-                    await log_channel.send(error)
-                except:
-                    pass
+                if log_channel:
+                    try:
+                        await log_channel.send(error)
+                    except:
+                        pass
                 await asyncio.sleep(5)
 
     async def custom_notify(self):
