@@ -4,8 +4,9 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Any, Coroutine, List, Sequence
+from typing import Any, Coroutine, List, NoReturn, Sequence
 import discord
+from discord.abc import PrivateChannel
 from discord.ext import commands
 import codecs
 from sqlalchemy import delete, insert, select
@@ -29,33 +30,33 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 '''
 Load config file with necessary information
 '''
-def config_load():
+def config_load() -> dict[str, Any]:
     with codecs.open('data/config.json', 'r', encoding='utf-8-sig') as doc:
         #  Please make sure encoding is correct, especially after editing the config file
         return json.load(doc)
 
-config = config_load()
+config: dict[str, Any] = config_load()
 
 command_counter = 0 # int to track how many commands have been processed since startup
 
 # variable used for VOS notifications
-districts = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
+districts: List[str] = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
 
 # variable used for role management
-notif_roles = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'WildernessFlashEvents']
+notif_roles: List[str] = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'WildernessFlashEvents']
 for d in districts:
     notif_roles.append(d)
 
 '''
 Used for plagiarism check for smiley applications
 '''
-def similarity(a, b):
+def similarity(a, b) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 '''
 Split a string by a list of separating characters
 '''
-def split(txt, seps):
+def split(txt, seps) -> list[Any]:
     # https://stackoverflow.com/questions/4697006/python-split-string-by-list-of-separators/4697047
     default_sep = seps[0]
     # we skip seps[0] because that's the default seperator
@@ -66,22 +67,22 @@ def split(txt, seps):
 '''
 Increment global commands counter
 '''
-def increment_command_counter():
+def increment_command_counter() -> None:
     global command_counter
     command_counter += 1
 
 '''
 Return value of global commands counter
 '''
-def get_command_counter():
+def get_command_counter() -> int:
     return command_counter
 
-async def run():
+async def run() -> None:
     '''
     Where the bot gets started. If you wanted to create a database connection pool or other session for the bot to use,
     it's recommended that you create it here and pass it to the bot as a kwarg.
     '''
-    config = config_load()
+    config: dict[str, Any] = config_load()
     bot = Bot(description=config['description'])
     try:
         await bot.start(config['token'])
@@ -115,8 +116,8 @@ class Bot(commands.AutoShardedBot):
 
     events_logged: int = 0
 
-    def __init__(self, **kwargs):
-        intents = discord.Intents.all()
+    def __init__(self, **kwargs) -> None:
+        intents: discord.Intents = discord.Intents.all()
         super().__init__(
             max_messages = 1000000,
             command_prefix=self.get_prefix_,
@@ -128,13 +129,13 @@ class Bot(commands.AutoShardedBot):
         self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
     
-    async def close_database_connection(self):
+    async def close_database_connection(self) -> None:
         '''
         Close the database connection by disposing the engine.
         '''
         await self.engine.dispose()
 
-    async def purge_guild(self, guild: Guild):
+    async def purge_guild(self, guild: Guild) -> None:
         '''
         Purge all data relating to a specific Guild from the database
         '''
@@ -150,11 +151,11 @@ class Bot(commands.AutoShardedBot):
             await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id))
             await session.delete(guild)
     
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
         await self.track_start()
         self.loop.create_task(self.initialize())
 
-    async def track_start(self):
+    async def track_start(self) -> None:
         '''
         Waits for the bot to connect to discord and then records the time.
         Can be used to work out uptime.
@@ -165,45 +166,44 @@ class Bot(commands.AutoShardedBot):
     # Helper methods
 
     def find_text_channel(self, id: int | None) -> discord.TextChannel | None:
-        channel = self.get_channel(id) if id else None
+        channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | discord.Thread | PrivateChannel | None = self.get_channel(id) if id else None
         return channel if isinstance(channel, discord.TextChannel) else None
     
     def get_text_channel(self, id: int | None) -> discord.TextChannel:
-        if id:
-            channel = self.get_channel(id)
-        if not isinstance(channel, discord.TextChannel):
+        channel: discord.TextChannel | None = self.find_text_channel(id)
+        if not channel:
             raise Exception(f'Channel with id {id if id else "None"} was not found.')
         return channel
     
     async def find_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild | None:
-        id = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
+        id: int | None = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
         async with self.async_session() as session:
             return (await session.execute(select(Guild).where(Guild.id == id))).scalar_one_or_none()
 
     async def get_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild:
-        id = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
+        id: int | None = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
         if not id:
             raise Exception(f'Attempted to get a guild from the database but ID was None.')
-        guild = await self.find_db_guild(id)
+        guild: Guild | None = await self.find_db_guild(id)
         if not guild:
             raise Exception(f'Guild with id {id} was not found.')
         return guild
     
-    async def create_db_guild(self, guild_or_id: discord.Guild | int):
-        id = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
+    async def create_db_guild(self, guild_or_id: discord.Guild | int) -> Guild:
+        id: int = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
         async with self.async_session() as session:
             instance = Guild(id=id, prefix='-')
             session.add(instance)
             await session.commit()
         return instance
     
-    async def find_or_create_db_guild(self, guild_or_id: discord.Guild | int):
-        db_guild = await self.find_db_guild(guild_or_id)
+    async def find_or_create_db_guild(self, guild_or_id: discord.Guild | int) -> Guild:
+        db_guild: Guild | None = await self.find_db_guild(guild_or_id)
         return db_guild if db_guild else await self.create_db_guild(guild_or_id)
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         print(f'Initializing...')
-        config = config_load()
+        config: dict[str, Any] = config_load()
         await asyncio.sleep(10) # Wait to ensure database is running on boot
 
         await database_setup(self)
@@ -221,7 +221,7 @@ class Bot(commands.AutoShardedBot):
         await self.wait_until_ready()
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='@RuneClock help'))
 
-        channel = self.get_channel(config['testChannel'])
+        channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
         self.app_info = await self.application_info()
         msg = (f'Logged in to Discord as: {self.user.name if self.user else "???"}\n'
             f'Using Discord.py version: {discord.__version__}\n'
@@ -236,11 +236,11 @@ class Bot(commands.AutoShardedBot):
 
         if self.start_time:
             if self.start_time > datetime.now(UTC) - timedelta(minutes=5):
-                try:
-                    if channel and isinstance(channel, discord.TextChannel):
+                if channel:
+                    try:
                         await channel.send(msg)
-                except:
-                    pass
+                    except:
+                        pass
                 self.loop.create_task(self.notify())
                 self.loop.create_task(self.custom_notify())
                 self.loop.create_task(self.unmute())
@@ -259,30 +259,33 @@ class Bot(commands.AutoShardedBot):
             self.loop.create_task(self.price_tracking_rs3())
             self.loop.create_task(self.price_tracking_osrs())
 
-    async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message):
+    async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> List[str]:
         '''
         A coroutine that returns a prefix.
         Looks in database for prefix corresponding to the server the message was sent in
         If none found, return default prefix '-'
+
+        Args:
+            bot (commands.AutoShardedBot): The bot
+            message (discord.message.Message): The message
+
+        Returns:
+            List[str]: List of prefixes
         '''
-        prefix = '-'
-        if message.guild:
-            async with self.async_session() as session:
-                guild = (await session.execute(select(Guild).where(Guild.id == message.guild.id))).scalar_one_or_none()
-                if guild and guild.prefix:
-                    prefix = guild.prefix
+        guild: Guild = await self.get_db_guild(message.guild)
+        prefix: str = guild.prefix if guild.prefix else '-'
         return commands.when_mentioned_or(prefix)(bot, message)
 
-    async def load_all_extensions(self):
+    async def load_all_extensions(self) -> None:
         '''
         Attempts to load all .py files in /cogs/ as cog extensions
         '''
         # await self.wait_until_ready()
-        config = config_load()
-        channel = self.get_channel(config['testChannel'])
-        cogs = [x.stem for x in Path('cogs').glob('*.py')]
-        msg = ""
-        discord_msg = ''
+        config: dict[str, Any] = config_load()
+        channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
+        cogs: List[str] = [x.stem for x in Path('cogs').glob('*.py')]
+        msg: str = ''
+        discord_msg: str = ''
         for extension in cogs:
             try:
                 print(f'Loading {extension}...')
@@ -295,7 +298,7 @@ class Bot(commands.AutoShardedBot):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 traceback.print_tb(exc_traceback, limit=1, file=sys.stdout)
                 traceback.print_exception(exc_type, exc_value, exc_traceback, limit=2, file=sys.stdout)
-                error = f'{extension}\n {type(e).__name__} : {e}'
+                error: str = f'{extension}\n {type(e).__name__} : {e}'
                 print(f'Failed to load extension: {error}')
                 msg += f'Failed to load extension: {error}\n'
                 discord_msg += f'Failed to load extension: {error}\n'
@@ -308,7 +311,7 @@ class Bot(commands.AutoShardedBot):
         except discord.Forbidden:
             return
 
-    async def check_guilds(self):
+    async def check_guilds(self) -> None:
         '''
         Function that is run on startup by on_ready
         Checks database for entries of guilds that the bot is no longer a member of
@@ -322,12 +325,12 @@ class Bot(commands.AutoShardedBot):
             for guild in guilds:
                 await self.purge_guild(guild)
 
-        msg = f'{str(len(self.guilds))} guilds checked'
+        msg: str = f'{str(len(self.guilds))} guilds checked'
         print(msg)
         print('-' * 10)
         logging.info(msg)
 
-    async def role_setup(self):
+    async def role_setup(self) -> None:
         '''
         Sets up message and reactions for role management
         Assumes that no other messages are sent in the role management channels
@@ -335,7 +338,7 @@ class Bot(commands.AutoShardedBot):
         '''
         print(f'Initializing role management...')
         logging.info('Initializing role management...')
-        config = config_load()
+        config: dict[str, Any] = config_load()
 
         guilds: Sequence[Guild]
         async with self.async_session() as session:
@@ -343,29 +346,30 @@ class Bot(commands.AutoShardedBot):
 
         channels: List[discord.TextChannel] = []
         for db_guild in guilds:
-            channel = self.find_text_channel(db_guild.role_channel_id)
+            channel: discord.TextChannel | None = self.find_text_channel(db_guild.role_channel_id)
             if channel:
                 channels.append(channel)
 
         if not channels:
-            msg = f'Sorry, I was unable to retrieve any role management channels. Role management is down.'
+            msg: str = f'Sorry, I was unable to retrieve any role management channels. Role management is down.'
             print(msg)
             print('-' * 10)
             logging.critical(msg)
             try:
-                logChannel = self.get_text_channel(config['testChannel'])
+                logChannel: discord.TextChannel = self.get_text_channel(config['testChannel'])
                 await logChannel.send(f'Sorry, I was unable to retrieve any role management channels. Role management is down.')
             except Exception:
                 pass
             return
             
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
-        notif_emojis = []
+        notif_emojis: List[discord.Emoji] = []
         for r in notif_roles:
-            emoji_id = config[f'{r.lower()}EmojiID']
-            e = self.get_emoji(emoji_id)
-            notif_emojis.append(e)
-            msg += str(e) + ' ' + r + '\n'
+            emoji_id: int = config[f'{r.lower()}EmojiID']
+            emoji: discord.Emoji | None = self.get_emoji(emoji_id)
+            if emoji:
+                notif_emojis.append(emoji)
+                msg += str(emoji) + ' ' + r + '\n'
         msg += "\nIf you wish to stop receiving notifications, simply remove your reaction. If your reaction isn't there anymore, then you can add a new one and remove it."
         for c in channels:
             try:
@@ -376,8 +380,8 @@ class Bot(commands.AutoShardedBot):
                     await c.send(msg)
                     try:
                         async for message in c.history(limit=1):
-                            for e in notif_emojis:
-                                await message.add_reaction(e)
+                            for emoji in notif_emojis:
+                                await message.add_reaction(emoji)
                     except Exception as e:
                         print(f'Exception: {e}')
             except discord.Forbidden:
@@ -388,7 +392,7 @@ class Bot(commands.AutoShardedBot):
         print('-' * 10)
         logging.info(msg)
 
-    async def on_member_join(self, member: discord.Member):
+    async def on_member_join(self, member: discord.Member) -> None:
         '''
         Function to send welcome messages
         '''
@@ -397,11 +401,11 @@ class Bot(commands.AutoShardedBot):
         if not guild.welcome_message or not guild.welcome_channel_id:
             return
         
-        welcome_channel = member.guild.get_channel(guild.welcome_channel_id)
+        welcome_channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | None = member.guild.get_channel(guild.welcome_channel_id)
         if not isinstance(welcome_channel, discord.TextChannel):
             return
         
-        welcome_message = guild.welcome_message.replace('[user]', member.mention)
+        welcome_message: str = guild.welcome_message.replace('[user]', member.mention)
         welcome_message = welcome_message.replace('[server]', member.guild.name)
         
         try:
@@ -409,16 +413,16 @@ class Bot(commands.AutoShardedBot):
         except discord.Forbidden:
             return
 
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         '''
         Function to add roles on reactions
         '''
-        channel = self.get_channel(payload.channel_id)
+        channel: discord.TextChannel | None = self.find_text_channel(payload.channel_id)
 
         if not isinstance(channel, discord.TextChannel):
             return
 
-        user = await channel.guild.fetch_member(payload.user_id)
+        user: discord.Member = await channel.guild.fetch_member(payload.user_id)
 
         if not user or user.bot:
             return
@@ -426,10 +430,10 @@ class Bot(commands.AutoShardedBot):
         guild: Guild = await self.get_db_guild(channel.guild)
 
         if guild.role_channel_id == channel.id:
-            emoji = payload.emoji
-            role_name = emoji.name
+            emoji: discord.PartialEmoji = payload.emoji
+            role_name: str = emoji.name
             if emoji.name in notif_roles:
-                role = discord.utils.get(channel.guild.roles, name=role_name)
+                role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
             elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
                 role = discord.utils.get(channel.guild.roles, name=role_name)
                 
@@ -440,14 +444,14 @@ class Bot(commands.AutoShardedBot):
                     pass
         
         if str(payload.emoji) == '🌟' and guild.hall_of_fame_channel_id and guild.hall_of_fame_react_num:
-            message = await channel.fetch_message(payload.message_id)
-            hof_channel = self.get_channel(guild.hall_of_fame_channel_id)
+            message: discord.Message = await channel.fetch_message(payload.message_id)
+            hof_channel: discord.TextChannel | None = self.find_text_channel(guild.hall_of_fame_channel_id)
             if isinstance(hof_channel, discord.TextChannel) and message and not message.author.bot and (message.content or message.attachments):
-                reactions = [r for r in message.reactions if r.emoji == '🌟' and r.count >= guild.hall_of_fame_react_num]
-                reaction = reactions[0] if reactions else None
+                reactions: List[discord.Reaction] = [r for r in message.reactions if r.emoji == '🌟' and r.count >= guild.hall_of_fame_react_num]
+                reaction: discord.Reaction | None = reactions[0] if reactions else None
                 if reaction:
-                    hof_msg = None
-                    hof_embed = None
+                    hof_msg: discord.Message | None = None
+                    hof_embed: discord.Embed | None = None
                     async for msg in hof_channel.history(limit=1000, after=message.created_at):
                         for embed in [em for em in msg.embeds if em.footer.text and str(message.id) in em.footer.text]:
                             hof_msg = msg
@@ -459,8 +463,8 @@ class Bot(commands.AutoShardedBot):
                     if not hof_msg or not hof_embed:
                         embed = discord.Embed(title=f'Hall of fame 🌟 {reaction.count}', description=message.content, colour=0xffd700, url=message.jump_url, timestamp=message.created_at)
                         embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
-                        attachments = [a for a in message.attachments if a.content_type and 'image' in a.content_type]
-                        attachment = attachments[0] if attachments else None
+                        attachments: List[discord.Attachment] = [a for a in message.attachments if a.content_type and 'image' in a.content_type]
+                        attachment: discord.Attachment | None = attachments[0] if attachments else None
                         if attachment:
                             embed.set_image(url=attachment.url)
                         embed.set_footer(text=f'Message ID: {message.id}')
@@ -470,29 +474,29 @@ class Bot(commands.AutoShardedBot):
                         await hof_msg.edit(embed=hof_embed)
 
 
-    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent) -> None:
         '''
         Function to remove roles on reactions
         '''
-        channel = self.find_text_channel(payload.channel_id)
+        channel: discord.TextChannel | None = self.find_text_channel(payload.channel_id)
         if not channel:
             return
         
-        guild = await self.get_db_guild(channel.guild)
+        guild: Guild = await self.get_db_guild(channel.guild)
         if guild.role_channel_id == channel.id:
             return
 
-        emoji = payload.emoji
-        role_name = emoji.name
+        emoji: discord.PartialEmoji = payload.emoji
+        role_name: str = emoji.name
         if emoji.name in notif_roles:
-            role = discord.utils.get(channel.guild.roles, name=role_name)
+            role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
         elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
             role = discord.utils.get(channel.guild.roles, name=role_name)
         if not role:
             return
         
         try:
-            user = await channel.guild.fetch_member(payload.user_id)
+            user: discord.Member = await channel.guild.fetch_member(payload.user_id)
         except discord.NotFound:
             return
         if user.bot:
@@ -503,7 +507,7 @@ class Bot(commands.AutoShardedBot):
         except discord.Forbidden:
             return
 
-    async def on_message(self, message: discord.Message):
+    async def on_message(self, message: discord.Message) -> None:
         '''
         This event triggers on every message received by the bot. Including ones that it sent itself.
         Processes commands and logs processing time.
@@ -515,14 +519,14 @@ class Bot(commands.AutoShardedBot):
         if message.guild is None:
             return
         
-        guild = await self.find_or_create_db_guild(message.guild)
+        guild: Guild = await self.find_or_create_db_guild(message.guild)
 
         if guild.delete_channel_ids and message.channel.id in guild.delete_channel_ids and not message.author.id == message.guild.me.id:
             await message.delete()
 
-        now = datetime.now(UTC)
-        msg = message.content
-        prefix = guild.prefix if guild.prefix else '-'
+        now: datetime = datetime.now(UTC)
+        msg: str = message.content
+        prefix: str = guild.prefix if guild.prefix else '-'
 
         for command_name in (guild.disabled_commands if guild.disabled_commands else []):
             if msg.startswith(f'{prefix}{command_name}') or (self.user and msg.startswith(f'{self.user.mention} {command_name}')):
@@ -533,14 +537,14 @@ class Bot(commands.AutoShardedBot):
                     return
 
         if msg.startswith(prefix):
-            txt = f'{datetime.now(UTC)}: Command \"{msg}\" received; processing...'
+            txt: str = f'{datetime.now(UTC)}: Command \"{msg}\" received; processing...'
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
 
         await self.process_commands(message)
 
         if msg.startswith(prefix):
-            time = (datetime.now(UTC) - now).total_seconds() * 1000
+            time: float = (datetime.now(UTC) - now).total_seconds() * 1000
             txt = f'Command \"{msg}\" processed in {time} ms.'
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
@@ -559,20 +563,20 @@ class Bot(commands.AutoShardedBot):
         coroutines: List[Coroutine[discord.TextChannel, str, None]] = []
 
         async with self.async_session() as session:
-            guilds = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
+            guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
         
         channels: List[discord.TextChannel] = [channel for channel in [self.find_text_channel(guild.notification_channel_id) for guild in guilds] if channel]
 
         for c in channels:
             for role_name, text_to_replace in (role_dict if role_dict else []):
-                roles = [r for r in c.guild.roles if role_name.upper() in r.name.upper()]
-                role_mention = roles[0].mention if roles else ''
+                roles: List[discord.Role] = [r for r in c.guild.roles if role_name.upper() in r.name.upper()]
+                role_mention: str = roles[0].mention if roles else ''
                 msg: str = message.replace(text_to_replace, role_mention)
             coroutines.append(safe_send_coroutine(c, msg))
 
         return coroutines
 
-    async def notify(self):
+    async def notify(self) -> None:
         '''
         Function to send D&D notifications
         Runs every 10 s.
@@ -581,12 +585,12 @@ class Bot(commands.AutoShardedBot):
         '''
         print(f'Initializing notifications...')
         logging.info('Initializing notifications...')
-        config = config_load()
-        channel = self.find_text_channel(config['testNotificationChannel'])
-        log_channel = self.find_text_channel(config['testChannel'])
+        config: dict[str, Any] = config_load()
+        channel: discord.TextChannel | None = self.find_text_channel(config['testNotificationChannel'])
+        log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
         
         if not channel:
-            msg = f'Sorry, I was unable to retrieve any notification channels. Notifications are down.'
+            msg: str = 'Unable to retrieve any notification channels. Notifications are down.'
             print(msg)
             logging.critical(msg)
             if log_channel:
@@ -606,7 +610,7 @@ class Bot(commands.AutoShardedBot):
         notified_this_day_merchant = False
         notified_this_day_spotlight = False
         reset = False
-        current_time = datetime.now(UTC)
+        current_time: datetime = datetime.now(UTC)
         async for m in channel.history(limit=100):
             if m.created_at.day == current_time.day:
                 if 'Merchant' in m.content:
@@ -649,10 +653,10 @@ class Bot(commands.AutoShardedBot):
         logging.info(msg)
         print(msg)
         print('-' * 10)
-        i = 0
+        i: int = 0
         while True:
             try:
-                now = datetime.now(UTC)
+                now: datetime = datetime.now(UTC)
 
                 # Used to send messages concurrently
                 coroutines: List[Coroutine[discord.TextChannel, str, None]] = []
@@ -735,7 +739,7 @@ class Bot(commands.AutoShardedBot):
                 await asyncio.sleep(15)
                 i = (i + 1) % 4
             except Exception as e:
-                error = f'Encountered the following error in notification loop:\n{type(e).__name__}: {e}'
+                error: str = f'Encountered the following error in notification loop:\n{type(e).__name__}: {e}'
                 logging.critical(error)
                 print(error)
                 if log_channel:
@@ -745,7 +749,7 @@ class Bot(commands.AutoShardedBot):
                         pass
                 await asyncio.sleep(5)
 
-    async def custom_notify(self):
+    async def custom_notify(self) -> NoReturn:
         '''
         Function to send custom notifications
         '''
