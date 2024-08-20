@@ -2,14 +2,13 @@ import asyncio
 import codecs
 import json
 import re
-from typing import Coroutine, List
+from typing import Coroutine
 from numpy import number
 from oauth2client.service_account import ServiceAccountCredentials
 from discord.ext import commands
 import math
 from datetime import timedelta
 import discord
-import logging
 
 # convert float to string without scientific notation
 # https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
@@ -1060,7 +1059,7 @@ def float_to_formatted_string(input):
     output += end
     return output
 
-async def chunk_coroutines(coroutines: List[Coroutine], chunk_size: int, delay: int = 1) -> None:
+async def chunk_coroutines(coroutines: list[Coroutine], chunk_size: int, delay: int = 1) -> None:
     '''
     Execute a list of coroutines with concurrency.
     Note that the global rate limit = 50 requests per second.

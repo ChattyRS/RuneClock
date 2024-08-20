@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Any, List, NoReturn, Sequence, Tuple
+from typing import Any, NoReturn, Sequence
 import discord
 from discord.abc import PrivateChannel
 from discord.ext import commands
@@ -19,8 +19,6 @@ import traceback
 from github import Github
 from difflib import SequenceMatcher
 import io
-from utils import chunk_coroutines
-from collections import deque
 from src.message_queue import QueueMessage, MessageQueue
 
 # Other cogs import database classes from main
@@ -42,10 +40,10 @@ config: dict[str, Any] = config_load()
 command_counter = 0 # int to track how many commands have been processed since startup
 
 # variable used for VOS notifications
-districts: List[str] = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
+districts: list[str] = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
 
 # variable used for role management
-notif_roles: List[str] = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'WildernessFlashEvents']
+notif_roles: list[str] = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'WildernessFlashEvents']
 for d in districts:
     notif_roles.append(d)
 
@@ -286,7 +284,7 @@ class Bot(commands.AutoShardedBot):
         '''
         self.message_queue.append(message)
 
-    async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> List[str]:
+    async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> list[str]:
         '''
         A coroutine that returns a prefix.
         Looks in database for prefix corresponding to the server the message was sent in
@@ -297,7 +295,7 @@ class Bot(commands.AutoShardedBot):
             message (discord.message.Message): The message
 
         Returns:
-            List[str]: List of prefixes
+            List[str]: list of prefixes
         '''
         guild: Guild = await self.get_db_guild(message.guild)
         prefix: str = guild.prefix if guild.prefix else '-'
@@ -310,7 +308,7 @@ class Bot(commands.AutoShardedBot):
         # await self.wait_until_ready()
         config: dict[str, Any] = config_load()
         channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
-        cogs: List[str] = [x.stem for x in Path('cogs').glob('*.py')]
+        cogs: list[str] = [x.stem for x in Path('cogs').glob('*.py')]
         msg: str = ''
         discord_msg: str = ''
         for extension in cogs:
@@ -371,7 +369,7 @@ class Bot(commands.AutoShardedBot):
         async with self.async_session() as session:
             guilds = (await session.execute(select(Guild).where(Guild.role_channel_id.isnot(None)))).scalars().all()
 
-        channels: List[discord.TextChannel] = []
+        channels: list[discord.TextChannel] = []
         for db_guild in guilds:
             channel: discord.TextChannel | None = self.find_text_channel(db_guild.role_channel_id)
             if channel:
@@ -390,7 +388,7 @@ class Bot(commands.AutoShardedBot):
             return
             
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
-        notif_emojis: List[discord.Emoji] = []
+        notif_emojis: list[discord.Emoji] = []
         for r in notif_roles:
             emoji_id: int = config[f'{r.lower()}EmojiID']
             emoji: discord.Emoji | None = self.get_emoji(emoji_id)
@@ -474,7 +472,7 @@ class Bot(commands.AutoShardedBot):
             message: discord.Message = await channel.fetch_message(payload.message_id)
             hof_channel: discord.TextChannel | None = self.find_text_channel(guild.hall_of_fame_channel_id)
             if isinstance(hof_channel, discord.TextChannel) and message and not message.author.bot and (message.content or message.attachments):
-                reactions: List[discord.Reaction] = [r for r in message.reactions if r.emoji == '🌟' and r.count >= guild.hall_of_fame_react_num]
+                reactions: list[discord.Reaction] = [r for r in message.reactions if r.emoji == '🌟' and r.count >= guild.hall_of_fame_react_num]
                 reaction: discord.Reaction | None = reactions[0] if reactions else None
                 if reaction:
                     hof_msg: discord.Message | None = None
@@ -490,7 +488,7 @@ class Bot(commands.AutoShardedBot):
                     if not hof_msg or not hof_embed:
                         embed = discord.Embed(title=f'Hall of fame 🌟 {reaction.count}', description=message.content, colour=0xffd700, url=message.jump_url, timestamp=message.created_at)
                         embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
-                        attachments: List[discord.Attachment] = [a for a in message.attachments if a.content_type and 'image' in a.content_type]
+                        attachments: list[discord.Attachment] = [a for a in message.attachments if a.content_type and 'image' in a.content_type]
                         attachment: discord.Attachment | None = attachments[0] if attachments else None
                         if attachment:
                             embed.set_image(url=attachment.url)
@@ -591,11 +589,11 @@ class Bot(commands.AutoShardedBot):
         async with self.async_session() as session:
             guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
         
-        channels: List[discord.TextChannel] = [channel for channel in [self.find_text_channel(guild.notification_channel_id) for guild in guilds] if channel]
+        channels: list[discord.TextChannel] = [channel for channel in [self.find_text_channel(guild.notification_channel_id) for guild in guilds] if channel]
 
         for c in channels:
             for role_name, text_to_replace in (role_dict if role_dict else []):
-                roles: List[discord.Role] = [r for r in c.guild.roles if role_name.upper() in r.name.upper()]
+                roles: list[discord.Role] = [r for r in c.guild.roles if role_name.upper() in r.name.upper()]
                 role_mention: str = roles[0].mention if roles else ''
                 msg: str = message.replace(text_to_replace, role_mention)
             self.queue_message(QueueMessage(c, msg))
@@ -769,7 +767,7 @@ class Bot(commands.AutoShardedBot):
         while True:
             try:
                 async with self.async_session() as session:
-                    deleted_from_guild_ids: List[int] = []
+                    deleted_from_guild_ids: list[int] = []
                     notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
                     for notification in notifications:
                         guild: discord.Guild | None = self.get_guild(notification.guild_id)
@@ -817,7 +815,7 @@ class Bot(commands.AutoShardedBot):
         '''
         logging.info('Initializing unmute...')
         while True:
-            to_unmute: List[Tuple[discord.Member, discord.Role, discord.Guild]] = []
+            to_unmute: list[tuple[discord.Member, discord.Role, discord.Guild]] = []
             async with self.async_session() as session:
                 mutes: Sequence[Mute] = (await session.execute(select(Mute).where(Mute.expiration <= datetime.now(UTC)))).scalars().all()
                 for mute in mutes:
@@ -916,7 +914,7 @@ class Bot(commands.AutoShardedBot):
                 async with self.async_session() as session:
                     news_posts = (await session.execute(select(NewsPost))).scalars().all()
 
-                to_send: List[NewsPost] = []
+                to_send: list[NewsPost] = []
 
                 for post in reversed(rs3_feed.entries):
                     if not any(post.link == news_post.link for news_post in news_posts):
@@ -973,49 +971,41 @@ class Bot(commands.AutoShardedBot):
                     pass
                 await asyncio.sleep(900)
     
-    async def check_polls(self):
+    async def check_polls(self) -> NoReturn:
         '''
         Function to check if there are any polls that have to be closed.
         '''
         logging.info('Initializing polls...')
         while True:
-            polls = await Poll.query.gino.all()
-            now = datetime.now(UTC)
-            for poll in polls:
-                end_time = poll.end_time
-                if now > end_time:
+            async with self.async_session() as session:
+                polls: Sequence[Poll] = (await session.execute(select(Poll).where(Poll.end_time <= datetime.now(UTC)))).scalars().all()
+                for poll in polls:
                     try:
-                        guild = self.get_guild(poll.guild_id)
-                        channel = guild.get_channel(poll.channel_id)
-                        msg = await channel.fetch_message(poll.message_id)
+                        guild: discord.Guild | None = self.get_guild(poll.guild_id)
+                        channel: discord.TextChannel | None = self.get_guild_text_channel(guild, poll.channel_id) if guild else None
+                        msg: None | discord.Message = None if not channel else await channel.fetch_message(poll.message_id)
 
-                        results = {}
-                        votes = 0
-                        for reaction in msg.reactions:
-                            results[str(reaction.emoji)] = reaction.count - 1
-                            votes += reaction.count - 1
-                        max_score = 0
-                        winner = ''
-                        tie = False
-                        for emoji, score in results.items():
-                            if score > max_score:
-                                max_score = score
-                                winner = emoji
-                                tie = False
-                            elif score == max_score:
-                                tie = True
-                                winner += f' and {emoji}'
+                        if not guild or not channel or not msg or not msg.embeds:
+                            raise Exception('Guild channel message was not found for poll.')
+
+                        results: dict[str, int] = {str(reaction.emoji): reaction.count - 1 for reaction in msg.reactions}
+                        votes: int = sum([reaction.count - 1 for reaction in msg.reactions])
+                        
+                        max_score: int = max(results.values())
+                        winners: list[str] = [r for r in results.keys() if results[r] == max_score]
+                        winner: str = ' and '.join(winners)
                         percentage = int((max_score)/max(1,votes)*100)
 
-                        embed = msg.embeds[0]
-                        if not tie:
+                        embed: discord.Embed = msg.embeds[0]
+                        if len(winners) == 1:
                             embed.add_field(name='Results', value=f'Option {winner} won with {percentage}% of the votes!')
                         else:
                             embed.add_field(name='Results', value=f'It\'s a tie! Options {winner} each have {percentage}% of the votes!')
                         await msg.edit(embed=embed)
                     except:
                         pass
-                    await poll.delete()
+                    await session.delete(poll)
+                await session.commit()
             await asyncio.sleep(60)
 
     async def git_tracking(self):

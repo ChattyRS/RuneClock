@@ -1,7 +1,6 @@
 import asyncio
 import discord
 from collections import deque
-from typing import List
 import logging
 from utils import chunk_coroutines
 import sys
@@ -62,7 +61,7 @@ class MessageQueue(deque[QueueMessage]):
             current: int = sum(messages_sent)
             limit: int = rate_limit - current
             
-            messages: List[QueueMessage] = [self.popleft() for _ in range(min(len(self), limit))]
+            messages: list[QueueMessage] = [self.popleft() for _ in range(min(len(self), limit))]
             await chunk_coroutines([message.send() for message in messages], rate_limit)
             sent: int = len(messages)
 
