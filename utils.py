@@ -1,11 +1,13 @@
+import asyncio
 import codecs
 import json
 import re
+from typing import Coroutine, List
 from numpy import number
 from oauth2client.service_account import ServiceAccountCredentials
 from discord.ext import commands
 import math
-from datetime import datetime, timedelta
+from datetime import timedelta
 import discord
 import logging
 
@@ -1058,12 +1060,23 @@ def float_to_formatted_string(input):
     output += end
     return output
 
-async def safe_send_coroutine(channel: discord.TextChannel, message: str):
-    try:
-        await channel.send(message)
-    except discord.Forbidden:
-        pass
-    except Exception as e:
-        error = f'Encountered error while sending a message:\n{type(e).__name__}: {e}'
-        logging.critical(error)
-        print(error)
+async def chunk_coroutines(coroutines: List[Coroutine], chunk_size: int, delay: int = 1) -> None:
+    '''
+    Execute a list of coroutines with concurrency.
+    Note that the global rate limit = 50 requests per second.
+
+    Args:
+        chunk_size (int): Number of coroutines to execute concurrently
+        delay (int, optional): Delay in seconds between execution of consecutive chunks. Defaults to 1.
+    '''
+    if not coroutines:
+        return
+    i: int = 0
+    # Split list of coroutines into chunks to avoid rate limits
+    for chunk in [coroutines[j:j + chunk_size] for j in range(0, len(coroutines), chunk_size)]:
+        i += len(chunk)
+        # Execute the chunk of coroutines
+        await asyncio.gather(*chunk)
+        # Sleep for a second after each chunk of requests to avoid rate limits (all but the last chunk, because then we are already done)
+        if i < len(coroutines):
+            await asyncio.sleep(delay)

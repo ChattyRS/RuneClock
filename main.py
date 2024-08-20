@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 import sys
-from typing import Any, Coroutine, List, NoReturn, Sequence, Tuple
+from typing import Any, List, NoReturn, Sequence, Tuple
 import discord
 from discord.abc import PrivateChannel
 from discord.ext import commands
@@ -12,14 +12,16 @@ import codecs
 from sqlalchemy import delete, insert, select
 import utils
 import string
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientResponse, ClientSession, ClientTimeout
 import gspread_asyncio
 import feedparser
 import traceback
 from github import Github
 from difflib import SequenceMatcher
 import io
-from utils import safe_send_coroutine
+from utils import chunk_coroutines
+from collections import deque
+from src.message_queue import QueueMessage, MessageQueue
 
 # Other cogs import database classes from main
 # so even though some of these classes may appear not to be in use, they should not be removed here
@@ -116,6 +118,8 @@ class Bot(commands.AutoShardedBot):
 
     events_logged: int = 0
 
+    message_queue: MessageQueue = MessageQueue()
+
     def __init__(self, **kwargs) -> None:
         intents: discord.Intents = discord.Intents.all()
         super().__init__(
@@ -163,7 +167,7 @@ class Bot(commands.AutoShardedBot):
         # await self.wait_until_ready()
         self.start_time = datetime.now(UTC).replace(microsecond=0)
 
-    # Helper methods
+    #region Helper methods
 
     def find_guild_text_channel(self, guild: discord.Guild, id: int | None) -> discord.TextChannel | None:
         channel: discord.VoiceChannel | discord.StageChannel | discord.ForumChannel | discord.TextChannel | discord.CategoryChannel | discord.Thread | PrivateChannel | None = guild.get_channel(id) if id else None
@@ -210,6 +214,8 @@ class Bot(commands.AutoShardedBot):
     async def find_or_create_db_guild(self, guild_or_id: discord.Guild | int) -> Guild:
         db_guild: Guild | None = await self.find_db_guild(guild_or_id)
         return db_guild if db_guild else await self.create_db_guild(guild_or_id)
+    
+    #endregion: Helper methods
 
     async def initialize(self) -> None:
         print(f'Initializing...')
@@ -241,33 +247,44 @@ class Bot(commands.AutoShardedBot):
         print('-' * 10)
         logging.critical(msg)
 
-        self.loop.create_task(self.check_guilds())
-        self.loop.create_task(self.role_setup())
-
         if self.start_time:
+            # If there is already a start time, we may just be reconnecting instead of starting.
+            # In such cases, we want to avoid starting duplicate instances of the background tasks
+            # Hence, we only start background tasks if the start time was in the past 5 minutes.
             if self.start_time > datetime.now(UTC) - timedelta(minutes=5):
                 if channel:
                     try:
                         await channel.send(msg)
                     except:
                         pass
-                self.loop.create_task(self.notify())
-                self.loop.create_task(self.custom_notify())
-                self.loop.create_task(self.unmute())
-                self.loop.create_task(self.rsnews())
-                self.loop.create_task(self.check_polls())
-                self.loop.create_task(self.git_tracking())
-                self.loop.create_task(self.price_tracking_rs3())
-                self.loop.create_task(self.price_tracking_osrs())
+                self.start_background_tasks()
         else:
-            self.loop.create_task(self.notify())
-            self.loop.create_task(self.custom_notify())
-            self.loop.create_task(self.unmute())
-            self.loop.create_task(self.rsnews())
-            self.loop.create_task(self.check_polls())
-            self.loop.create_task(self.git_tracking())
-            self.loop.create_task(self.price_tracking_rs3())
-            self.loop.create_task(self.price_tracking_osrs())
+            self.start_background_tasks()
+
+    def start_background_tasks(self) -> None:
+        '''
+        Starts the background tasks.
+        '''
+        self.loop.create_task(self.message_queue.send_queued_messages())
+        self.loop.create_task(self.check_guilds())
+        self.loop.create_task(self.role_setup())
+        self.loop.create_task(self.notify())
+        self.loop.create_task(self.custom_notify())
+        self.loop.create_task(self.unmute())
+        self.loop.create_task(self.rsnews())
+        self.loop.create_task(self.check_polls())
+        self.loop.create_task(self.git_tracking())
+        self.loop.create_task(self.price_tracking_rs3())
+        self.loop.create_task(self.price_tracking_osrs())
+
+    def queue_message(self, message: QueueMessage) -> None:
+        '''
+        Add a message to the message queue.
+
+        Args:
+            message (QueueMessage): The message to add to the queue
+        '''
+        self.message_queue.append(message)
 
     async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> List[str]:
         '''
@@ -559,7 +576,7 @@ class Bot(commands.AutoShardedBot):
             logging.info(str(filter(lambda x: x in string.printable, txt)))
             print(txt)
                     
-    async def send_notifications(self, message: str, role_dict: dict[str, str] | None = None) -> List[Coroutine[discord.TextChannel, str, None]]:
+    async def send_notifications(self, message: str, role_dict: dict[str, str] | None = None) -> None:
         '''
         Get coroutines to send notifications to the configured notification channels.
 
@@ -570,7 +587,6 @@ class Bot(commands.AutoShardedBot):
         Returns:
             _type_: A list of coroutines which can be awaited to send the notifications.
         '''
-        coroutines: List[Coroutine[discord.TextChannel, str, None]] = []
 
         async with self.async_session() as session:
             guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
@@ -582,9 +598,7 @@ class Bot(commands.AutoShardedBot):
                 roles: List[discord.Role] = [r for r in c.guild.roles if role_name.upper() in r.name.upper()]
                 role_mention: str = roles[0].mention if roles else ''
                 msg: str = message.replace(text_to_replace, role_mention)
-            coroutines.append(safe_send_coroutine(c, msg))
-
-        return coroutines
+            self.queue_message(QueueMessage(c, msg))
 
     async def notify(self) -> None:
         '''
@@ -668,68 +682,56 @@ class Bot(commands.AutoShardedBot):
             try:
                 now: datetime = datetime.now(UTC)
 
-                # Used to send messages concurrently
-                coroutines: List[Coroutine[discord.TextChannel, str, None]] = []
-
                 if not notified_this_day_merchant and now.hour <= 2 and self.next_merchant and self.next_merchant > now + timedelta(hours=1):
                     msg = f'__role_mention__\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{self.merchant}'
-                    coroutines += await self.send_notifications(msg, {'MERCHANT': '__role_mention__'})
+                    await self.send_notifications(msg, {'MERCHANT': '__role_mention__'})
                     notified_this_day_merchant = True
 
                 if not notified_this_day_spotlight and now.hour <= 1 and self.next_spotlight and self.next_spotlight > now + timedelta(days=2, hours=1):
                     msg = f'{config["spotlightEmoji"]} **{self.spotlight}** is now the spotlighted minigame. __role_mention__'
-                    coroutines += await self.send_notifications(msg, {'SPOTLIGHT': '__role_mention__'})
+                    await self.send_notifications(msg, {'SPOTLIGHT': '__role_mention__'})
                     notified_this_day_spotlight = True
 
                 if not notified_this_hour_vos and now.minute <= 1 and self.vos and self.next_vos and self.next_vos > now + timedelta(minutes=1):
                     msg = '\n'.join([config[f'msg{d}'] + f'__role_{d}__' for d in self.vos['vos']])
                     role_dict: dict[str, str] = {d: f'__role_{d}__' for d in self.vos['vos']}
-                    coroutines += await self.send_notifications(msg, role_dict)
+                    await self.send_notifications(msg, role_dict)
                     notified_this_hour_vos = True
                         
                 if not notified_this_hour_warbands and now.minute >= 45 and now.minute <= 46 and self.next_warband and self.next_warband - now <= timedelta(minutes=15):
                     msg = config['msgWarbands'] + '__role_mention__'
-                    coroutines += await self.send_notifications(msg, {'WARBAND': '__role_mention__'})
+                    await self.send_notifications(msg, {'WARBAND': '__role_mention__'})
                     notified_this_hour_warbands = True
                             
                 if not notified_this_hour_cache and now.minute >= 55 and now.minute <= 56:
                     msg = config['msgCache'] + '__role_mention__'
-                    coroutines += await self.send_notifications(msg, {'CACHE': '__role_mention__'})
+                    await self.send_notifications(msg, {'CACHE': '__role_mention__'})
                     notified_this_hour_cache = True
 
                 if not notified_this_hour_yews_48 and now.hour == 23 and now.minute >= 45 and now.minute <= 46:
                     msg = config['msgYews48'] + '__role_mention__'
-                    coroutines += await self.send_notifications(msg, {'YEW': '__role_mention__'})
+                    await self.send_notifications(msg, {'YEW': '__role_mention__'})
                     notified_this_hour_yews_48 = True
 
                 if not notified_this_hour_yews_140 and now.hour == 16 and now.minute >= 45 and now.minute <= 46:
                     msg = config['msgYews140'] + '__role_mention__'
-                    coroutines += await self.send_notifications(msg, {'YEW': '__role_mention__'})
+                    await self.send_notifications(msg, {'YEW': '__role_mention__'})
                     notified_this_hour_yews_140 = True
                     
                 if not notified_this_hour_goebies and now.hour in [11, 23] and now.minute >= 45 and now.minute <= 46:
                     msg = config['msgGoebies'] + '__role_mention__'
-                    coroutines += await self.send_notifications(msg, {'GOEBIE': '__role_mention__'})
+                    await self.send_notifications(msg, {'GOEBIE': '__role_mention__'})
                     notified_this_hour_goebies = True
 
                 if not notified_this_hour_sinkhole and now.minute >= 25 and now.minute <= 26:
                     msg = config['msgSinkhole'] + '__role_mention__'
-                    coroutines += await self.send_notifications(msg, {'SINKHOLE': '__role_mention__'})
+                    await self.send_notifications(msg, {'SINKHOLE': '__role_mention__'})
                     notified_this_hour_sinkhole = True
                 
                 if not notified_this_hour_wilderness_flash and now.minute >= 55 and now.minute <= 56 and self.wilderness_flash_event:
                     msg = f'{config["wildernessflasheventsEmoji"]} The next **Wilderness Flash Event** will start in 5 minutes: **{self.wilderness_flash_event["next"]}**. __role_mention__'
-                    coroutines += await self.send_notifications(msg, {'WILDERNESSFLASHEVENT': '__role_mention__'})
+                    await self.send_notifications(msg, {'WILDERNESSFLASHEVENT': '__role_mention__'})
                     notified_this_hour_wilderness_flash = True
-
-                # Send messages concurrently if there are any
-                if coroutines:
-                    # Split list of coroutines into chunks to avoid rate limits
-                    chunk_size = 40 # Global rate limit = 50 requests per second
-                    for chunk in [coroutines[j:j + chunk_size] for j in range(0, len(coroutines), chunk_size)]:
-                        await asyncio.gather(*chunk)
-                        await asyncio.sleep(1) # Sleep for a second after each chunk of requests to avoid rate limits
-                    print(f'Notifications sent in {(datetime.now(UTC) - now) / timedelta(milliseconds=1)} ms')
 
                 if now.minute > 1 and reset:
                     reset = False
@@ -766,8 +768,6 @@ class Bot(commands.AutoShardedBot):
         logging.info('Initializing custom notifications...')
         while True:
             try:
-                to_notify: List[Tuple[discord.TextChannel, str]] = []
-
                 async with self.async_session() as session:
                     deleted_from_guild_ids: List[int] = []
                     notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
@@ -780,7 +780,7 @@ class Bot(commands.AutoShardedBot):
                         if not channel:
                             await session.delete(notification)
                             continue
-                        to_notify.append((channel, notification.message))
+                        self.queue_message(QueueMessage(channel, notification.message))
 
                         interval = timedelta(seconds = notification.interval)
                         if interval.total_seconds() != 0:
@@ -796,12 +796,6 @@ class Bot(commands.AutoShardedBot):
                             notification.notification_id = i
 
                     await session.commit()
-
-                for channel, message in to_notify:
-                    try:
-                        await channel.send(message)
-                    except discord.Forbidden:
-                        pass
 
                 await asyncio.sleep(30)
             except Exception as e:
@@ -853,9 +847,13 @@ class Bot(commands.AutoShardedBot):
                     continue
             await asyncio.sleep(60)
 
-    async def send_news(self, post, osrs):
+    async def send_news(self, post: NewsPost, osrs: bool) -> None:
         '''
-        Function to send a message for a runescape newspost
+        Function to send a message for a runescape newspost.
+
+        Args:
+            post (NewsPost): The news post.
+            osrs (bool): Denotes whether the news post is for OSRS (true) or RS3 (false).
         '''
         embed = discord.Embed(title=f'**{post.title}**', description=post.description, url=post.link, timestamp=datetime.now(UTC))
         if osrs:
@@ -868,28 +866,20 @@ class Bot(commands.AutoShardedBot):
         if post.image_url:
             embed.set_image(url=post.image_url)
 
-        to_send = []
-        guilds = await Guild.query.gino.all()
-        for guild in guilds:
-            if not osrs:
-                if guild.rs3_news_channel_id:
-                    news_channel = self.get_channel(guild.rs3_news_channel_id)
-                else:
-                    continue
-            else:
-                if guild.osrs_news_channel_id:
-                    news_channel = self.get_channel(guild.osrs_news_channel_id)
-                else:
-                    continue
-            if news_channel:
-                to_send.append(news_channel)
-        for news_channel in to_send:
-            try:
-                await news_channel.send(embed=embed)
-            except discord.Forbidden:
-                continue
+        guilds: Sequence[Guild]
 
-    async def rsnews(self):
+        async with self.async_session() as session:
+            if osrs:
+                guilds = (await session.execute(select(Guild).where(Guild.osrs_news_channel_id.is_not(None)))).scalars().all()
+            else:
+                guilds = (await session.execute(select(Guild).where(Guild.rs3_news_channel_id.is_not(None)))).scalars().all()
+
+        for guild in guilds:
+            news_channel: discord.TextChannel | None = self.find_text_channel(guild.osrs_news_channel_id) if osrs else self.find_text_channel(guild.rs3_news_channel_id)
+            if news_channel:
+                self.queue_message(QueueMessage(news_channel, embed=embed))
+
+    async def rsnews(self) -> NoReturn:
         '''
         Function to send messages from Runescape news rss feed.
         '''
@@ -899,15 +889,15 @@ class Bot(commands.AutoShardedBot):
         osrs_url = 'http://services.runescape.com/m=news/latest_news.rss?oldschool=true'
         while True:
             try:
-                r = await self.bot.aiohttp.get(rs3_url)
+                r: ClientResponse = await self.aiohttp.get(rs3_url)
                 async with r:
                     if r.status != 200:
                         await asyncio.sleep(900)
                         continue
-                    content = await r.content.read()
+                    content: bytes = await r.content.read()
                     rs3_data = io.BytesIO(content)
 
-                r = await self.bot.aiohttp.get(osrs_url)
+                r = await self.aiohttp.get(osrs_url)
                 async with r:
                     if r.status != 200:
                         await asyncio.sleep(900)
@@ -919,60 +909,66 @@ class Bot(commands.AutoShardedBot):
                     await asyncio.sleep(900)
                     continue
 
-                rs3_feed = feedparser.parse(rs3_data)
-                osrs_feed = feedparser.parse(osrs_data)
+                rs3_feed: Any = feedparser.parse(rs3_data)
+                osrs_feed: Any = feedparser.parse(osrs_data)
                 
-                to_send = []
-                news_posts = await NewsPost.query.gino.all()
+                news_posts: Sequence[NewsPost]
+                async with self.async_session() as session:
+                    news_posts = (await session.execute(select(NewsPost))).scalars().all()
+
+                to_send: List[NewsPost] = []
 
                 for post in reversed(rs3_feed.entries):
                     if not any(post.link == news_post.link for news_post in news_posts):
                         time = datetime.strptime(post.published, '%a, %d %b %Y %H:%M:%S %Z')
 
-                        category = None
+                        category: Any = None
                         if post.category:
                             category = post.category
 
-                        image_url = None
+                        image_url: Any = None
                         if post.enclosures:
-                            enclosure = post.enclosures[0]
+                            enclosure: Any = post.enclosures[0]
                             if any(txt in enclosure.type for txt in ['image', 'jpeg', 'jpg', 'png']):
                                 image_url = enclosure.href
-
-                        news_post = await NewsPost.create(link=post.link, game='rs3', title=post.title, description=post.description, time=time, category=category, image_url=image_url)
-                        to_send.append([news_post, False])
+                        async with self.async_session() as session:
+                            session.add(NewsPost(link=post.link, game='rs3', title=post.title, description=post.description, time=time, category=category, image_url=image_url))
+                            await session.commit()
+                        to_send.append(news_post)
             
                 for post in reversed(osrs_feed.entries):
                     if not any(post.link == news_post.link for news_post in news_posts):
-                        time = datetime.strptime(post.published, '%a, %d %b %Y %H:%M:%S %Z')
+                        time: datetime = datetime.strptime(post.published, '%a, %d %b %Y %H:%M:%S %Z')
 
-                        category = None
+                        category: Any = None
                         if post.category:
                             category = post.category
 
-                        image_url = None
+                        image_url: Any = None
                         if post.enclosures:
-                            enclosure = post.enclosures[0]
+                            enclosure: Any = post.enclosures[0]
                             if any(txt in enclosure.type for txt in ['image', 'jpeg', 'jpg', 'png']):
                                 image_url = enclosure.href
 
-                        news_post = await NewsPost.create(link=post.link, game='osrs', title=post.title, description=post.description, time=time, category=category, image_url=image_url)
-                        to_send.append([news_post, True])
+                        async with self.async_session() as session:
+                            session.add(NewsPost(link=post.link, game='osrs', title=post.title, description=post.description, time=time, category=category, image_url=image_url))
+                            await session.commit()
+                        to_send.append(news_post)
 
-                for x in to_send:
-                    news_post, osrs = x
-                    await self.send_news(news_post, osrs)
+                for news_post in to_send:
+                    await self.send_news(news_post, news_post.game == 'osrs')
 
                 # sleep for 15 min to avoid rate limits causing 404 errors
                 await asyncio.sleep(900)
             except Exception as e:
-                error = f'Encountered the following error in news loop:\n{type(e).__name__}: {e}'
+                error: str = f'Encountered the following error in news loop:\n{type(e).__name__}: {e}'
                 logging.critical(error)
                 print(error)
                 try:
-                    config = config_load()
-                    log_channel = self.get_channel(config['testChannel'])
-                    await log_channel.send(error)
+                    config: dict[str, Any] = config_load()
+                    log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
+                    if log_channel:
+                        await log_channel.send(error)
                 except:
                     pass
                 await asyncio.sleep(900)
