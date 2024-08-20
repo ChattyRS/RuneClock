@@ -25,7 +25,6 @@ $ pip install -r requirements.txt
 ```
 * [discord.py v2.4](https://github.com/Rapptz/discord.py)
 * [SQLAlchemy](https://www.sqlalchemy.org/)
-* [Asyncio](https://docs.python.org/3/library/asyncio.html)
 * [gspread_asyncio](https://github.com/dgilman/gspread_asyncio)
 * [NumPy](http://www.numpy.org/)
 * [matplotlib](https://matplotlib.org/)
