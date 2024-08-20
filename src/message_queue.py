@@ -71,7 +71,7 @@ class MessageQueue(deque[QueueMessage]):
             # Instead, as a baseline we check the queue every 25 ms.
             # However, when we hit the rate limit, we wait until the rate limit has expired
             first_change: int = messages_sent.popleft()
-            while first_change == 0 and len(messages_sent) > 0:
+            while first_change == 0 and len(messages_sent) > 0 and sum(messages_sent) >= rate_limit:
                 first_change = messages_sent.popleft()
             iterations_to_wait: int = rate_limit - len(messages_sent)
             messages_sent.append(sent)
