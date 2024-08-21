@@ -9,6 +9,12 @@ import discord
 from discord.abc import PrivateChannel
 from discord.ext import commands
 import codecs
+from github.Commit import Commit
+from github.Repository import Repository as GitRepository
+from github.AuthenticatedUser import AuthenticatedUser
+from github.NamedUser import NamedUser
+from github.PaginatedList import PaginatedList
+from github.Repository import Repository
 from sqlalchemy import delete, insert, select
 import utils
 import string
@@ -1008,86 +1014,54 @@ class Bot(commands.AutoShardedBot):
                 await session.commit()
             await asyncio.sleep(60)
 
-    async def git_tracking(self):
+    async def git_tracking(self) -> NoReturn:
         '''
         Function to check tracked git repositories for new commits.
         '''
         logging.info('Initializing git tracking...')
-        config = config_load()
+        config: dict[str, Any] = config_load()
         while True:
             try:
-                g = Github(config['github_access_token'])
+                g: Github = Github(config['github_access_token'])
 
-                repositories = await Repository.query.gino.all()
-                for repo in repositories:
-                    guild_id = repo.guild_id
-                    channel_id = repo.channel_id
-                    user_name = repo.user_name
-                    repo_name = repo.repo_name
-                    sha = repo.sha
+                async with self.async_session() as session:
+                    repositories: Sequence[Repository] = (await session.execute(select(Repository))).scalars().all()
+                    to_delete: list[Repository] = []
+                    for repository in repositories:
+                        guild: discord.Guild | None = self.get_guild(repository.guild_id)
+                        channel: discord.TextChannel | None = self.get_guild_text_channel(guild, repository.channel_id) if guild else None
+                        git_user: NamedUser | AuthenticatedUser | None = g.get_user(repository.user_name)
+                        repos: list[GitRepository] = [r for r in git_user.get_repos() if r.name.upper() == repository.repo_name.upper()] if git_user else []
+                        repo: GitRepository | None = repos[0] if repos else None
 
-                    
-                    guild = self.get_guild(guild_id)
-                    if not guild:
-                        await repo.delete()
-                        continue
-                    channel = guild.get_channel(channel_id)
-                    if not channel:
-                        await repo.delete()
-                        continue
-
-                    user = g.get_user(user_name)
-                    if not user:
-                        await repo.delete()
-                        continue
-
-                    repos = user.get_repos()
-                    if not repos:
-                        await repo.delete()
-                        continue
-                    
-                    num_repos = 0
-                    for _ in repos:
-                        num_repos += 1
-
-                    for i, rep in enumerate(repos):
-                        if rep.name.upper() == repo_name.upper():
-                            break
-                    
-                    if i == num_repos - 1 and rep.name.upper() != repo_name.upper():
-                        await repo.delete()
-                        continue
-                    
-                    commits = rep.get_commits()
-
-                    new_commits = []
-
-                    for i, commit in enumerate(commits):
-                        if commit.sha != sha:
-                            new_commits.append(commit)
-                        else:
-                            break
-                    
-                    if not new_commits:
-                        continue
-
-                    for i, commit in enumerate(reversed(new_commits)):
-                        r = await self.bot.aiohttp.get(commit.url)
-                        async with r:
-                            if r.status != 200:
-                                continue
-                            data = await r.json()
+                        if not guild or not channel or not git_user or not repos or not repo:
+                            to_delete.append(repository)
+                            continue
                         
-                        if i == len(new_commits) - 1:
-                            await repo.update(sha=commit.sha).apply()
+                        commits: PaginatedList[Commit] = repo.get_commits()
+                        commit_index: int = 0
+                        for i, commit in enumerate(commits):
+                            if commit.sha == repository.sha:
+                                commit_index = i
+                                break
+                        new_commits: list[Commit] = commits[:commit_index] if commit_index else []
                         
-                        embed = discord.Embed(title=f'{user_name}/{repo_name}', colour=discord.Colour.blue(), timestamp=datetime.strptime(data['commit']['author']['date'], "%Y-%m-%dT%H:%M:%SZ"), description=f'[`{commit.sha[:7]}`]({commit.url}) {data["commit"]["message"]}\n{data["stats"]["additions"]} additions, {data["stats"]["deletions"]} deletions', url=rep.url)
-                        embed.set_author(name=f'{data["commit"]["author"]["name"]}', url=f'{data["author"]["url"]}', icon_url=f'{data["author"]["avatar_url"]}')
+                        for i, commit in enumerate(reversed(new_commits)):
+                            repository.sha = commit.sha
+                            author_data: Any = commit.raw_data.get('author')
+                            date: datetime = datetime.strptime(author_data.date, "%Y-%m-%dT%H:%M:%SZ")
+                            
+                            embed = discord.Embed(title=f'{repository.user_name}/{repository.repo_name}', colour=discord.Colour.blue(), timestamp=date, description=f'[`{commit.sha[:7]}`]({commit.url}) {commit.raw_data.get("message")}\n{commit.stats.additions} additions, {commit.stats.deletions} deletions', url=repo.url)
+                            embed.set_author(name=commit.author.name, url=commit.author.url, icon_url=commit.author.avatar_url)
 
-                        for file in data['files']:
-                            embed.add_field(name=file['filename'], value=f'{file["additions"]} additions, {file["deletions"]} deletions', inline=False)
-                        
-                        await channel.send(embed=embed)
+                            for file in commit.files:
+                                embed.add_field(name=file.filename, value=f'{file.additions} additions, {file.deletions} deletions', inline=False)
+                            
+                            await channel.send(embed=embed)
+                    for repository in to_delete:
+                        await session.delete(repository)
+                    if to_delete or any(session.is_modified(obj) for obj in repositories):
+                        await session.commit()
 
             except:
                 pass
