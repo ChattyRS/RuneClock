@@ -257,10 +257,7 @@ class Bot(commands.AutoShardedBot):
             # Hence, we only start background tasks if the start time was in the past 5 minutes.
             if self.start_time > datetime.now(UTC) - timedelta(minutes=5):
                 if channel:
-                    try:
-                        await channel.send(msg)
-                    except:
-                        pass
+                    self.queue_message(QueueMessage(channel, msg))
                 self.start_background_tasks()
         else:
             self.start_background_tasks()
@@ -336,11 +333,9 @@ class Bot(commands.AutoShardedBot):
         print('-' * 10)
         logging.critical(msg)
 
-        try:
-            if 'Failed' in msg and isinstance(channel, discord.TextChannel):
-                await channel.send(discord_msg)
-        except discord.Forbidden:
-            return
+        if 'Failed' in msg and isinstance(channel, discord.TextChannel):
+            self.queue_message(QueueMessage(channel, discord_msg))
+            await channel.send(discord_msg)
 
     async def check_guilds(self) -> None:
         '''
@@ -386,11 +381,8 @@ class Bot(commands.AutoShardedBot):
             print(msg)
             print('-' * 10)
             logging.critical(msg)
-            try:
-                logChannel: discord.TextChannel = self.get_text_channel(config['testChannel'])
-                await logChannel.send(f'Sorry, I was unable to retrieve any role management channels. Role management is down.')
-            except Exception:
-                pass
+            logChannel: discord.TextChannel = self.get_text_channel(config['testChannel'])
+            self.queue_message(QueueMessage(logChannel, msg))
             return
             
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
@@ -408,11 +400,10 @@ class Bot(commands.AutoShardedBot):
                 async for message in c.history(limit=1):
                     messages += 1
                 if not messages:
-                    await c.send(msg)
+                    message = await c.send(msg)
                     try:
-                        async for message in c.history(limit=1):
-                            for emoji in notif_emojis:
-                                await message.add_reaction(emoji)
+                        for emoji in notif_emojis:
+                            await message.add_reaction(emoji)
                     except Exception as e:
                         print(f'Exception: {e}')
             except discord.Forbidden:
@@ -438,11 +429,8 @@ class Bot(commands.AutoShardedBot):
         
         welcome_message: str = guild.welcome_message.replace('[user]', member.mention)
         welcome_message = welcome_message.replace('[server]', member.guild.name)
-        
-        try:
-            await welcome_channel.send(welcome_message)
-        except discord.Forbidden:
-            return
+
+        self.queue_message(QueueMessage(welcome_channel, welcome_message))
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         '''
@@ -499,7 +487,7 @@ class Bot(commands.AutoShardedBot):
                         if attachment:
                             embed.set_image(url=attachment.url)
                         embed.set_footer(text=f'Message ID: {message.id}')
-                        await hof_channel.send(embed=embed)
+                        self.queue_message(QueueMessage(hof_channel, None, embed))
                     else:
                         hof_embed.title = f'Hall of fame 🌟 {reaction.count}'
                         await hof_msg.edit(embed=hof_embed)
@@ -547,7 +535,7 @@ class Bot(commands.AutoShardedBot):
             return  # ignore all bots
 
         # For now, ignore messages that were not sent from guilds, because this might break certain commands
-        if message.guild is None:
+        if message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
         
         guild: Guild = await self.find_or_create_db_guild(message.guild)
@@ -561,11 +549,8 @@ class Bot(commands.AutoShardedBot):
 
         for command_name in (guild.disabled_commands if guild.disabled_commands else []):
             if msg.startswith(f'{prefix}{command_name}') or (self.user and msg.startswith(f'{self.user.mention} {command_name}')):
-                try:
-                    await message.channel.send(f'The command `{command_name}` has been disabled in this server. Please contact a server admin to enable it.')
-                    return
-                except discord.Forbidden:
-                    return
+                self.queue_message(QueueMessage(message.channel, f'The command `{command_name}` has been disabled in this server. Please contact a server admin to enable it.'))
+                return
 
         if msg.startswith(prefix):
             txt: str = f'{datetime.now(UTC)}: Command \"{msg}\" received; processing...'
@@ -622,10 +607,7 @@ class Bot(commands.AutoShardedBot):
             print(msg)
             logging.critical(msg)
             if log_channel:
-                try:
-                    await log_channel.send(msg)
-                except discord.Forbidden:
-                    pass
+                self.queue_message(QueueMessage(log_channel, msg))
             return
         notified_this_hour_warbands = False
         notified_this_hour_vos = False
@@ -759,10 +741,7 @@ class Bot(commands.AutoShardedBot):
                 logging.critical(error)
                 print(error)
                 if log_channel:
-                    try:
-                        await log_channel.send(error)
-                    except:
-                        pass
+                    self.queue_message(QueueMessage(log_channel, error))
                 await asyncio.sleep(5)
 
     async def custom_notify(self) -> NoReturn:
@@ -809,7 +788,7 @@ class Bot(commands.AutoShardedBot):
                 try:
                     log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
                     if log_channel:
-                        await log_channel.send(error)
+                        self.queue_message(QueueMessage(log_channel, error))
                 except:
                     pass
                 await asyncio.sleep(30)
@@ -972,7 +951,7 @@ class Bot(commands.AutoShardedBot):
                     config: dict[str, Any] = config_load()
                     log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
                     if log_channel:
-                        await log_channel.send(error)
+                        self.queue_message(QueueMessage(log_channel, error))
                 except:
                     pass
                 await asyncio.sleep(900)
@@ -1057,7 +1036,7 @@ class Bot(commands.AutoShardedBot):
                             for file in commit.files:
                                 embed.add_field(name=file.filename, value=f'{file.additions} additions, {file.deletions} deletions', inline=False)
                             
-                            await channel.send(embed=embed)
+                            self.queue_message(QueueMessage(channel, None, embed))
                     for repository in to_delete:
                         await session.delete(repository)
                     if to_delete or any(session.is_modified(obj) for obj in repositories):
