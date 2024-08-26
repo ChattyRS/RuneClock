@@ -1,7 +1,11 @@
+from typing import Any
+from aiohttp import ClientResponse
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
+
+from imageio.core.util import Array
 sys.path.append('../')
 from main import Bot, config_load, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
 import re
@@ -12,7 +16,7 @@ from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 import math
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
 from utils import is_int, is_float, draw_num, xp_to_level, combat_level, draw_outline_osrs, draw_outline_rs3
 from utils import level_to_xp, time_diff_to_string, osrs_combat_level
 import io
@@ -22,7 +26,7 @@ import numpy as np
 import random
 from utils import float_to_formatted_string
 
-config = config_load()
+config: dict[str, Any] = config_load()
 
 reddit = praw.Reddit(client_id=config['redditID'],
                      client_secret=config['redditSecret'],
@@ -30,56 +34,41 @@ reddit = praw.Reddit(client_id=config['redditID'],
                      user_agent=config['user_agent'],
                      username=config['redditName'])
 
-graph_cache_07 = {}
-
-graph_cache_rs3 = {}
-
-skills_07 = ['Overall', 'Attack', 'Defence', 'Strength', 'Hitpoints', 'Ranged',
+skills_07: list[str] = ['Overall', 'Attack', 'Defence', 'Strength', 'Hitpoints', 'Ranged',
             'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
             'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
             'Thieving', 'Slayer', 'Farming', 'Runecraft', 'Hunter', 'Construction']
 
-osrs_skill_emojis = ['<:Attack_icon:624387168982269952>', '<:Defence_icon:624387168655114263>', '<:Strength_icon:624387169145847808>', '<:Hitpoints_icon:624387169058029568>', '<:Ranged_icon:624387169028538378>',
+osrs_skill_emojis: list[str] = ['<:Attack_icon:624387168982269952>', '<:Defence_icon:624387168655114263>', '<:Strength_icon:624387169145847808>', '<:Hitpoints_icon:624387169058029568>', '<:Ranged_icon:624387169028538378>',
             '<:Prayer_icon:624387169129332743>', '<:Magic_icon:624387168726548495>', '<:Cooking_icon:624387169066287104>', '<:Woodcutting_icon:624387168844120065>', '<:Fletching_icon:624387168885800981>', '<:Fishing_icon:624387169024213008>',
             '<:Firemaking_icon:624387169011630120>', '<:Crafting_icon:624387169003503616>', '<:Smithing_icon:624387168898383903>', '<:Mining_icon:624387168785137669>', '<:Herblore_icon:624387169053704195>', '<:Agility_icon:624387168609239048>',
             '<:Thieving_icon:624387169015955475>', '<:Slayer_icon:624387168822886435>', '<:Farming_icon:624387168990658570>', '<:Runecraft_icon:624387169041121290>', '<:Hunter_icon:624387169070350336>', '<:Construction_icon:624387168995115041>', '<:Stats_icon:624389156344430594>']
 
-skills_rs3 = ['Overall', 'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged',
+skills_rs3: list[str] = ['Overall', 'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged',
             'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
             'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
             'Thieving', 'Slayer', 'Farming', 'Runecrafting', 'Hunter', 'Construction',
             'Summoning', 'Dungeoneering', 'Divination', 'Invention', 'Archaeology']
 
-skills_rs3_gains = skills_rs3 + ['Necromancy']
+skills_rs3_gains: list[str] = skills_rs3 + ['Necromancy']
 
-rs3_skill_emojis = ['<:Attack:962315037668696084>', '<:Defence:962315037396074517>', '<:Strength:962315037538668555>', '<:Constitution:962315037601562624>', '<:Ranged:962315037177970769>',
+rs3_skill_emojis: list[str] = ['<:Attack:962315037668696084>', '<:Defence:962315037396074517>', '<:Strength:962315037538668555>', '<:Constitution:962315037601562624>', '<:Ranged:962315037177970769>',
             '<:Prayer:962315037509300224>', '<:Magic:962315037207318579>', '<:Cooking:962315037563817994>', '<:Woodcutting:962315037593194516>', '<:Fletching:962315037664493568>', '<:Fishing:962315037630951484>',
             '<:Firemaking:962315037542871070>', '<:Crafting:962315037647732766>', '<:Smithing:962315037530271744>', '<:Mining:962315037526085632>', '<:Herblore:962315037563834398>', '<:Agility:962315037635121162>',
             '<:Thieving:962315037106634753>', '<:Slayer:962315037278609419>', '<:Farming:962315037484130324>', '<:Runecrafting:962315037538676736>', '<:Hunter:962315037261848607>', '<:Construction:962315037626761226>',
             '<:Summoning:962315037559631892>', '<:Dungeoneering:962315037815492648>', '<:Divination:962315037727412245>', '<:Invention:962315037723222026>', '<:Archaeology:962315037509316628>']
   
-indices = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21]
-indices_rs3 = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23, 24, 25, 26, 27]
+indices: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21]
+indices_rs3: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23, 24, 25, 26, 27]
 
-cb_indices_rs3 = [0, 2, 1, 3, 6, 4, 5, 23]
-cb_indices_osrs = [0, 2, 1, 3, 6, 4, 5]
+cb_indices_rs3: list[int] = [0, 2, 1, 3, 6, 4, 5, 23]
+cb_indices_osrs: list[int] = [0, 2, 1, 3, 6, 4, 5]
 
-yellow = [255, 255, 0, 255]
-orange = [255, 140, 0, 255]
-white = [255, 255, 255, 255]
-green = [0, 221, 0, 255]
-red = [221, 0, 0, 255]
-
-def translate_age(age):
-    age = age.replace('dagen', 'days')
-    age = age.replace('dag', 'day')
-    age = age.replace('weken', 'weeks')
-    age = age.replace('maanden', 'months')
-    age = age.replace('maand', 'month')
-    age = age.replace('jaren', 'years')
-    age = age.replace('jaar', 'year')
-    age = age.replace('geleden', 'ago')
-    return age
+yellow: list[int] = [255, 255, 0, 255]
+orange: list[int] = [255, 140, 0, 255]
+white: list[int] = [255, 255, 255, 255]
+green: list[int] = [0, 221, 0, 255]
+red: list[int] = [221, 0, 0, 255]
 
 vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.now(UTC), description='Today\'s vis wax combo has not been released yet.')
 vis_wax_combo = []
@@ -92,27 +81,27 @@ rotation_count: number of rotations
 interval: frequency of rotation changes
 offset: 1 jan 1970 + offset = starting day for rot 0
 '''
-def get_rotation(t, rotation_count, interval, offset):
+def get_rotation(t: datetime, rotation_count: int, interval_days: int, offset_days: int) -> tuple[int, timedelta]:
     t = t.replace(second=0, microsecond=0)
-    interval = timedelta(days=interval)
-    offset = timedelta(days=offset)
+    interval = timedelta(days=interval_days)
+    offset = timedelta(days=offset_days)
 
-    t_0 = datetime(1970, 1, 1, 0, 0, 0, 0) + offset
-    rotation = ((t - t_0) // interval) % rotation_count
-    time_to_next = interval - ((t - t_0) % interval)
+    t_0: datetime = datetime(1970, 1, 1, 0, 0, 0, 0) + offset
+    rotation: int = ((t - t_0) // interval) % rotation_count
+    time_to_next: timedelta = interval - ((t - t_0) % interval)
 
     return (rotation, time_to_next)
 
-def araxxor(t):
+def araxxor(t) -> tuple[str, str]:
     rotation, next = get_rotation(t, 3, 4, 9)
     return (['Path 1 (Minions)', 'Path 2 (Acid)', 'Path 3 (Darkness)'][rotation], time_diff_to_string(next))
 
-def vorago(t):
+def vorago(t) -> tuple[str, str]:
     rotation, next = get_rotation(t, 6, 7, 6)
     return (['Ceiling collapse', 'Scopulus', 'Vitalis', 'Green bomb', 'Team split', 'The end'][rotation], time_diff_to_string(next))
 
-def rots(t):
-    rotations = [
+def rots(t) -> tuple[list[list[str]], str]:
+    rotations: list[list[list[str]]] = [
         [['Dharok','Torag','Verac'],['Karil','Ahrim','Guthan']],
 		[['Karil','Torag','Guthan'],['Ahrim','Dharok','Verac']],
 		[['Karil','Guthan','Verac'],['Ahrim','Torag','Dharok']],
@@ -139,15 +128,15 @@ def rots(t):
     return (rotations[rotation], time_diff_to_string(next))
 
 class Runescape(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
         self.vis_wax.start()
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         self.vis_wax.cancel()
     
     @tasks.loop(seconds=60)
-    async def vis_wax(self):
+    async def vis_wax(self) -> None:
         '''
         Loop to track location update activity
         '''
@@ -165,39 +154,40 @@ class Runescape(Cog):
         global vis_wax_embed
         global vis_wax_combo
 
-        now = datetime.now(UTC)
+        now: datetime = datetime.now(UTC)
         colour = 0x00b2ff
 
-        reset = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        reset: datetime = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         if now < reset + timedelta(seconds=vis_wax_check_frequency):
             vis_wax_released = False
             vis_wax_embed = discord.Embed(title='Vis wax combination', colour=colour, timestamp=now, description='Today\'s vis wax combo has not been released yet.')
 
-        r = await self.bot.aiohttp.get('https://warbandtracker.com/goldberg/index.php')
+        r: ClientResponse = await self.bot.aiohttp.get('https://warbandtracker.com/goldberg/index.php')
         async with r:
-            data = await r.text()
+            data: str = await r.text()
 
             bs = BeautifulSoup(data, "html.parser")
-            table_body = bs.find('table')
-            rows = table_body.find_all('tr')
-            columns = []
+            table_body: Tag | NavigableString | None = bs.find('table')
+            rows: list[Any] = table_body.find_all('tr') if isinstance(table_body, Tag) else []
+            columns: list[Any] = []
             for row in rows:
-                cols = row.find_all('td')
+                cols: list[Any] = row.find_all('td')
                 cols = [x.text.strip() for x in cols]
                 columns.append(cols)
             
-            first_rune, second_runes_temp = columns[1][0], columns[3]
+            first_rune: str = columns[1][0]
+            second_runes_temp: list[Any] = columns[3]
 
             first_rune, acc_0 = first_rune.split('Reported by ')
             acc_0 = float(acc_0[:len(acc_0)-2])
 
-            second_runes = []
+            second_runes: list[Any] = []
             for rune in second_runes_temp:
                 rune, acc = rune.split('Reported by ')
                 second_runes.append([rune, float(acc[:len(acc)-2])])
             
-            config = config_load()
-            emoji_server = self.bot.get_guild(int(config['emoji_server']))
+            config: dict[str, Any] = config_load()
+            emoji_server: discord.Guild | None = self.bot.get_guild(int(config['emoji_server']))
             if not emoji_server:
                 return
             second_runes_temp = []
@@ -213,7 +203,7 @@ class Runescape(Cog):
             second_runes = second_runes_temp
             
             if vis_wax_released:
-                vis_wax_combo = [[first_rune, acc_0], second_runes]
+                vis_wax_combo: list[Any] = [[first_rune, acc_0], second_runes]
             else:
                 if vis_wax_combo == [[first_rune, acc_0], second_runes]:
                     return
@@ -224,7 +214,7 @@ class Runescape(Cog):
             vis_wax_embed = discord.Embed(title='Vis wax combination', colour=colour, timestamp=now)
             vis_wax_embed.add_field(name='First rune', value = f'{first_rune} ({acc_0}%)')
 
-            val = '\n'.join([f'{rune} ({acc}%)' for rune, acc in second_runes])
+            val: str = '\n'.join([f'{rune} ({acc}%)' for rune, acc in second_runes])
             vis_wax_embed.add_field(name='Second rune', value=val)
 
             vis_wax_embed.set_footer(text='Powered by Warband Tracker')
@@ -819,7 +809,7 @@ class Runescape(Cog):
             lines[i] = line.split(',')
             levels.append(lines[i][1])
 
-        stats_interface = imageio.imread('images/stats_interface_empty.png')
+        stats_interface: Array = imageio.imread('images/stats_interface_empty.png')
             
         draw_num(stats_interface, levels[0], 175, 257, yellow, True)
 

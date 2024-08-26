@@ -9,16 +9,16 @@ from utils import is_int, max_cash, get_coins_image_name, digits
 import traceback
 import io
 import imageio
-from typing import List
+from typing import Any
 
-config = config_load()
+config: dict[str, Any] = config_load()
 
-yellow = [255, 255, 0, 255]
-white = [255, 255, 255, 255]
-green = [0, 255, 131, 255]
-red = [255, 50, 50, 255]
+yellow: list[int] = [255, 255, 0, 255]
+white: list[int] = [255, 255, 255, 255]
+green: list[int] = [0, 255, 131, 255]
+red: list[int] = [255, 50, 50, 255]
 
-char_index = {'K': 10, 'M': 11, '-': 12}
+char_index: dict[str, int] = {'K': 10, 'M': 11, '-': 12}
 
 def enlarge_digit(digit, factor):
     '''
