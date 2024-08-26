@@ -193,16 +193,33 @@ class Bot(commands.AutoShardedBot):
             raise Exception(f'Channel with id {id if id else "None"} was not found.')
         return channel
     
-    async def find_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild | None:
+    def find_role(self, guild_or_id: discord.Guild | int | None, role_id: int | None) -> discord.Role | None:
+        guild: discord.Guild | None = guild_or_id if isinstance(guild_or_id, discord.Guild) else None
+        if not guild and isinstance(guild_or_id, int):
+            guild = self.get_guild(guild_or_id)
+        if not guild:
+            raise Exception(f'Channel with id {id if id else "None"} was not found.')
+        role: discord.Role | None = guild.get_role(role_id) if role_id else None
+        return role
+    
+    def get_role(self, guild_or_id: discord.Guild | int | None, role_id: int | None) -> discord.Role:
+        role: discord.Role | None = self.find_role(guild_or_id, role_id)
+        if not role:
+            raise Exception(f'Role with id {role_id if role_id else "None"} was not found.')
+        return role
+    
+    async def find_db_guild(self, guild_or_id: discord.Guild | int | None, session: AsyncSession | None = None) -> Guild | None:
         id: int | None = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
+        if session:
+            return (await session.execute(select(Guild).where(Guild.id == id))).scalar_one_or_none()
         async with self.async_session() as session:
             return (await session.execute(select(Guild).where(Guild.id == id))).scalar_one_or_none()
 
-    async def get_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild:
+    async def get_db_guild(self, guild_or_id: discord.Guild | int | None, session: AsyncSession | None = None) -> Guild:
         id: int | None = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
         if not id:
             raise Exception(f'Attempted to get a guild from the database but ID was None.')
-        guild: Guild | None = await self.find_db_guild(id)
+        guild: Guild | None = await self.find_db_guild(id, session)
         if not guild:
             raise Exception(f'Guild with id {id} was not found.')
         return guild
