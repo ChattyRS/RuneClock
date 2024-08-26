@@ -2,13 +2,14 @@ import asyncio
 import codecs
 import json
 import re
-from typing import Coroutine
+from typing import Coroutine, Any
 from numpy import number
 from oauth2client.service_account import ServiceAccountCredentials
 from discord.ext import commands
 import math
 from datetime import timedelta
 import discord
+from imageio.core.util import Array
 
 # convert float to string without scientific notation
 # https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
@@ -23,12 +24,12 @@ decimal_ctx.prec = 20
 '''
 Load config file with necessary information
 '''
-def config_load():
+def config_load() -> dict[str, Any]:
     with codecs.open('data/config.json', 'r', encoding='utf-8-sig') as doc:
         #  Please make sure encoding is correct, especially after editing the config file
         return json.load(doc)
 
-config = config_load()
+config: dict[str, Any] = config_load()
 
 max_cash = 2147483647
 
@@ -36,36 +37,36 @@ max_cash = 2147483647
 Check functions used for commands
 '''
 def is_owner():
-    async def predicate(ctx):
+    async def predicate(ctx: commands.Context) -> bool:
         if ctx.author.id == config['owner']:
             return True
         raise commands.CommandError(message='Insufficient permissions: `Owner`')
     return commands.check(predicate)
 
 def is_admin():
-    async def predicate(ctx):
+    async def predicate(ctx: commands.Context) -> bool:
         try:
-            portables = ctx.bot.get_guild(config['portablesServer'])
+            portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
             if portables:
-                member = await portables.fetch_member(ctx.author.id)
+                member: discord.Member | None = await portables.fetch_member(ctx.author.id)
                 if member:
-                    admin_role = portables.get_role(config['adminRole'])
+                    admin_role: discord.Role | None = portables.get_role(config['adminRole'])
                     if admin_role in member.roles:
                         return True
         except:
             pass
-        if ctx.author.guild_permissions.administrator or ctx.author.id == ctx.guild.owner.id or ctx.author.id == config['owner']:
+        if (isinstance(ctx.author, discord.Member) and ctx.author.guild_permissions.administrator) or (ctx.guild and ctx.guild.owner and ctx.author.id == ctx.guild.owner.id) or ctx.author.id == config['owner']:
             return True
         raise commands.CommandError(message='Insufficient permissions: `Admin`')
     return commands.check(predicate)
 
 def portables_leader():
-    async def predicate(ctx):
-        portables = ctx.bot.get_guild(config['portablesServer'])
+    async def predicate(ctx: commands.Context) -> bool:
+        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
         if portables:
-            member = await portables.fetch_member(ctx.author.id)
+            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
             if member:
-                leader_role = portables.get_role(config['leaderRole'])
+                leader_role: discord.Role | None = portables.get_role(config['leaderRole'])
                 if leader_role in member.roles:
                     return True
         if ctx.author.id == config['owner']:
@@ -74,12 +75,12 @@ def portables_leader():
     return commands.check(predicate)
 
 def portables_admin():
-    async def predicate(ctx):
-        portables = ctx.bot.get_guild(config['portablesServer'])
+    async def predicate(ctx: commands.Context) -> bool:
+        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
         if portables:
-            member = await portables.fetch_member(ctx.author.id)
+            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
             if member:
-                admin_role = portables.get_role(config['adminRole'])
+                admin_role: discord.Role | None = portables.get_role(config['adminRole'])
                 if admin_role in member.roles:
                     return True
         if ctx.author.id == config['owner']:
@@ -88,12 +89,12 @@ def portables_admin():
     return commands.check(predicate)
 
 def is_mod():
-    async def predicate(ctx):
-        portables = ctx.bot.get_guild(config['portablesServer'])
+    async def predicate(ctx: commands.Context) -> bool:
+        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
         if portables:
-            member = await portables.fetch_member(ctx.author.id)
+            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
             if member:
-                mod_role = portables.get_role(config['modRole'])
+                mod_role: discord.Role | None = portables.get_role(config['modRole'])
                 if mod_role in member.roles:
                     return True
         if ctx.author.id == config['owner']:
@@ -102,12 +103,12 @@ def is_mod():
     return commands.check(predicate)
 
 def is_rank():
-    async def predicate(ctx):
-        portables = ctx.bot.get_guild(config['portablesServer'])
+    async def predicate(ctx: commands.Context) -> bool:
+        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
         if portables:
-            member = await portables.fetch_member(ctx.author.id)
+            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
             if member:
-                rank_role = portables.get_role(config['rankRole'])
+                rank_role: discord.Role | None = portables.get_role(config['rankRole'])
                 if rank_role in member.roles:
                     return True
         if ctx.author.id == config['owner']:
@@ -116,12 +117,12 @@ def is_rank():
     return commands.check(predicate)
 
 def is_helper():
-    async def predicate(ctx):
-        portables = ctx.bot.get_guild(config['portablesServer'])
+    async def predicate(ctx: commands.Context) -> bool:
+        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
         if portables:
-            member = await portables.fetch_member(ctx.author.id)
+            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
             if member:
-                helper_role = portables.get_role(config['helperRole'])
+                helper_role: discord.Role | None = portables.get_role(config['helperRole'])
                 if helper_role in member.roles:
                     return True
         if ctx.author.id == config['owner']:
@@ -130,8 +131,8 @@ def is_helper():
     return commands.check(predicate)
 
 def portables_only():
-    async def predicate(ctx):
-        if ctx.guild.id == config['portablesServer']:
+    async def predicate(ctx: commands.Context) -> bool:
+        if ctx.guild and ctx.guild.id == config['portablesServer']:
             return True
         if ctx.author.id == config['owner']:
             return True
@@ -139,30 +140,30 @@ def portables_only():
     return commands.check(predicate)
 
 def obliterate_only():
-    async def predicate(ctx):
+    async def predicate(ctx: commands.Context) -> bool:
         if ctx.author.id == config['owner']:
             return True
-        if ctx.guild.id == config['obliterate_guild_id']:
+        if ctx.guild and ctx.guild.id == config['obliterate_guild_id']:
             return True
         raise commands.CommandError(message='Insufficient permissions: `Obliterate server only`')
     return commands.check(predicate)
 
 def obliterate_mods():
-    async def predicate(ctx):
+    async def predicate(ctx: commands.Context) -> bool:
         if ctx.author.id == config['owner']:
             return True
-        obliterate = ctx.bot.get_guild(config['obliterate_guild_id'])
+        obliterate: discord.Guild | None = ctx.bot.get_guild(config['obliterate_guild_id'])
         if obliterate:
-            member = await obliterate.fetch_member(ctx.author.id)
+            member: discord.Member | None = await obliterate.fetch_member(ctx.author.id)
             if member:
-                mod_role = obliterate.get_role(config['obliterate_moderator_role_id'])
-                key_role = obliterate.get_role(config['obliterate_key_role_id'])
+                mod_role: discord.Role | None = obliterate.get_role(config['obliterate_moderator_role_id'])
+                key_role: discord.Role | None = obliterate.get_role(config['obliterate_key_role_id'])
                 if mod_role in member.roles or key_role in member.roles:
                     return True
         raise commands.CommandError(message='Insufficient permissions: `Obliterate moderator`')
     return commands.check(predicate)
 
-def get_coins_image_name(amount: number):
+def get_coins_image_name(amount: number) -> str:
     amount = abs(amount)
     if amount >= 10000:
         return 'Coins_10000_detail'
@@ -181,14 +182,14 @@ def get_coins_image_name(amount: number):
     else:
          return 'Coins_1_detail'
 
-def get_gspread_creds():
+def get_gspread_creds() -> ServiceAccountCredentials:
     return ServiceAccountCredentials.from_json_keyfile_name('data/gspread.json',
       ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/spreadsheets']) # type: ignore
 
-def is_name(member_name, member):
-    pattern = re.compile('[\W_]+')
-    name = member.display_name.upper()
+def is_name(member_name: str, member: discord.Member) -> bool:
+    pattern: re.Pattern[str] = re.compile(r'[\W_]+')
+    name: str = member.display_name.upper()
     if member_name.upper() in pattern.sub('', name):
         return True
     else:
@@ -200,7 +201,11 @@ class RoleConverter(commands.Converter):
             raise commands.CommandError(message=f'Required argument missing: `role`.')
         if len(ctx.message.role_mentions) == 1:
             return ctx.message.role_mentions[0]
-        id_match, mention_match, name_match, case_insensitive_match, substring_match = None, None, None, None, None
+        id_match: discord.Role | None = None
+        mention_match: discord.Role | None = None
+        name_match: discord.Role | None = None
+        case_insensitive_match: discord.Role | None = None
+        substring_match: discord.Role | None = None
         for r in ctx.guild.roles:
             if r.id == argument:
                 id_match = r
@@ -219,7 +224,7 @@ class RoleConverter(commands.Converter):
                 return match
         raise commands.CommandError(message=f'Could not find role: `{argument}`.')
 
-zero_digit =  [
+zero_digit: list[list[int]] =  [
     [0, 1, 1, 1, 0],
     [1, 0, 0, 0, 1],
     [1, 0, 0, 0, 1],
@@ -229,7 +234,7 @@ zero_digit =  [
     [1, 0, 0, 0, 1],
     [0, 1, 1, 1, 0]
 ]
-one_digit = [
+one_digit: list[list[int]] = [
     [0, 1, 0],
     [1, 1, 0],
     [0, 1, 0],
@@ -239,7 +244,7 @@ one_digit = [
     [0, 1, 0],
     [1, 1, 1]
 ]
-two_digit = [
+two_digit: list[list[int]] = [
     [0, 1, 1, 1, 0],
     [1, 0, 0, 0, 1],
     [0, 0, 0, 0, 1],
@@ -249,7 +254,7 @@ two_digit = [
     [1, 0, 0, 0, 0],
     [1, 1, 1, 1, 1]
 ]
-three_digit = [
+three_digit: list[list[int]] = [
     [0, 1, 1, 0],
     [1, 0, 0, 1],
     [0, 0, 0, 1],
@@ -259,7 +264,7 @@ three_digit = [
     [1, 0, 0, 1],
     [0, 1, 1, 0]
 ]
-four_digit = [
+four_digit: list[list[int]] = [
     [1, 0, 0, 0],
     [1, 0, 0, 0],
     [1, 0, 0, 0],
@@ -269,7 +274,7 @@ four_digit = [
     [0, 0, 1, 0],
     [0, 0, 1, 0]
 ]
-five_digit = [
+five_digit: list[list[int]] = [
     [1, 1, 1, 1],
     [1, 0, 0, 0],
     [1, 0, 0, 0],
@@ -279,7 +284,7 @@ five_digit = [
     [1, 0, 0, 1],
     [0, 1, 1, 0]
 ]
-six_digit = [
+six_digit: list[list[int]] = [
     [0, 0, 1, 1, 0],
     [0, 1, 0, 0, 1],
     [1, 0, 0, 0, 0],
@@ -289,7 +294,7 @@ six_digit = [
     [1, 0, 0, 0, 1],
     [0, 1, 1, 1, 0]
 ]
-seven_digit = [
+seven_digit: list[list[int]] = [
     [1, 1, 1, 1],
     [0, 0, 0, 1],
     [0, 0, 1, 0],
@@ -299,7 +304,7 @@ seven_digit = [
     [1, 0, 0, 0],
     [1, 0, 0, 0]
 ]
-eight_digit = [
+eight_digit: list[list[int]] = [
     [0, 1, 1, 1, 0],
     [1, 0, 0, 0, 1],
     [1, 0, 0, 0, 1],
@@ -309,7 +314,7 @@ eight_digit = [
     [1, 0, 0, 0, 1],
     [0, 1, 1, 1, 0]
 ]
-nine_digit = [
+nine_digit: list[list[int]] = [
     [0, 1, 1, 1, 0],
     [1, 0, 0, 0, 1],
     [1, 0, 0, 0, 1],
@@ -319,7 +324,7 @@ nine_digit = [
     [0, 0, 0, 0, 1],
     [0, 0, 0, 0, 1]
 ]
-k_char = [
+k_char: list[list[int]] = [
     [1, 0, 0, 0, 1],
     [1, 0, 0, 1, 0],
     [1, 0, 1, 0, 0],
@@ -329,7 +334,7 @@ k_char = [
     [1, 0, 0, 1, 0],
     [1, 0, 0, 0, 1]
 ]
-m_char = [
+m_char: list[list[int]] = [
     [1, 0, 0, 0, 1],
     [1, 1, 0, 1, 1],
     [1, 0, 1, 0, 1],
@@ -339,7 +344,7 @@ m_char = [
     [1, 0, 0, 0, 1],
     [1, 0, 0, 0, 1]
 ]
-minus_char = [
+minus_char: list[list[int]] = [
     [0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0],
@@ -350,9 +355,9 @@ minus_char = [
     [0, 0, 0, 0, 0]
 ]
 
-digits = [zero_digit, one_digit, two_digit, three_digit, four_digit, five_digit, six_digit, seven_digit, eight_digit, nine_digit, k_char, m_char, minus_char]
+digits: list[list[list[int]]] = [zero_digit, one_digit, two_digit, three_digit, four_digit, five_digit, six_digit, seven_digit, eight_digit, nine_digit, k_char, m_char, minus_char]
 
-zero_digit_rs3 =  [
+zero_digit_rs3: list[list[int]] =  [
     [0, 0, 1, 0, 0],
     [0, 1, 0, 1, 0],
     [1, 0, 0, 0, 1],
@@ -362,21 +367,21 @@ zero_digit_rs3 =  [
     [0, 1, 0, 1, 0],
     [0, 0, 1, 0, 0]
 ]
-digits_rs3 = [zero_digit_rs3, one_digit, two_digit, three_digit, four_digit, five_digit, six_digit, seven_digit, eight_digit, nine_digit]
+digits_rs3: list[list[list[int]]] = [zero_digit_rs3, one_digit, two_digit, three_digit, four_digit, five_digit, six_digit, seven_digit, eight_digit, nine_digit]
 
-black = [0, 0, 0, 255]
+black: list[int] = [0, 0, 0, 255]
 
-def draw_digit(im, digit, x, y, c, osrs):
-    colour = c
+def draw_digit(im: Array, digit: int, x: int, y: int, c: list[int], osrs: bool) -> tuple[int, int]:
+    colour: list[int] = c
     if im.shape[2] == 3 and len(c) > 3:
         colour = colour[:3]
     elif im.shape[2] == 4 and len(c) < 4:
         colour.append(255)
     if osrs:
-        pixels = digits[digit]
+        pixels: list[list[int]] = digits[digit]
     else:
         pixels = digits_rs3[digit]
-    x_0 = x
+    x_0: int = x
     for row in reversed(pixels):
         x = x_0
         for value in reversed(row):
@@ -386,12 +391,12 @@ def draw_digit(im, digit, x, y, c, osrs):
         y -= 1
     return (x-1, y)
 
-def draw_num(im, num, x, y, c, osrs):
+def draw_num(im: Array, num: int, x: int, y: int, c: list[int], osrs: bool) -> None:
     if not is_int(num):
         raise ValueError(f'Invalid Integer argument: {num}')
     else:
         num = int(num)
-    digit_list = []
+    digit_list: list[int] = []
     for i in range(len(str(num))):
         digit_list.append(int(str(num)[i]))
     if len(digit_list) == 1:
@@ -404,8 +409,8 @@ def draw_num(im, num, x, y, c, osrs):
         if osrs:
             y += 1
 
-def draw_outline_osrs(im, x0, y0, c):
-    colour = c
+def draw_outline_osrs(im: Array, x0: int, y0: int, c: list[int]) -> None:
+    colour: list[int] = c
     if im.shape[2] == 3 and len(c) > 3:
         colour = colour[:3]
     elif im.shape[2] == 4 and len(c) < 4:
@@ -434,8 +439,8 @@ def draw_outline_osrs(im, x0, y0, c):
                   (x-x0 == 59 and y-y0 == 29)):
                 im[y, x] = colour
 
-def draw_outline_rs3(im, x0, y0, c):
-    colour = c
+def draw_outline_rs3(im: Array, x0: int, y0: int, c: list[int]) -> None:
+    colour: list[int] = c
     if im.shape[2] == 3 and len(c) > 3:
         colour = colour[:3]
     elif im.shape[2] == 4 and len(c) < 4:
@@ -445,10 +450,10 @@ def draw_outline_rs3(im, x0, y0, c):
             if x == x0 or x == x0+57 or y == y0 or y == y0+24:
                 im[y, x] = colour
 
-def level_to_xp(level):
+def level_to_xp(level: int) -> int:
     return math.floor(1/4 * sum([math.floor(x + 300 * 2 ** (x/7)) for x in range(1, level)]))
 
-def xp_to_level(xp):
+def xp_to_level(xp: int) -> int:
     if is_int(xp):
         xp = int(xp)
     else:
@@ -458,18 +463,18 @@ def xp_to_level(xp):
             return level
     return 1
 
-def combat_level(attack, strength, defence, constitution, magic, ranged, prayer, summoning):
+def combat_level(attack: int, strength: int, defence: int, constitution: int, magic: int, ranged: int, prayer: int, summoning: int) -> float:
     return (13/10 * max(attack + strength, 2 * magic, 2 * ranged) + defence + constitution + math.floor(1/2 * prayer) + math.floor(1/2 * summoning)) / 4
 
-def osrs_combat_level(attack, strength, defence, hitpoints, magic, ranged, prayer):
-    base = (defence + hitpoints + math.floor(prayer / 2)) / 4
-    melee = 13 / 40 * (attack + strength)
-    _range = 13 / 40 * math.floor(ranged * 3 / 2)
-    mage = 13 / 40 * math.floor(magic * 3 / 2)
-    final = math.floor(base + max(melee, _range, mage))
+def osrs_combat_level(attack: int, strength: int, defence: int, hitpoints: int, magic: int, ranged: int, prayer: int) -> int:
+    base: float = (defence + hitpoints + math.floor(prayer / 2)) / 4
+    melee: float = 13 / 40 * (attack + strength)
+    _range: float = 13 / 40 * math.floor(ranged * 3 / 2)
+    mage: float = 13 / 40 * math.floor(magic * 3 / 2)
+    final: int = math.floor(base + max(melee, _range, mage))
     return final
 
-unit_aliases = {    
+unit_aliases: dict[str, str] = {    
     # distance
     'millimeters': 'mm', 'millimetres': 'mm',
     'centimeters': 'cm', 'centimetres': 'cm',
@@ -571,7 +576,7 @@ unit_aliases = {
     'teaspoon': 'tsp'
 }
 
-units = { 
+units: dict[str, dict[str, Any]] = { 
     # length
     'mm': {'mm': 1, 'cm': 1/10, 'dm': 1/100, 'm': 1/1000, 'dam': 1/10000, 'hm': 1/100000, 'km': 1/1000000, 'in': 0.0393701, 'ft': 0.00328084, 'yd': 0.00109361, 'mi': 0.00000062137, 'AU': 1/1.495978707e14, 'pc': 1/3.08567782e19, 'ly': 1/9460730472580000000},
     'cm': {'mm': 10, 'cm': 1, 'dm': 1/10, 'm': 1/100, 'dam': 1/1000, 'hm': 1/10000, 'km': 1/100000, 'in': 0.393701, 'ft': 0.0328084, 'yd': 0.0109361, 'mi': 0.0000062137, 'AU': 1/1.495978707e13, 'pc': 1/3.08567782e18, 'ly': 1/946073047258000000},
@@ -673,7 +678,7 @@ units = {
     'mL': {'mL': 1, 'cL': 0.1, 'dL': 0.01, 'L': 0.001, 'daL': 1e-4, 'hL': 1e-5, 'kL': 1e-6, 'mm³': 1000, 'cm³': 1, 'dm³': 0.001, 'm³': 1e-6, 'dam³': 1e-9, 'hm³': 1e-12, 'km³': 1e-15, 'in³': 1/16.387064, 'ft³': 1/28316.846592, 'yd³': 1/764554.857984, 'mi³': 2.39913e-16, 'gal': 0.000264172, 'qt.': 0.00105669, 'pt': 0.00211338, 'cp': 0.00416667, 'fl oz': 0.033814, 'tbsp': 0.067628, 'tsp': 0.202884}
 }
 
-vol = units['mL']
+vol: dict[str, Any] = units['mL']
 for unit, val in vol.items():
     if unit == 'mL':
         continue
@@ -687,7 +692,7 @@ for unit, val in vol.items():
             units[unit][unit_2] = 1 / val * val_2
 
 
-item_emojis = [
+item_emojis: list[list[str]] = [
     ['Uncharted island map', 'uncharted_island_map'],
     ['Livid plant', 'livid_plant'],
     ['Crystal triskelion', 'crystal_triskelion'],
@@ -722,7 +727,7 @@ item_emojis = [
     ['Anima crystal', 'anima_crystal']
 ]
 
-countries = [   
+countries: list[dict[str, str]] = [   
     {"name": "Afghanistan", "code": "AF"},
     {"name": "Åland Islands", "code": "AX"},
     {"name": "Albania", "code": "AL"},
@@ -968,23 +973,23 @@ countries = [
     {"name": "Zimbabwe", "code": "ZW"}
 ]
 
-def get_user_name(user):
+def get_user_name(user: discord.User) -> str:
     '''
     Returns RSN-formatted name for member.
     '''
-    name = user.display_name
+    name: str = user.display_name
     # format name to alphanumeric only (to get valid RSN)
-    name = re.sub('[^A-z0-9 -]', '', name).replace('`', '').strip()
+    name = re.sub(r'[^A-z0-9 -]', '', name).replace('`', '').strip()
     return name
 
-def is_int(num):
+def is_int(num) -> bool:
     try:
         int(num)
         return True
     except:
         return False
 
-def is_float(num):
+def is_float(num) -> bool:
     try:
         float(num)
         return True
@@ -995,63 +1000,63 @@ def is_float(num):
 Function to convert timedelta to a string of the form:
 x day(s), x hour(s), x minute(s), x second(s)
 '''
-def time_diff_to_string(time):
-    postfix = ''
+def time_diff_to_string(time: timedelta) -> str:
+    postfix: str = ''
     if time < timedelta(seconds=0):
         time = -time
         postfix = ' ago'
-    seconds = time.seconds
-    days = time.days
-    hours = seconds // 3600
+    seconds: int = time.seconds
+    days: int = time.days
+    hours: int = seconds // 3600
     seconds -= hours * 3600
-    minutes = seconds // 60
+    minutes: int = seconds // 60
     seconds -= minutes * 60
-    time = ""
+    time_str: str = ""
     if days != 0:
-        time += str(days) + " day"
+        time_str += str(days) + " day"
         if days != 1:
-            time += "s"
+            time_str += "s"
     if hours != 0:
         if days != 0:
-            time += ", "
+            time_str += ", "
             if minutes == 0 and seconds == 0:
-                time += "and "
-        time += str(hours) + " hour"
+                time_str += "and "
+        time_str += str(hours) + " hour"
         if hours != 1:
-            time += "s"
+            time_str += "s"
     if minutes != 0:
         if days != 0 or hours != 0:
-            time += ", "
+            time_str += ", "
             if seconds == 0:
-                time += "and "
-        time += str(minutes) + " minute"
+                time_str += "and "
+        time_str += str(minutes) + " minute"
         if minutes != 1:
-            time += "s"
+            time_str += "s"
     if seconds != 0:
         if days != 0 or hours != 0 or minutes != 0:
-            time += ", and "
-        time += str(seconds) + " second"
+            time_str += ", and "
+        time_str += str(seconds) + " second"
         if seconds != 1:
-            time += "s"
-    return f'{time}{postfix}'
+            time_str += "s"
+    return f'{time_str}{postfix}'
 
-def float_to_str(f):
+def float_to_str(f) -> str:
     """
     Convert the given float to a string,
     without resorting to scientific notation
     """
-    d1 = decimal_ctx.create_decimal(repr(f))
+    d1: decimal.Decimal = decimal_ctx.create_decimal(repr(f))
     return format(d1, 'f')
 
-def float_to_formatted_string(input):
-    output = float_to_str(input) 
+def float_to_formatted_string(input) -> str:
+    output: str = float_to_str(input) 
     if output.endswith('.0'):
         output = output[:len(output)-2]
-    end = ''
+    end: str = ''
     if output.find('.') != -1:
         end = output[output.find('.'):]
         output = output[:output.find('.')]
-    index = len(output)-2
+    index: int = len(output)-2
     while index >= 0:
         if (len(output.replace(',', '')) - 1 - index) % 3 == 0:
             output = output[:index+1] + ',' + output[index+1:]
