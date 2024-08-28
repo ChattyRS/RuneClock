@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter
+from main import Bot, get_config, increment_command_counter
 from datetime import datetime, timedelta, UTC
 import re
 import validators
@@ -13,7 +13,7 @@ import gspread
 from utils import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 import logging
 
-config = config_load()
+config = get_config()
 
 dxp_active = True
 locations = ["LM", "LC", "BA", "SP", "BU", "CW", "PRIF", "MG", "IMP", "GE", "MEI", "ITH", "POF", "BDR", "WG", "BE", "FF"]

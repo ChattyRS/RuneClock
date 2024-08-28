@@ -24,12 +24,12 @@ decimal_ctx.prec = 20
 '''
 Load config file with necessary information
 '''
-def config_load() -> dict[str, Any]:
+def get_config() -> dict[str, Any]:
     with codecs.open('data/config.json', 'r', encoding='utf-8-sig') as doc:
         #  Please make sure encoding is correct, especially after editing the config file
         return json.load(doc)
 
-config: dict[str, Any] = config_load()
+config: dict[str, Any] = get_config()
 
 max_cash = 2147483647
 
@@ -1084,3 +1084,141 @@ async def chunk_coroutines(coroutines: list[Coroutine], chunk_size: int, delay: 
         # Sleep for a second after each chunk of requests to avoid rate limits (all but the last chunk, because then we are already done)
         if i < len(coroutines):
             await asyncio.sleep(delay)
+
+wom_skills: list[str] = [
+    'overall',
+    'attack',
+    'defence',
+    'strength',
+    'hitpoints',
+    'ranged',
+    'prayer',
+    'magic',
+    'cooking',
+    'woodcutting',
+    'fletching',
+    'fishing',
+    'firemaking',
+    'crafting',
+    'smithing',
+    'mining',
+    'herblore',
+    'agility',
+    'thieving',
+    'slayer',
+    'farming',
+    'runecrafting',
+    'hunter',
+    'construction'
+]
+
+wom_bosses: list[str] = [
+    'abyssal_sire',
+    'alchemical_hydra',
+    'araxxor',
+    'artio',
+    'barrows_chests',
+    'bryophyta',
+    'callisto',
+    'calvarion',
+    'cerberus',
+    'chambers_of_xeric',
+    'chambers_of_xeric_challenge_mode',
+    'chaos_elemental',
+    'chaos_fanatic',
+    'commander_zilyana',
+    'corporeal_beast',
+    'crazy_archaeologist',
+    'dagannoth_prime',
+    'dagannoth_rex',
+    'dagannoth_supreme',
+    'deranged_archaeologist',
+    'duke_sucellus',
+    'general_graardor',
+    'giant_mole',
+    'grotesque_guardians',
+    'hespori',
+    'kalphite_queen',
+    'king_black_dragon',
+    'kraken',
+    'kreearra',
+    'kril_tsutsaroth',
+    'mimic',
+    'nex',
+    'nightmare',
+    'phosanis_nightmare',
+    'obor',
+    'phantom_muspah',
+    'sarachnis',
+    'scorpia',
+    'skotizo',
+    'spindel',
+    'tempoross',
+    'the_gauntlet',
+    'the_corrupted_gauntlet',
+    'the_leviathan',
+    'the_whisperer',
+    'theatre_of_blood',
+    'theatre_of_blood_hard_mode',
+    'thermonuclear_smoke_devil',
+    'tombs_of_amascut',
+    'tombs_of_amascut_expert',
+    'tzkal_zuk',
+    'tztok_jad',
+    'vardorvis',
+    'venenatis',
+    'vetion',
+    'vorkath',
+    'wintertodt',
+    'zalcano',
+    'zulrah'
+]
+
+wom_clues: list[str] = [
+    'clue_scrolls_all',
+    'clue_scrolls_beginner',
+    'clue_scrolls_easy',
+    'clue_scrolls_medium',
+    'clue_scrolls_hard',
+    'clue_scrolls_elite',
+    'clue_scrolls_master'
+]
+
+wom_minigames: list[str] = [
+    'league_points',
+    'bounty_hunter_hunter',
+    'bounty_hunter_rogue',
+    'last_man_standing',
+    'pvp_arena',
+    'soul_wars_zeal',
+    'guardians_of_the_rift'
+]
+
+wom_efficiency: list[str] = ['ehp', 'ehb']
+
+wom_metrics: list[str] = wom_skills + wom_bosses + wom_clues + wom_minigames + wom_efficiency
+
+# variable used for VOS notifications
+districts: list[str] = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
+
+# variable used for role management
+notification_roles: list[str] = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'WildernessFlashEvents']
+for d in districts:
+    notification_roles.append(d)
+
+wilderness_flash_events: list[str] = [
+    'Spider Swarm',
+    'Unnatural Outcrop',
+    'Stryke the Wyrm',
+    'Demon Stragglers',
+    'Butterfly Swarm',
+    'King Black Dragon Rampage',
+    'Forgotten Soldiers',
+    'Surprising Seedlings',
+    'Hellhound Pack',
+    'Infernal Star',
+    'Lost Souls',
+    'Ramokee Incursion',
+    'Displaced Energy',
+    'Evil Bloodwood Tree'
+]

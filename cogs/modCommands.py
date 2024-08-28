@@ -5,13 +5,13 @@ from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
 import sys
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter, Mute, Guild
+from main import Bot, get_config, increment_command_counter, Mute, Guild
 from datetime import datetime, timedelta, UTC
 import re
 from utils import is_int, RoleConverter
 from utils import is_admin
 
-config = config_load()
+config = get_config()
 
 pattern = re.compile(r'[\W_]+')
 

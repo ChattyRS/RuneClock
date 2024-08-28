@@ -2,13 +2,13 @@ from typing import Any
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from main import Bot, config_load, increment_command_counter, Guild, Notification, OnlineNotification
+from main import Bot, get_config, increment_command_counter, Guild, Notification, OnlineNotification
 import sys
 sys.path.append('../')
 from datetime import datetime, timedelta, UTC
 from utils import is_int, is_admin
 
-config = config_load()
+config = get_config()
 
 ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys',
          'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',

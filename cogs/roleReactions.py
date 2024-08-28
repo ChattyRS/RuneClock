@@ -5,9 +5,9 @@ from discord.ext.commands import Cog
 import sys
 import traceback
 sys.path.append('../')
-from main import Bot, config_load, Guild, CustomRoleReaction
+from main import Bot, get_config, Guild, CustomRoleReaction
 
-config = config_load()
+config = get_config()
 
 async def get_role_reactions(guild_id: int):
     '''

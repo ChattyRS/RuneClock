@@ -3,14 +3,14 @@ from discord.ext import commands
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter, Poll
+from main import Bot, get_config, increment_command_counter, Poll
 import random
 from datetime import datetime, timedelta, UTC
 from operator import attrgetter
 from utils import is_int
 import validators
 
-config = config_load()
+config = get_config()
 
 rps = ['Rock', 'Paper', 'Scissors']
 rps_upper = ['ROCK', 'PAPER', 'SCISSORS']

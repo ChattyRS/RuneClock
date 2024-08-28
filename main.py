@@ -1,6 +1,5 @@
 import asyncio
 from datetime import datetime, timedelta, UTC
-import json
 import logging
 from pathlib import Path
 import sys
@@ -8,7 +7,6 @@ from typing import Any, NoReturn, Sequence
 import discord
 from discord.abc import PrivateChannel
 from discord.ext import commands
-import codecs
 from github.Commit import Commit
 from github.Repository import Repository as GitRepository
 from github.AuthenticatedUser import AuthenticatedUser
@@ -16,7 +14,7 @@ from github.NamedUser import NamedUser
 from github.PaginatedList import PaginatedList
 from github.Repository import Repository
 from sqlalchemy import delete, insert, select
-import utils
+from utils import get_config, get_gspread_creds, districts, notification_roles
 import string
 from aiohttp import ClientResponse, ClientSession, ClientTimeout
 import gspread_asyncio
@@ -32,26 +30,6 @@ from src.message_queue import QueueMessage, MessageQueue
 from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction, BannedGuild
 from database import setup as database_setup
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-
-'''
-Load config file with necessary information
-'''
-def config_load() -> dict[str, Any]:
-    with codecs.open('data/config.json', 'r', encoding='utf-8-sig') as doc:
-        #  Please make sure encoding is correct, especially after editing the config file
-        return json.load(doc)
-
-config: dict[str, Any] = config_load()
-
-command_counter = 0 # int to track how many commands have been processed since startup
-
-# variable used for VOS notifications
-districts: list[str] = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
-
-# variable used for role management
-notif_roles: list[str] = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight', 'WildernessFlashEvents']
-for d in districts:
-    notif_roles.append(d)
 
 '''
 Used for plagiarism check for smiley applications
@@ -70,25 +48,12 @@ def split(txt, seps) -> list[Any]:
         txt = txt.replace(sep, default_sep)
     return [i.strip() for i in txt.split(default_sep)]
 
-'''
-Increment global commands counter
-'''
-def increment_command_counter() -> None:
-    global command_counter
-    command_counter += 1
-
-'''
-Return value of global commands counter
-'''
-def get_command_counter() -> int:
-    return command_counter
-
 async def run() -> None:
     '''
     Where the bot gets started. If you wanted to create a database connection pool or other session for the bot to use,
     it's recommended that you create it here and pass it to the bot as a kwarg.
     '''
-    config: dict[str, Any] = config_load()
+    config: dict[str, Any] = get_config()
     bot = Bot(description=config['description'])
     try:
         await bot.start(config['token'])
@@ -97,6 +62,7 @@ async def run() -> None:
 
 class Bot(commands.AutoShardedBot):
     bot: commands.AutoShardedBot
+    config: dict[str, Any]
     async_session: async_sessionmaker[AsyncSession]
     engine: AsyncEngine
     start_time: datetime
@@ -115,12 +81,13 @@ class Bot(commands.AutoShardedBot):
     next_spotlight: datetime | None
     next_wilderness_flash_event: datetime | None
 
-    vos: dict | None
+    vos: dict[str, list[str]] | None
     merchant: str | None
     spotlight: str | None
     wilderness_flash_event: dict | None
 
     events_logged: int = 0
+    command_counter = 0 # int to track how many commands have been processed since startup
 
     message_queue: MessageQueue = MessageQueue()
 
@@ -133,9 +100,11 @@ class Bot(commands.AutoShardedBot):
             case_insensitive=True,
             intents=intents
         )
-        self.bot = self
+        
         self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
-        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(utils.get_gspread_creds)
+        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(get_gspread_creds)
+        self.config = get_config()
+        self.bot = self
     
     async def close_database_connection(self) -> None:
         '''
@@ -240,7 +209,7 @@ class Bot(commands.AutoShardedBot):
 
     async def initialize(self) -> None:
         print(f'Initializing...')
-        config: dict[str, Any] = config_load()
+        config: dict[str, Any] = get_config()
         await asyncio.sleep(10) # Wait to ensure database is running on boot
 
         await database_setup(self)
@@ -303,6 +272,18 @@ class Bot(commands.AutoShardedBot):
             message (QueueMessage): The message to add to the queue
         '''
         self.message_queue.append(message)
+    
+    def increment_command_counter(self) -> None:
+        '''
+        Increment global commands counter
+        '''
+        self.command_counter += 1
+    
+    def get_command_counter(self) -> int:
+        '''
+        Return value of global commands counter
+        '''
+        return self.command_counter
 
     async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> list[str]:
         '''
@@ -326,7 +307,7 @@ class Bot(commands.AutoShardedBot):
         Attempts to load all .py files in /cogs/ as cog extensions
         '''
         # await self.wait_until_ready()
-        config: dict[str, Any] = config_load()
+        config: dict[str, Any] = get_config()
         channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
         cogs: list[str] = [x.stem for x in Path('cogs').glob('*.py')]
         msg: str = ''
@@ -381,7 +362,7 @@ class Bot(commands.AutoShardedBot):
         '''
         print(f'Initializing role management...')
         logging.info('Initializing role management...')
-        config: dict[str, Any] = config_load()
+        config: dict[str, Any] = get_config()
 
         guilds: Sequence[Guild]
         async with self.async_session() as session:
@@ -404,7 +385,7 @@ class Bot(commands.AutoShardedBot):
             
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
         notif_emojis: list[discord.Emoji] = []
-        for r in notif_roles:
+        for r in notification_roles:
             emoji_id: int = config[f'{r.lower()}EmojiID']
             emoji: discord.Emoji | None = self.get_emoji(emoji_id)
             if emoji:
@@ -468,9 +449,9 @@ class Bot(commands.AutoShardedBot):
         if guild.role_channel_id == channel.id:
             emoji: discord.PartialEmoji = payload.emoji
             role_name: str = emoji.name
-            if emoji.name in notif_roles:
+            if emoji.name in notification_roles:
                 role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
-            elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
+            elif guild.id == self.config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
                 role = discord.utils.get(channel.guild.roles, name=role_name)
                 
             if role:
@@ -524,9 +505,9 @@ class Bot(commands.AutoShardedBot):
 
         emoji: discord.PartialEmoji = payload.emoji
         role_name: str = emoji.name
-        if emoji.name in notif_roles:
+        if emoji.name in notification_roles:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
-        elif guild.id == config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
+        elif guild.id == self.config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
             role = discord.utils.get(channel.guild.roles, name=role_name)
         if not role:
             return
@@ -615,7 +596,7 @@ class Bot(commands.AutoShardedBot):
         '''
         print(f'Initializing notifications...')
         logging.info('Initializing notifications...')
-        config: dict[str, Any] = config_load()
+        config: dict[str, Any] = get_config()
         channel: discord.TextChannel | None = self.find_text_channel(config['testNotificationChannel'])
         log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
         
@@ -803,7 +784,7 @@ class Bot(commands.AutoShardedBot):
                 logging.critical(error)
                 print(error)
                 try:
-                    log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
+                    log_channel: discord.TextChannel | None = self.find_text_channel(self.config['testChannel'])
                     if log_channel:
                         self.queue_message(QueueMessage(log_channel, error))
                 except:
@@ -965,7 +946,7 @@ class Bot(commands.AutoShardedBot):
                 logging.critical(error)
                 print(error)
                 try:
-                    config: dict[str, Any] = config_load()
+                    config: dict[str, Any] = get_config()
                     log_channel: discord.TextChannel | None = self.find_text_channel(config['testChannel'])
                     if log_channel:
                         self.queue_message(QueueMessage(log_channel, error))
@@ -1015,7 +996,7 @@ class Bot(commands.AutoShardedBot):
         Function to check tracked git repositories for new commits.
         '''
         logging.info('Initializing git tracking...')
-        config: dict[str, Any] = config_load()
+        config: dict[str, Any] = get_config()
         while True:
             try:
                 g: Github = Github(config['github_access_token'])
@@ -1069,7 +1050,7 @@ class Bot(commands.AutoShardedBot):
         '''
         await asyncio.sleep(5)
         print('Starting rs3 price tracking...')
-        config: dict[str, Any] = config_load()
+        config: dict[str, Any] = get_config()
         channel: discord.TextChannel = self.get_text_channel(config['testChannel'])
         while True:
             try:
@@ -1147,7 +1128,7 @@ class Bot(commands.AutoShardedBot):
         '''
         await asyncio.sleep(5)
         print('Starting osrs price tracking...')
-        config: dict[str, Any] = config_load()
+        config: dict[str, Any] = get_config()
         channel: discord.TextChannel = self.get_text_channel(config['testChannel'])
         while True:
             try:

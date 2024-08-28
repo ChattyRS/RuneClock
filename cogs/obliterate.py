@@ -6,14 +6,14 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, config_load, Guild, increment_command_counter
+from main import Bot, get_config, Guild, increment_command_counter
 from datetime import datetime, timedelta, UTC
 import re
 import gspread
 import traceback
 from utils import is_int, obliterate_only, obliterate_mods
 
-config = config_load()
+config = get_config()
 
 ranks = ['Bronze', 'Iron', 'Steel', 'Mithril', 'Adamant', 'Rune']
 

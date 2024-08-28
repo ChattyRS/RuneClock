@@ -3,12 +3,12 @@ from discord.ext import commands
 from discord.ext.commands import AutoShardedBot as DiscordBot, Cog, CommandError, Context,
 import sys
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter, Command
+from main import Bot, get_config, increment_command_counter, Command
 import re
 import utils
 from utils import is_admin
 
-config = config_load()
+config = get_config()
 
 async def get_aliases():
     aliases = []

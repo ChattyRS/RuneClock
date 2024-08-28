@@ -3,7 +3,7 @@ from discord import app_commands, TextStyle
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, config_load, ClanBankTransaction, Guild
+from main import Bot, get_config, ClanBankTransaction, Guild
 from datetime import datetime, UTC
 from utils import is_int, max_cash, get_coins_image_name, digits
 import traceback
@@ -11,7 +11,7 @@ import io
 import imageio
 from typing import Any
 
-config: dict[str, Any] = config_load()
+config: dict[str, Any] = get_config()
 
 yellow: list[int] = [255, 255, 0, 255]
 white: list[int] = [255, 255, 255, 255]

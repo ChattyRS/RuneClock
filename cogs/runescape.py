@@ -7,7 +7,7 @@ import sys
 
 from imageio.core.util import Array
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
+from main import Bot, get_config, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
 import re
 from datetime import datetime, timedelta, UTC
 import praw
@@ -26,7 +26,7 @@ import numpy as np
 import random
 from utils import float_to_formatted_string
 
-config: dict[str, Any] = config_load()
+config: dict[str, Any] = get_config()
 
 reddit = praw.Reddit(client_id=config['redditID'],
                      client_secret=config['redditSecret'],
@@ -186,7 +186,7 @@ class Runescape(Cog):
                 rune, acc = rune.split('Reported by ')
                 second_runes.append([rune, float(acc[:len(acc)-2])])
             
-            config: dict[str, Any] = config_load()
+            config: dict[str, Any] = get_config()
             emoji_server: discord.Guild | None = self.bot.get_guild(int(config['emoji_server']))
             if not emoji_server:
                 return

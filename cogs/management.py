@@ -5,7 +5,7 @@ from discord.ext.commands import Cog
 import os
 import sys
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
+from main import Bot, get_config, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
 from datetime import datetime, timedelta, date, UTC
 import psutil
 from pathlib import Path
@@ -26,7 +26,7 @@ from matplotlib.dates import DateFormatter
 # to expose to the eval command
 from collections import Counter
 
-config = config_load()
+config = get_config()
 
 g = Github(config['github_access_token'])
 

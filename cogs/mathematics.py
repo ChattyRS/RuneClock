@@ -5,7 +5,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, config_load, increment_command_counter
+from main import Bot, get_config, increment_command_counter
 import math
 import re
 import cmath
@@ -21,7 +21,7 @@ numeric = Union[int, float, complex, np.number]
 
 np.seterr(all='raise')
 
-config = config_load()
+config = get_config()
 
 pi = math.pi
 alpha = 2.502907875095892822283902873218

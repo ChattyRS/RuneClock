@@ -2,10 +2,10 @@ import asyncio
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from main import Bot, config_load, Guild, Role
+from main import Bot, get_config, Guild, Role
 from datetime import datetime, UTC
 
-config = config_load()
+config = get_config()
 
 months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 

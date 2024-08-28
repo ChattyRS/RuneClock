@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Cog
-from main import Bot, config_load, increment_command_counter, Guild, Role
+from main import Bot, get_config, increment_command_counter, Guild, Role
 import sys
 sys.path.append('../')
 import random
@@ -10,7 +10,7 @@ from utils import is_admin, is_int
 from typing import List
 import re
 
-config = config_load()
+config = get_config()
 
 ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys',
          'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',
