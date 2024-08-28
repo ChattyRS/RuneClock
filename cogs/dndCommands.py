@@ -3,9 +3,7 @@ from aiohttp import ClientResponse
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
-import sys
 import copy
-sys.path.append('../')
 from main import Bot
 from datetime import datetime, timedelta, UTC
 from utils import time_diff_to_string, item_emojis, districts, wilderness_flash_events

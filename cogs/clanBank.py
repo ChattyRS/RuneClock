@@ -1,89 +1,11 @@
 import discord
 from discord import app_commands, TextStyle
 from discord.ext.commands import Cog
-import sys
-sys.path.append('../')
-from main import Bot, get_config, ClanBankTransaction, Guild
+from main import Bot
+from database import ClanBankTransaction, Guild
 from datetime import datetime, UTC
-from utils import is_int, max_cash, get_coins_image_name, digits
+from utils import is_int, max_cash, get_coins_image
 import traceback
-import io
-import imageio
-from typing import Any
-
-config: dict[str, Any] = get_config()
-
-yellow: list[int] = [255, 255, 0, 255]
-white: list[int] = [255, 255, 255, 255]
-green: list[int] = [0, 255, 131, 255]
-red: list[int] = [255, 50, 50, 255]
-
-char_index: dict[str, int] = {'K': 10, 'M': 11, '-': 12}
-
-def enlarge_digit(digit, factor):
-    '''
-    Doubles the size of an image factor times
-    '''
-    for f in range(factor-1):
-        ldigit = []
-        for row in digit:
-            lrow = [row[int(i/2)] for i in range(len(row)*2)]
-            ldigit.append(lrow)
-            ldigit.append(lrow)
-        digit = ldigit
-    return digit
-
-def draw_char(img, char, x, y, c, size):
-    '''
-    Draws a character on an image at (x, y)
-    '''
-    colour = c
-    if img.shape[2] == 3 and len(c) > 3:
-        colour = colour[:3]
-    elif img.shape[2] == 4 and len(c) < 4:
-        colour.append(255)
-    digit = digits[int(char) if is_int(char) else char_index[char]]
-    pixels = enlarge_digit(digit, size)
-    x_0 = x
-    for row in reversed(pixels):
-        x = x_0
-        for value in reversed(row):
-            if value == 1:
-                img[y, x] = colour
-            x -= 1
-        y -= 1
-    return (x-1, y)
-
-def draw_gp(img, amount):
-    '''
-    Draw an amount over an image of RuneScape coins.
-    '''
-    colour = green if amount >= 10000000 else white if amount >= 100000 else yellow if amount >= 0 else red
-    amount = round(amount, -6) if abs(amount) >= 10000000 else round(amount, -3) if abs(amount) >= 100000 else amount
-    amount_str = str(amount)
-    if amount >= 10000000 or amount <= -10000000:
-        amount_str = amount_str[::-1].replace('000000', 'M', 1)[::-1]
-    elif amount >= 100000 or amount <= -100000:
-        amount_str = amount_str[::-1].replace('000', 'K', 1)[::-1]
-    size = 5
-    for i, char in enumerate(amount_str):
-        draw_char(img, char, (int(5*(2**size)/2)-1)*(i+1)+i*(2**size), int(8*(2**size)/2)-1, colour, size)
-
-def get_coins_image(amount):
-    '''
-    Get an image for the given amount of coins.
-    '''
-    # Get base coins image
-    coins = imageio.imread(f'images/{get_coins_image_name(amount)}.png')
-
-    # Draw amount
-    draw_gp(coins, amount)
-
-    imageio.imwrite('images/coins.png', coins)
-    with open('images/coins.png', 'rb') as f:
-        coins_image = io.BytesIO(f.read())
-    coins_image = discord.File(coins_image, filename='coins.png')
-    return coins_image
 
 async def get_transactions(guild_id: int):
     '''
@@ -295,7 +217,7 @@ class ClanBank(Cog):
         '''
         Manage the clan bank
         '''
-        if not interaction.user.guild_permissions.administrator and interaction.user.id != config['owner']:
+        if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
             guild = await Guild.get(interaction.guild.id)
             bank_role = None
             if guild.bank_role_id:
@@ -332,7 +254,7 @@ class ClanBank(Cog):
         ] + [
             app_commands.Choice(name=action, value=action)
             for action in admin_actions if current.lower() in action.lower() and 
-            (interaction.user.guild_permissions.administrator or interaction.user.id == config['owner'])
+            (interaction.user.guild_permissions.administrator or interaction.user.id == self.bot.config['owner'])
         ]
 
     async def view(self, interaction: discord.Interaction):
@@ -394,7 +316,7 @@ class ClanBank(Cog):
     async def set_bank_role(self, interaction: discord.Interaction):
         # Set the role required to manage the clan bank.
         # Validation
-        if not (interaction.user.guild_permissions.administrator or interaction.user.id == config['owner']):
+        if not (interaction.user.guild_permissions.administrator or interaction.user.id == self.bot.config['owner']):
             await interaction.response.send_message('Missing permission: `administrator`', ephemeral=True)
             return
         view = SelectRoleView(self.bot, interaction.guild)

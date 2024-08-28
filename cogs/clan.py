@@ -4,15 +4,12 @@ from typing import Any
 import discord
 from discord import SelectOption, TextStyle, app_commands
 from discord.ext.commands import Cog, CommandError
-import sys
 import random
 import copy
-sys.path.append('../')
-from main import Bot, get_config, Guild
+from main import Bot
+from database import Guild
 import re
 from utils import is_int, wom_skills, wom_bosses, wom_clues, wom_minigames, wom_efficiency, wom_metrics
-
-config: dict[str, Any] = get_config()
 
 def choose_metric(exclude: list[str] = [], type: str = '') -> str:
     type = type.lower().strip()
@@ -70,7 +67,7 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
         # Get WOM group
         group = None
         url: str = f'https://api.wiseoldman.net/v2/groups/{group_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -148,7 +145,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         group = None
         guild: Guild = await self.bot.get_db_guild(interaction.guild)
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -158,7 +155,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
         payload: dict[str, Any] = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
-        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 data: Any = await r.json()
                 await interaction.response.send_message(f'An error occurred while trying to add `{rsn}` to WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
@@ -203,7 +200,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         group = None
         guild: Guild = await self.bot.get_db_guild(interaction.guild)
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -213,7 +210,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
         payload: dict[str, Any] = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [rsn]
-        async with self.bot.aiohttp.delete(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.delete(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 data: Any = await r.json()
                 await interaction.response.send_message(f'An error occurred while trying to remove `{rsn}` from WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
@@ -281,7 +278,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         payload: dict[str, Any] = {"title": competition_title, "metric": metric, "startsAt": start, "endsAt": end, "groupId": guild.wom_group_id, "groupVerificationCode": guild.wom_verification_code}
         url = 'https://api.wiseoldman.net/v2/competitions'
         data = None
-        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 201:
                 raise CommandError(message=f'Error status: {r.status}.')
             data: Any = await r.json()
@@ -393,7 +390,7 @@ class Clan(Cog):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
             return
-        if interaction.guild and isinstance(interaction.user, discord.Member) and not interaction.user.guild_permissions.administrator and interaction.user.id != config['owner']:
+        if interaction.guild and isinstance(interaction.user, discord.Member) and not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
             guild: Guild = await self.bot.get_db_guild(interaction.guild)
             wom_role: discord.Role | None = None
             if guild.wom_role_id:
@@ -442,7 +439,7 @@ class Clan(Cog):
         ] + [
             app_commands.Choice(name=action, value=action)
             for action in admin_actions if current.lower() in action.lower() and 
-            ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == config['owner'])
+            ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == self.bot.config['owner'])
         ]
 
     async def wom_add(self, interaction: discord.Interaction) -> None:
@@ -456,7 +453,7 @@ class Clan(Cog):
     
     async def wom_setup(self, interaction: discord.Interaction) -> None:
         # Validation
-        if not ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == config['owner']):
+        if not ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == self.bot.config['owner']):
             await interaction.response.send_message('Missing permission: `administrator`', ephemeral=True)
             return
         await interaction.response.send_modal(WOMSetupModal(self.bot))
@@ -464,7 +461,7 @@ class Clan(Cog):
     async def set_wom_role(self, interaction: discord.Interaction) -> None:
         # Set the role required to manage the clan WOM group.
         # Validation
-        if not interaction.guild or not ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == config['owner']):
+        if not interaction.guild or not ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == self.bot.config['owner']):
             await interaction.response.send_message('Missing permission: `administrator`', ephemeral=True)
             return
         view = SelectRoleView(self.bot, interaction.guild)

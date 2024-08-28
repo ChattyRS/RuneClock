@@ -9,7 +9,9 @@ from discord.ext import commands
 import math
 from datetime import timedelta
 import discord
+import imageio
 from imageio.core.util import Array
+import io
 
 # convert float to string without scientific notation
 # https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
@@ -163,7 +165,7 @@ def obliterate_mods():
         raise commands.CommandError(message='Insufficient permissions: `Obliterate moderator`')
     return commands.check(predicate)
 
-def get_coins_image_name(amount: number) -> str:
+def get_coins_image_name(amount: int) -> str:
     amount = abs(amount)
     if amount >= 10000:
         return 'Coins_10000_detail'
@@ -1222,3 +1224,82 @@ wilderness_flash_events: list[str] = [
     'Displaced Energy',
     'Evil Bloodwood Tree'
 ]
+
+yellow: list[int] = [255, 255, 0, 255]
+white: list[int] = [255, 255, 255, 255]
+green: list[int] = [0, 255, 131, 255]
+red: list[int] = [255, 50, 50, 255]
+
+char_index: dict[str, int] = {'K': 10, 'M': 11, '-': 12}
+
+def enlarge_digit(digit: list[list[int]], factor: int) -> list[list[int]]:
+    '''
+    Doubles the size of an image *factor* times.
+
+    Args:
+        digit (list[list[int]]): The digit to enlarge
+        factor (int): The factor by which to enlarge the digit
+
+    Returns:
+        list[list[int]]: Enlarged version of the digit
+    '''
+    for _ in range(factor-1):
+        ldigit: list[list[int]] = []
+        for row in digit:
+            lrow: list[int] = [row[int(i/2)] for i in range(len(row)*2)]
+            ldigit.append(lrow)
+            ldigit.append(lrow)
+        digit = ldigit
+    return digit
+
+def draw_char(img: Array, char: str, x: int, y: int, c: list[int], size: int) -> tuple[int, int]:
+    '''
+    Draws a character on an image at (x, y)
+    '''
+    colour: list[int] = c
+    if img.shape[2] == 3 and len(c) > 3:
+        colour = colour[:3]
+    elif img.shape[2] == 4 and len(c) < 4:
+        colour.append(255)
+    digit: list[list[int]] = digits[int(char) if is_int(char) else char_index[char]]
+    pixels: list[list[int]] = enlarge_digit(digit, size)
+    x_0: int = x
+    for row in reversed(pixels):
+        x = x_0
+        for value in reversed(row):
+            if value == 1:
+                img[y, x] = colour
+            x -= 1
+        y -= 1
+    return (x-1, y)
+
+def draw_gp(img: Array, amount: int) -> None:
+    '''
+    Draw an amount over an image of RuneScape coins.
+    '''
+    colour: list[int] = green if amount >= 10000000 else white if amount >= 100000 else yellow if amount >= 0 else red
+    amount = round(amount, -6) if abs(amount) >= 10000000 else round(amount, -3) if abs(amount) >= 100000 else amount
+    amount_str = str(amount)
+    if amount >= 10000000 or amount <= -10000000:
+        amount_str: str = amount_str[::-1].replace('000000', 'M', 1)[::-1]
+    elif amount >= 100000 or amount <= -100000:
+        amount_str = amount_str[::-1].replace('000', 'K', 1)[::-1]
+    size = 5
+    for i, char in enumerate(amount_str):
+        draw_char(img, char, (int(5*(2**size)/2)-1)*(i+1)+i*(2**size), int(8*(2**size)/2)-1, colour, size)
+
+def get_coins_image(amount: int) -> discord.File:
+    '''
+    Get an image for the given amount of coins.
+    '''
+    # Get base coins image
+    coins: Array = imageio.imread(f'images/{get_coins_image_name(amount)}.png')
+
+    # Draw amount
+    draw_gp(coins, amount)
+
+    imageio.imwrite('images/coins.png', coins)
+    with open('images/coins.png', 'rb') as f:
+        coins_image = io.BytesIO(f.read())
+    coins_image = discord.File(coins_image, filename='coins.png')
+    return coins_image
