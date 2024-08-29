@@ -1,44 +1,48 @@
+from typing import Sequence
 import discord
 from discord.ext import commands
-from discord.ext.commands import AutoShardedBot as DiscordBot, Cog, CommandError, Context,
-import sys
-sys.path.append('../')
-from main import Bot, get_config, increment_command_counter, Command
+from discord.ext.commands import Cog, CommandError, Context,
+from sqlalchemy import select
+from main import Bot
+from database import Command
 import re
 import utils
 from utils import is_admin
 
-config = get_config()
-
-async def get_aliases():
-    aliases = []
-    custom_commands = await Command.query.gino.all()
-    for command in [c for c in custom_commands if c]:
-        if not command.name in aliases:
-            aliases.append(command.name)
-        if command.aliases:
-            for alias in command.aliases:
-                if not alias in aliases:
-                    aliases.append(alias)
-    return aliases
-
 class CustomCommands(Cog):
-    bot: Bot
-
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
         self.bot.loop.create_task(self.refresh_custom_command_aliases())
+
+    async def get_aliases(self) -> list[str]:
+        aliases: list[str] = []
+        async with self.bot.async_session() as session:
+            custom_commands: Sequence[Command] = (await session.execute(select(Command))).scalars().all()
+            for command in [c for c in custom_commands if c]:
+                if not command.name in aliases:
+                    aliases.append(command.name)
+                if command.aliases:
+                    for alias in command.aliases:
+                        if not alias in aliases:
+                            aliases.append(alias)
+            return aliases
     
-    async def refresh_custom_command_aliases(self):
-        custom_command = DiscordBot.get_command(self.bot, 'custom_command')
-        if custom_command:
-            DiscordBot.remove_command(self.bot, 'custom_command')
-            custom_command.aliases = await get_aliases()
-            DiscordBot.add_command(self.bot, custom_command)
+    async def refresh_custom_command_aliases(self) -> None:
+        custom_command: commands.Command = self.get_custom_command()
+        self.bot.remove_command(custom_command.name)
+        custom_command.aliases = await self.get_aliases()
+        self.bot.add_command(custom_command)
+
+    def get_custom_command(self, command_name: str | None = None) -> commands.Command:
+        command_name = command_name if command_name else 'custom_command' # Default built in 'custom_command', used as a proxy to execute custom commands
+        custom_command: commands.Command | None = self.bot.get_command(command_name)
+        if not custom_command:
+            raise CommandError(message=f'Custom command `{command_name}` was not found.')
+        return custom_command
 
     @commands.command()
     @is_admin()
-    async def custom(self, ctx: Context):
+    async def custom(self, ctx: Context) -> None:
         '''
         Command to add/remove custom commands. (Admin+)
         Arguments: name, response.
@@ -58,42 +62,49 @@ class CustomCommands(Cog):
         {require:role} restricts usage of the command to users with a specific role by name.
         {!command} calls a built-in bot command (no custom commands).
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+        if not ctx.guild:
+            raise CommandError(message=f'This command can only be used from a server.')
 
-        command = ctx.message.clean_content[ctx.message.clean_content.index(' ')+1:].strip()
+        command: str = ctx.message.clean_content[ctx.message.clean_content.index(' ')+1:].strip()
         if ''.join(command.split()) == command:
-            custom_command = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==command).gino.first()
-            if custom_command:
-                await custom_command.delete()
-                custom_command = DiscordBot.get_command(self.bot, 'custom_command')
-                DiscordBot.remove_command(self.bot, 'custom_command')
-                custom_command.aliases = await get_aliases()
-                DiscordBot.add_command(self.bot, custom_command)
-                await ctx.send(f'Command `{command}` has been removed.')
-                return
+            custom_db_command: Command | None
+            async with self.bot.async_session() as session:
+                custom_db_command = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id).where(Command.name == command))).scalar_one_or_none()
+                if custom_db_command:
+                    await session.delete(custom_db_command)
+                    await session.commit()
+                    custom_command: commands.Command = self.get_custom_command()
+                    self.bot.remove_command(custom_command.name)
+                    custom_command.aliases = await self.get_aliases()
+                    self.bot.add_command(custom_command)
+                    await ctx.send(f'Command `{command}` has been removed.')
+                    return
             raise CommandError(message=f'Please specify what your command should do. See `help custom`.')
         else:
-            name = command.split()[0].lower()
+            name: str = command.split()[0].lower()
             command = command.replace(name, '', 1).strip()
 
-        cmd = DiscordBot.get_command(self.bot, name)
-        custom_command = DiscordBot.get_command(self.bot, 'custom_command')
+        cmd: commands.Command | None = self.bot.get_command(name)
+        custom_command: commands.Command = self.get_custom_command()
         if cmd and cmd != custom_command:
             raise CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
         
-        custom_command = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==name).gino.first()
-        if custom_command:
-            edit = True
-            await custom_command.update(function=command).apply()
-        else:
-            edit = False
-            new_custom_command = await Command.create(guild_id=ctx.guild.id, name=name, function=command, aliases=None, description='N/A')
+        async with self.bot.async_session() as session:
+            custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id).where(Command.name == command))).scalar_one_or_none()
+            if custom_db_command:
+                edit = True
+                custom_db_command.function = command
+            else:
+                edit = False
+                session.add(Command(guild_id=ctx.guild.id, name=name, function=command, aliases=None, description='N/A'))
+            await session.commit()
 
         if not cmd: # alias didn't exist yet, so we need to add it
-            custom_command = DiscordBot.get_command(self.bot, 'custom_command')
-            DiscordBot.remove_command(self.bot, 'custom_command')
-            custom_command.aliases = await get_aliases()
-            DiscordBot.add_command(self.bot, custom_command)
+            custom_command = self.get_custom_command()
+            self.bot.remove_command(custom_command.name)
+            custom_command.aliases = await self.get_aliases()
+            self.bot.add_command(custom_command)
 
         if edit:
             await ctx.send(f'Edited command `{name}` to:\n```{command}```')
@@ -255,7 +266,7 @@ class CustomCommands(Cog):
             cmd = self.bot.get_command(commandName)
             if not cmd:
                 raise CommandError(message=f'Missing command: `{commandName}`.')
-            customCommand = DiscordBot.get_command(self.bot, 'customCommand')
+            customCommand = Bot.get_command(self.bot, 'customCommand')
             if cmd == customCommand:
                 raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             arguments = command_arguments.split()
@@ -361,8 +372,8 @@ class CustomCommands(Cog):
         if not command or not alias:
             raise CommandError(message=f'Error: `required arguments missing`.')
 
-        cmd = DiscordBot.get_command(self.bot, alias)
-        custom_command = DiscordBot.get_command(self.bot, 'custom_command')
+        cmd = Bot.get_command(self.bot, alias)
+        custom_command = Bot.get_command(self.bot, 'custom_command')
         if cmd and cmd != custom_command:
             raise CommandError(message=f'Error: `alias already in use`.')
         
@@ -384,10 +395,10 @@ class CustomCommands(Cog):
         await ctx.send(msg)
 
         if not cmd:
-            custom_command = DiscordBot.get_command(self.bot, 'custom_command')
-            DiscordBot.remove_command(self.bot, 'custom_command')
+            custom_command = Bot.get_command(self.bot, 'custom_command')
+            Bot.remove_command(self.bot, 'custom_command')
             custom_command.aliases = await get_aliases()
-            DiscordBot.add_command(self.bot, custom_command)
+            Bot.add_command(self.bot, custom_command)
 
 async def setup(bot: Bot):
     await bot.add_cog(CustomCommands(bot))
