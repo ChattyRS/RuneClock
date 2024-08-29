@@ -13,7 +13,7 @@ from github.AuthenticatedUser import AuthenticatedUser
 from github.NamedUser import NamedUser
 from github.PaginatedList import PaginatedList
 from github.Repository import Repository
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, select
 from utils import get_config, get_gspread_creds, districts, notification_roles
 import string
 from aiohttp import ClientResponse, ClientSession, ClientTimeout
@@ -27,7 +27,7 @@ from src.message_queue import QueueMessage, MessageQueue
 
 # Other cogs import database classes from main
 # so even though some of these classes may appear not to be in use, they should not be removed here
-from database import User, Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction, BannedGuild
+from database import Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, NewsPost, Uptime, RS3Item, OSRSItem, ClanBankTransaction, CustomRoleReaction
 from database import setup as database_setup
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
