@@ -127,6 +127,7 @@ class Bot(commands.AutoShardedBot):
             await session.execute(delete(ClanBankTransaction).where(ClanBankTransaction.guild_id == guild.id))
             await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id))
             await session.delete(guild)
+            await session.commit()
     
     async def setup_hook(self) -> None:
         await self.track_start()
@@ -809,6 +810,7 @@ class Bot(commands.AutoShardedBot):
                     if not guild or not member or not mute_role or not mute_role in member.roles:
                         continue
                     to_unmute.append((member, mute_role, guild))
+                await session.commit()
 
             for member, mute_role, guild in to_unmute:
                 try:
