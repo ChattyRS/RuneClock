@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSessio
 from sqlalchemy import PrimaryKeyConstraint, ForeignKey
 from sqlalchemy import BigInteger, Integer, String, Boolean, DateTime, ARRAY, JSON
 from sqlalchemy.orm import DeclarativeBase, registry, Mapped, mapped_column
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 import codecs
 import json
@@ -38,8 +38,8 @@ class Guild(Base):
     log_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     notification_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     role_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
-    delete_channel_ids: Mapped[Optional[List[int]]] = mapped_column(ARRAY(BigInteger))
-    disabled_commands: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String))
+    delete_channel_ids: Mapped[Optional[list[int]]] = mapped_column(ARRAY(BigInteger))
+    disabled_commands: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
     log_bots: Mapped[Optional[Boolean]] = mapped_column(Boolean)
     modmail_public: Mapped[Optional[int]] = mapped_column(BigInteger)
     modmail_private: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -81,7 +81,7 @@ class Command(Base):
     guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
     name: Mapped[str] = mapped_column(String)
     function: Mapped[str] = mapped_column(String)
-    aliases: Mapped[Optional[List[str]]] = mapped_column(ARRAY(String))
+    aliases: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
     description: Mapped[Optional[str]] = mapped_column(String)
 
 class Repository(Base):
