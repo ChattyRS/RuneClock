@@ -1,25 +1,22 @@
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-import sys
-sys.path.append('../')
-from main import Bot, get_config, increment_command_counter, Poll
+from main import Bot
+from database import Poll
 import random
 from datetime import datetime, timedelta, UTC
 from operator import attrgetter
 from utils import is_int
 import validators
 
-config = get_config()
+rps: list[str] = ['Rock', 'Paper', 'Scissors']
+rps_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
 
-rps = ['Rock', 'Paper', 'Scissors']
-rps_upper = ['ROCK', 'PAPER', 'SCISSORS']
+months: list[str] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+num_emoji: list[str] = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
-num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
-
-def perm_string(p):
+def perm_string(p) -> str:
     '''
     Translates permissions to a string of important permissions.
     '''
@@ -51,34 +48,23 @@ def perm_string(p):
         s += 'View Audit Logs, '
 
     if s:
-        s = s[:len(s)-2]
+        s: str = s[:len(s)-2]
 
     return s
 
-# Divide total number of words pseudo-randomly over number of paragraphs
-def get_paragraph_lengths(paragraphs, words):
-    lower = round(words/paragraphs/2) # minimum words per paragraph
-    upper = round(words/paragraphs*2) # maximum words per paragraph
-    lengths = random.sample(range(lower, upper), paragraphs)
-    while sum(lengths) < words:
-        lengths[random.randint(0, paragraphs-1)] += 1
-    while sum(lengths) > words:
-        lengths[random.randint(0, paragraphs-1)] -= 1
-    return lengths
-
 class General(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
     @commands.command(pass_context=True, aliases=['flip', 'coin', 'coinflip'])
-    async def flipcoin(self, ctx: commands.Context):
+    async def flipcoin(self, ctx: commands.Context) -> None:
         '''
         Flips a coin.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         
-        i = random.randint(0,1)
-        result = ''
+        i: int = random.randint(0,1)
+        result: str
         if i:
             result = 'heads'
         else:
@@ -87,11 +73,11 @@ class General(Cog):
         await ctx.send(f'{ctx.author.mention} {result}!')
 
     @commands.command(pass_context=True, aliases=['dice'])
-    async def roll(self, ctx: commands.Context, sides=6, num=1):
+    async def roll(self, ctx: commands.Context, sides=6, num=1) -> None:
         '''
         Rolls a dice.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         
         if is_int(num):
             num = int(num)
@@ -106,19 +92,19 @@ class General(Cog):
         if sides < 2 or sides > 2147483647:
             raise commands.CommandError(message=f'Invalid argument: `{sides}`.')
 
-        results = []
+        results: list[int] = []
         for _ in range (0, num):
             results.append(random.randint(1,sides))
-        result = str(results).replace('[', '').replace(']', '')
+        result: str = str(results).replace('[', '').replace(']', '')
         
         await ctx.send(f'{ctx.author.mention} You rolled {result}!')
 
     @commands.command(pass_context=True)
-    async def rps(self, ctx: commands.Context, choice=''):
+    async def rps(self, ctx: commands.Context, choice='') -> None:
         '''
         Play rock, paper, scissors.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         
         if not choice.upper() in rps_upper:
             raise commands.CommandError(message=f'Invalid argument: `{choice}`.')
@@ -126,10 +112,10 @@ class General(Cog):
         for x in rps:
             if choice.upper() == x.upper():
                 choice = x
-        i = random.randint(0,2)
-        myChoice = rps[i]
-        result = f'You chose **{choice}**. I choose **{myChoice}**.\n'
-        choices = [myChoice, choice]
+        i: int = random.randint(0,2)
+        myChoice: str = rps[i]
+        result: str = f'You chose **{choice}**. I choose **{myChoice}**.\n'
+        choices: list[str] = [myChoice, choice]
         if choice == myChoice:
             result += '**Draw!**'
         elif 'Rock' in choices and 'Paper' in choices:
@@ -142,51 +128,56 @@ class General(Cog):
         await ctx.send(result)
 
     @commands.command(pass_context=True)
-    async def serverinfo(self, ctx: commands.Context):
+    async def serverinfo(self, ctx: commands.Context) -> None:
         '''
         Get info on a server
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        title = f'Server info for: **{ctx.guild.name}**'
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+
+        title: str = f'Server info for: **{ctx.guild.name}**'
         colour = 0x00b2ff
         timestamp = datetime.now(UTC)
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
-        embed.add_field(name='Owner', value=ctx.guild.owner.mention)
+        if ctx.guild.owner:
+            embed.add_field(name='Owner', value=ctx.guild.owner.mention)
         embed.add_field(name='Channels', value=f'{len(ctx.guild.channels)}')
         embed.add_field(name='Members', value=f'{ctx.guild.member_count}')
         embed.add_field(name='Roles', value=f'{len(ctx.guild.roles)}')
-        icon = ctx.guild.icon.url
-        if icon:
-            embed.set_thumbnail(url=icon)
+        if ctx.guild.icon and ctx.guild.icon.url:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
         embed.set_footer(text=f'ID: {ctx.guild.id}')
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, alias=['userinfo', 'memberinfo'])
-    async def whois(self, ctx: commands.Context, *memberName):
+    async def whois(self, ctx: commands.Context, *member_name) -> None:
         '''
         Get info on a member.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
         
-        msg = ctx.message
-        member = ''
-        if msg.mentions:
-            member = msg.mentions[0]
+        member: discord.Member | discord.User | str = ''
+        if ctx.message.mentions:
+            member = ctx.message.mentions[0]
         else:
-            if not memberName:
+            if not member_name:
                 raise commands.CommandError(message=f'Required argument missing: `member`.')
             else:
-                name = ''
-                for n in memberName:
+                name: str = ''
+                for n in member_name:
                     name += n + ' '
                 name = name.strip()
                 for m in ctx.guild.members:
                     if m.name.upper() == name.upper():
                         member = m
                         break
-                    nick = m.nick
+                    nick: str | None = m.nick
                     if nick:
                         if nick.upper() == name.upper():
                             member = m
@@ -204,35 +195,35 @@ class General(Cog):
         if not member:
             raise commands.CommandError(message=f'Error: could not find member: `{name}`.')
 
-        members = await ctx.guild.query_members(user_ids=[member.id], presences=True)
+        members: list[discord.Member] = await ctx.guild.query_members(user_ids=[member.id], presences=True)
         member = members[0]
 
         colour = 0x00b2ff
-        timestamp = datetime.now(UTC)
+        timestamp: datetime = datetime.now(UTC)
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
         if member.display_avatar.url:
             embed.set_author(name=member.name, url=None, icon_url=member.display_avatar.url)
             embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name='Display name', value=member.display_name)
         embed.add_field(name='Status', value=f'{str(member.status)[0].upper() + str(member.status)[1:]}')
-        join_time = member.joined_at
-        min = join_time.minute
+        join_time: datetime | None = member.joined_at if member.joined_at else timestamp
+        min: int | str = join_time.minute
         if min == 0:
             min = '00'
-        time = f'{join_time.day} {months[join_time.month-1]} {join_time.year}, {join_time.hour}:{min}'
+        time: str = f'{join_time.day} {months[join_time.month-1]} {join_time.year}, {join_time.hour}:{min}'
+
         embed.add_field(name='Joined', value=time)
         join_list = sorted(ctx.guild.members, key=attrgetter('joined_at'))
         join_pos = join_list.index(member)+1
         embed.add_field(name='Join Position', value=str(join_pos))
-        creation_time = member.created_at
+        creation_time: datetime = member.created_at
         min = creation_time.minute
         if min == 0:
             min = '00'
         time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{min}'
         embed.add_field(name='Registered', value=time)
-        roles = member.roles
-        role_str = ''
-        for i, r in enumerate(roles):
+        role_str: str = ''
+        for i, r in enumerate(member.roles):
             if i == 0:
                 continue
             role_str += r.mention + ' '
@@ -241,7 +232,7 @@ class General(Cog):
             embed.add_field(name=f'Roles ({len(member.roles)-1})', value=role_str, inline=False)
         else:
             embed.add_field(name=f'Roles (0)', value='None', inline=False)
-        perm_str = perm_string(member.guild_permissions)
+        perm_str: str = perm_string(member.guild_permissions)
         if perm_str:
             embed.add_field(name=f'Permissions', value=perm_str)
         embed.set_footer(text=f'ID: {member.id}')
@@ -249,41 +240,45 @@ class General(Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def quote(self, ctx: commands.Context, msg_id=''):
+    async def quote(self, ctx: commands.Context, msg_id='') -> None:
         '''
         Quotes a message from a given message ID.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
 
+        if not ctx.guild or not isinstance(ctx.channel, discord.TextChannel):
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+        
         if not msg_id:
             raise commands.CommandError(message=f'Required argument missing: `message_id`.')
         elif not is_int(msg_id):
             raise commands.CommandError(message=f'Invalid argument: `{msg_id}`.')
         else:
             msg_id = int(msg_id)
+
+        await ctx.channel.typing()
         
-        chan = ''
+        channel: discord.TextChannel | None = None
 
         try:
-            msg = await ctx.channel.fetch_message(msg_id)
-            chan = ctx.channel
+            msg: discord.Message | None = await ctx.channel.fetch_message(msg_id)
+            channel = ctx.channel
         except:
-            msg = ''
+            msg = None
 
         if not msg:
             for channel in ctx.guild.text_channels:
                 try:
                     msg = await channel.fetch_message(msg_id)
-                    chan = channel
+                    channel = msg.channel if isinstance(msg.channel, discord.TextChannel) else None
                     break
                 except:
-                    msg = ''
+                    msg = None
 
-        if not msg:
+        if not msg or not channel:
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`.')
 
-        embed = discord.Embed(description=f'In: {chan.mention}\n“{msg.content}”', colour=0x00b2ff, timestamp=msg.created_at)
+        embed = discord.Embed(description=f'In: {channel.mention}\n“{msg.content}”', colour=0x00b2ff, timestamp=msg.created_at)
         embed.set_author(name=msg.author.display_name, icon_url=msg.author.display_avatar.url)
         embed.set_footer(text=f'ID: {msg.id}')
 
