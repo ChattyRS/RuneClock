@@ -1,6 +1,9 @@
+from typing import Any
+from aiohttp import ClientResponse
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
+from sqlalchemy import select
 from main import Bot
 from database import Poll
 import random
@@ -287,45 +290,52 @@ class General(Cog):
     
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def shorten(self, ctx: commands.Context, url=''):
+    async def shorten(self, ctx: commands.Context, url='') -> None:
         '''
         Shorten a URL.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
 
         if not url:
             raise commands.CommandError(message='Required argument missing: `url`.')
         if not validators.url(url):
             raise commands.CommandError(message=f'Invalid argument: `{url}`. Argument must be a valid URL.')
+        
+        await ctx.channel.typing()
 
-        r = await self.bot.aiohttp.get(f'https://is.gd/create.php?format=simple&url={url}')
+        r: ClientResponse = await self.bot.aiohttp.get(f'https://is.gd/create.php?format=simple&url={url}')
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving shortened URL, please try again in a minute.')
-            data = await r.text()
+            data: str = await r.text()
 
         await ctx.send(data)
     
     @commands.command()
-    async def id(self, ctx: commands.Context, *input):
+    async def id(self, ctx: commands.Context, *input) -> None:
         '''
         Get the ID of a discord object.
         It is best to provide a mention to ensure the right object is found.
         Supports: channels, roles, members, emojis, messages, guild.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
 
         if not input:
             raise commands.CommandError(message='Required argument missing: `input`.')
-        input = ' '.join(input)
-        input_raw = input
-        input = input.lower()
-        output = ''
-        output_type = ''
-        backup = ''
-        backup_type = ''
+        
+        if not ctx.guild or not isinstance(ctx.channel, discord.TextChannel):
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+        
+        await ctx.channel.typing()
+
+        input_str: str = ' '.join(input)
+        input_raw: str = input_str
+        input_str = input_str.lower()
+
+        output: Any = None
+        output_type: str
+        fallback: Any = None
+        fallback_type: str
 
         # handle mentions / defaults
         if ctx.message.channel_mentions:
@@ -337,74 +347,74 @@ class General(Cog):
         elif ctx.message.mentions:
             output = ctx.message.mentions[0]
             output_type = 'member'
-        elif input == ctx.guild.name.lower() or input == 'guild' or input == 'server':
+        elif input_str == ctx.guild.name.lower() or input_str == 'guild' or input_str == 'server':
             output = ctx.guild
             output_type = 'guild'
-        elif input == 'owner':
+        elif input_str == 'owner':
             output = ctx.guild.owner
             output_type = 'member'
-        elif input == 'me':
+        elif input_str == 'me':
             output = ctx.message.author
             output_type = 'member'
-        elif input == 'you' or input == 'u':
+        elif input_str == 'you' or input_str == 'u':
             output = ctx.guild.me
             output_type = 'member'
         
         # channels
         if not output:
-            for channel in ctx.guild.channels:
-                if channel.name.lower() == input:
+            for channel in ctx.guild.text_channels:
+                if channel.name.lower() == input_str:
                     output = channel
                     output_type = 'channel'
                     break
-                elif not backup:
-                    if input in channel.name.lower():
-                        backup = channel
-                        backup_type = 'channel'
+                elif not fallback:
+                    if input_str in channel.name.lower():
+                        fallback = channel
+                        fallback_type = 'channel'
         
         # roles
         if not output:
             for role in ctx.guild.roles:
-                if role.name.lower() == input:
+                if role.name.lower() == input_str:
                     output = role
                     output_type = 'role'
                     break
-                elif not backup:
-                    if input in role.name.lower():
-                        backup = role
-                        backup_type = 'role'
+                elif not fallback:
+                    if input_str in role.name.lower():
+                        fallback = role
+                        fallback_type = 'role'
         
         # members
         if not output:
             for member in ctx.guild.members:
-                if member.display_name.lower() == input or member.name.lower() == input:
+                if member.display_name.lower() == input_str or member.name.lower() == input_str:
                     output = member
                     output_type = 'member'
                     break
-                elif not backup:
-                    if input in member.display_name.lower() or input in member.name.lower():
-                        backup = member
-                        backup_type = 'member'
+                elif not fallback:
+                    if input_str in member.display_name.lower() or input_str in member.name.lower():
+                        fallback = member
+                        fallback_type = 'member'
         
         # emoji
         if not output:
             guild_emojis = await ctx.guild.fetch_emojis()
             for emoji in guild_emojis:
-                if str(emoji) == input_raw or emoji.name.lower() == input:
+                if str(emoji) == input_raw or emoji.name.lower() == input_str:
                     output = emoji
                     output_type = 'emoji'
                     break
-                elif not backup:
-                    if input in emoji.name.lower():
-                        backup = emoji
-                        backup_type = 'emoji'
+                elif not fallback:
+                    if input_str in emoji.name.lower():
+                        fallback = emoji
+                        fallback_type = 'emoji'
         
         # message
         if not output:
             for channel in ctx.guild.text_channels:
                 async for message in channel.history(limit=100):
                     if message.guild == ctx.guild:
-                        if input in message.content and not message.id == ctx.message.id:
+                        if input_str in message.content and not message.id == ctx.message.id:
                             output = message
                             output_type = 'message'
                             break
@@ -416,19 +426,22 @@ class General(Cog):
                 await ctx.send(f'The ID for {output_type} `{output.name}` is: `{output.id}`.')
             else:
                 await ctx.send(f'The ID for the following message, sent by `{output.author.display_name}` in {output.channel.mention} is: `{output.id}`.\n"{output.content}"')
-        elif backup:
-            await ctx.send(f'The ID for {backup_type} `{backup.name}` is: `{backup.id}`.')
+        elif fallback:
+            await ctx.send(f'The ID for {fallback_type} `{fallback.name}` is: `{fallback.id}`.')
         else:
-            raise commands.CommandError(message=f'Error, could not find any object: `{input}`. Please check your spelling.')
+            raise commands.CommandError(message=f'Error, could not find any object: `{input_str}`. Please check your spelling.')
     
     @commands.command(aliases=['strawpoll'])
-    async def poll(self, ctx: commands.Context, hours='24', *options):
+    async def poll(self, ctx: commands.Context, hours='24', *options) -> None:
         '''
         Create a poll in which users can vote by reacting.
         Poll duration can vary from 1 hour to 1 week (168 hours).
         Options must be separated by commas.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
 
         if not is_int(hours):
             options = [hours] + list(options)
@@ -438,15 +451,15 @@ class General(Cog):
         if hours < 1 or hours > 168:
             raise commands.CommandError(message=f'Invalid argument: `{hours}`. Must be positive and less than 168.')
         
-        options = ' '.join(options)
-        options = options.split(',')
+        options_str: str = ' '.join(options)
+        options = options_str.split(',')
         
         if len(options) < 2:
             raise commands.CommandError(message='Error: insufficient options to create a poll. At least two options are required.')
         elif len(options) > 20:
             raise commands.CommandError(message='Error: too many options. This command only supports up to 20 options.')
 
-        txt = ''
+        txt: str = ''
         i = 0
         for opt in options:
             txt += f'\n{num_emoji[i]} {opt}'
@@ -455,51 +468,60 @@ class General(Cog):
         
         embed = discord.Embed(title='**Poll**', description=f'Created by {ctx.message.author.mention}\n{txt}', timestamp=datetime.now(UTC))
         
-        msg = await ctx.send(embed=embed)
+        msg: discord.Message = await ctx.send(embed=embed)
         embed.set_footer(text=f'ID: {msg.id}')
         await msg.edit(embed=embed)
         for num in range(i):
             await msg.add_reaction(num_emoji[num])
-        
-        await Poll.create(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.now(UTC)+timedelta(hours=hours))
+
+        async with self.bot.async_session() as session:
+            session.add(Poll(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.now(UTC)+timedelta(hours=hours)))
+            await session.commit()
 
     @commands.command()
-    async def close(self, ctx: commands.Context, msg_id=''):
+    async def close(self, ctx: commands.Context, msg_id='') -> None:
         '''
         Close a poll by giving its message ID.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
 
         if not is_int(msg_id):
             raise commands.CommandError(message=f'Invalid argument: `{msg_id}`. Must be an integer.')
         msg_id = int(msg_id)
 
-        poll = await Poll.query.where(Poll.message_id==msg_id).gino.first()
-        if not poll:
-            raise commands.CommandError(message=f'Could not find active poll by ID: `{msg_id}`.')
+        await ctx.channel.typing()
 
-        if poll.author_id != ctx.message.author.id:
-            raise commands.CommandError(message=f'Insufficient permissions: only the creator of the poll can close it prematurely.')
+        async with self.bot.async_session() as session:
+            poll: Poll | None = (await session.execute(select(Poll).where(Poll.message_id == msg_id))).scalar_one_or_none()
+            if not poll:
+                raise commands.CommandError(message=f'Could not find active poll by ID: `{msg_id}`.')
 
-        await poll.delete()
+            if poll.author_id != ctx.message.author.id:
+                raise commands.CommandError(message=f'Insufficient permissions: only the creator of the poll can close it prematurely.')
+
+            await session.delete(poll)
+            await session.commit()
 
         try: 
-            msg = await ctx.guild.get_channel(poll.channel_id).fetch_message(msg_id)
+            channel: discord.TextChannel = self.bot.get_guild_text_channel(ctx.guild, poll.channel_id)
+            msg: discord.Message = await channel.fetch_message(msg_id)
         except:
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`. Was the poll deleted?')
         
-        results = {}
+        results: dict[str, int] = {}
         votes = 0
         for reaction in msg.reactions:
             results[str(reaction.emoji)] = reaction.count - 1
             votes += reaction.count - 1
         max_score = 0
-        winner = ''
+        winner: str = ''
         tie = False
         for emoji, score in results.items():
             if score > max_score:
-                max_score = score
+                max_score: int = score
                 winner = emoji
                 tie = False
             elif score == max_score:
@@ -507,14 +529,14 @@ class General(Cog):
                 winner += f' and {emoji}'
         percentage = int((max_score)/max(1,votes)*100)
 
-        embed = msg.embeds[0]
+        embed: discord.Embed = msg.embeds[0]
         if not tie:
             embed.add_field(name='Results', value=f'Option {winner} won with {percentage}% of the votes!')
         else:
             embed.add_field(name='Results', value=f'It\'s a tie! Options {winner} each have {percentage}% of the votes!')
         await msg.edit(embed=embed)
 
-        txt = ''
+        txt: str = ''
         for emoji, score in results.items():
             txt += f'{emoji}: {score}\n'
         if not tie:
@@ -525,5 +547,5 @@ class General(Cog):
         await ctx.send(embed=embed)
 
 
-async def setup(bot: Bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(General(bot))
