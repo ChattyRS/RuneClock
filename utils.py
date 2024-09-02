@@ -1303,3 +1303,5 @@ def get_coins_image(amount: int) -> discord.File:
         coins_image = io.BytesIO(f.read())
     coins_image = discord.File(coins_image, filename='coins.png')
     return coins_image
+
+months: list[str] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

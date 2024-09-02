@@ -1,31 +1,31 @@
 import asyncio
+from typing import Sequence
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from main import Bot, get_config, Guild, Role
+from sqlalchemy import select
+from main import Bot
+from database import Guild, Role
 from datetime import datetime, UTC
-
-config = get_config()
-
-months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+from utils import months
 
 class Logs(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
-    def log_event(self):
+    def log_event(self) -> None:
         self.bot.events_logged += 1
 
     @Cog.listener()
-    async def on_command_error(self, ctx: commands.Context, error):
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
         if len(str(error).split('\"')) == 3:
             if str(error).split('\"')[0] == "Command " and str(error).split('\"')[2] == " is not found":
                 return
         try:
-            username = config['pc_username']
-            error = str(error).replace(username, 'user')
-            error = discord.utils.escape_mentions(error)
-            msg = await ctx.send(error)
+            username: str = self.bot.config['pc_username']
+            error_str: str = str(error).replace(username, 'user')
+            error_str = discord.utils.escape_mentions(text=error_str)
+            msg: discord.Message = await ctx.send(error_str)
             await asyncio.sleep(10)
             await ctx.message.delete()
             await msg.delete()
@@ -33,31 +33,28 @@ class Logs(Cog):
             pass
 
     @Cog.listener()
-    async def on_member_join(self, member):
-        try:
-            guild = await Guild.get(member.guild.id)
-        except:
-            return
+    async def on_member_join(self, member: discord.Member) -> None:
+        guild: Guild = await self.bot.get_db_guild(member.guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = member.guild.get_channel(guild.log_channel_id)
+        if guild and guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(member.guild, guild.log_channel_id)
         if not channel:
             return
         self.log_event()
-        title = f'**Member Joined**'
+        title: str = f'**Member Joined**'
         colour = 0x00e400
-        timestamp = datetime.now(UTC)
+        timestamp: datetime = datetime.now(UTC)
         id = f'User ID: {member.id}'
-        creation_time = member.created_at
-        min = creation_time.minute
+        creation_time: datetime = member.created_at
+        min: int | str = creation_time.minute
         if len(str(min)) == 1:
             min = '0' + str(min)
-        hour = creation_time.hour
-        time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {hour}:{min}'
-        txt = (f'{member.mention} ({member.name})\n'
-               f'Account creation: {time}')
-        url = member.display_avatar.url
+        hour: int = creation_time.hour
+        time: str = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {hour}:{min}'
+        txt: str = (f'{member.mention} ({member.name})\n'
+            f'Account creation: {time}')
+        url: str = member.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -67,31 +64,27 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_member_remove(self, member):
-        try:
-            guild = await Guild.get(member.guild.id)
-        except:
-            return
+    async def on_member_remove(self, member: discord.Member) -> None:
+        guild: Guild = await self.bot.get_db_guild(member.guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = member.guild.get_channel(guild.log_channel_id)
+        if guild and guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(member.guild, guild.log_channel_id)
         if not channel:
             return
         try:
-            banlist = [ban_entry.user async for ban_entry in member.guild.bans()]
-            for user in banlist:
-                if user == member:
-                    return
+            banlist: list[discord.User] = [ban_entry.user async for ban_entry in member.guild.bans()]
+            if member._user in banlist:
+                return
         except discord.Forbidden:
             pass
         self.log_event()
-        title = f'**Member Left**'
+        title: str = f'**Member Left**'
         colour = 0xff0000
-        timestamp = datetime.now(UTC)
-        id = f'User ID: {member.id}'
-        txt = f'{member.mention} ({member.name})'
-        url = member.display_avatar.url
+        timestamp: datetime = datetime.now(UTC)
+        id: str = f'User ID: {member.id}'
+        txt: str = f'{member.mention} ({member.name})'
+        url: str = member.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -101,24 +94,22 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_member_ban(self, guild, user):
-        try:
-            g = await Guild.get(guild.id)
-        except:
-            return
+    async def on_member_ban(self, guild: discord.Guild, user: discord.User) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(guild)
+
         channel = None
-        if g:
-            if g.log_channel_id:
-                channel = guild.get_channel(g.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(guild, db_guild.log_channel_id)
         if not channel:
             return
+        
         self.log_event()
-        title = f'**Member Banned**'
+        title: str = f'**Member Banned**'
         colour = 0xff0000
-        timestamp = datetime.now(UTC)
-        id = f'User ID: {user.id}'
-        txt = f'{user.mention} ({user.name})'
-        url = user.display_avatar.url
+        timestamp: datetime = datetime.now(UTC)
+        id: str = f'User ID: {user.id}'
+        txt: str = f'{user.mention} ({user.name})'
+        url: str = user.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -128,24 +119,22 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_member_unban(self, guild, user):
-        try:
-            g = await Guild.get(guild.id)
-        except:
-            return
+    async def on_member_unban(self, guild: discord.Guild, user: discord.User) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(guild)
+
         channel = None
-        if g:
-            if g.log_channel_id:
-                channel = guild.get_channel(g.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(guild, db_guild.log_channel_id)
         if not channel:
             return
+        
         self.log_event()
-        title = f'**Member Unbanned**'
+        title: str = f'**Member Unbanned**'
         colour = 0xff7b1f
-        timestamp = datetime.now(UTC)
-        id = f'User ID: {user.id}'
-        txt = f'{user.name}'
-        url = user.display_avatar.url
+        timestamp: datetime = datetime.now(UTC)
+        id: str = f'User ID: {user.id}'
+        txt: str = f'{user.name}'
+        url: str = user.display_avatar.url
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
@@ -155,18 +144,18 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_message_delete(self, message):
-        try:
-            guild = await Guild.get(message.guild.id)
-        except:
-            return
+    async def on_message_delete(self, message: discord.Message) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(message.guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = message.guild.get_channel(guild.log_channel_id)
+        if not message.guild or not isinstance(message.channel, discord.TextChannel):
+            return
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(message.guild, db_guild.log_channel_id)
         if not channel:
             return
-        if guild.log_bots == False and message.author.bot:
+        
+        if db_guild.log_bots == False and message.author.bot:
             return
         self.log_event()
         
@@ -188,20 +177,20 @@ class Logs(Cog):
             return
     
     @Cog.listener()
-    async def on_bulk_message_delete(self, messages):
-        try:
-            guild = await Guild.get(messages[0].guild.id)
-        except:
-            return
+    async def on_bulk_message_delete(self, messages: list[discord.Message]) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(messages[0].guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = messages[0].guild.get_channel(guild.log_channel_id)
+        if not messages[0].guild or not isinstance(messages[0].channel, discord.TextChannel):
+            return
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(messages[0].guild, db_guild.log_channel_id)
         if not channel:
             return
+        
         self.log_event()
 
-        txt = f'{len(messages)} messages deleted in {messages[0].channel.mention}'
+        txt: str = f'{len(messages)} messages deleted in {messages[0].channel.mention}'
         embed = discord.Embed(title='**Bulk delete**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
 
         try:
@@ -210,36 +199,36 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_message_edit(self, before, after):
-        try:
-            guild = await Guild.get(after.guild.id)
-        except:
-            return
+    async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(before.guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = after.guild.get_channel(guild.log_channel_id)
+        if not before.guild or not isinstance(after.channel, discord.TextChannel):
+            return
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before.guild, db_guild.log_channel_id)
         if not channel:
             return
-        if guild.log_bots == False and after.author.bot:
+        
+        if db_guild.log_bots == False and after.author.bot:
             return
 
-        member = after.author
+        member: discord.Member | discord.User = after.author
         if member.bot or before.embeds or after.embeds: # don't log edits for bots or embeds
             return
         if after.content != before.content:
             self.log_event()
-            title = f'**Message Edited**'
+            title: str = f'**Message Edited**'
             colour = 0x00b2ff
-            timestamp = datetime.now(UTC)
-            id = f'Message ID: {after.id}'
-            txt = (f'By: {member.mention} ({member.name})\n'
+            timestamp: datetime = datetime.now(UTC)
+            id: str = f'Message ID: {after.id}'
+            txt: str = (f'By: {member.mention} ({member.name})\n'
                    f'In: {after.channel.mention}')
-            url = member.display_avatar.url
-            beforeContent = before.content
+            url: str = member.display_avatar.url
+            beforeContent: str = before.content
             if not beforeContent:
                 beforeContent = 'N/A'
-            afterContent = after.content
+            afterContent: str = after.content
             if not afterContent:
                 afterContent = 'N/A'
             if len(beforeContent) > 1000:
@@ -257,55 +246,24 @@ class Logs(Cog):
                 return
 
     @Cog.listener()
-    async def on_guild_channel_delete(self, channel):
-        if channel.guild is None:
-            return
-        try:
-            guild = await Guild.get(channel.guild.id)
-        except:
-            return
-        logChannel = None
-        if guild:
-            if guild.log_channel_id:
-                logChannel = channel.guild.get_channel(guild.log_channel_id)
-        if not logChannel:
-            return
-        self.log_event()
-        title = f'**Channel Deleted**'
-        colour = 0xff0000
-        timestamp = datetime.now(UTC)
-        id = f'Channel ID: {channel.id}'
-        creation_time = channel.created_at
-        time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{creation_time.minute}'
-        txt = (f'**{channel.name}** was deleted\n'
-               f'Channel creation: {time}.')
-        embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
-        embed.set_footer(text=id)
-        try:
-            await logChannel.send(embed=embed)
-        except discord.Forbidden:
-            return
+    async def on_guild_channel_delete(self, channel: discord.guild.GuildChannel) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(channel.guild)
 
-    @Cog.listener()
-    async def on_guild_channel_create(self, channel):
-        if channel.guild is None:
-            return
-        try:
-            guild = await Guild.get(channel.guild.id)
-        except:
-            return
         log_channel = None
-        if guild:
-            if guild.log_channel_id:
-                log_channel = channel.guild.get_channel(guild.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            log_channel: discord.TextChannel | None = self.bot.find_guild_text_channel(channel.guild, db_guild.log_channel_id)
         if not log_channel:
             return
+        
         self.log_event()
-        title = f'**Channel Created**'
-        colour = 0x00e400
-        timestamp = datetime.now(UTC)
-        id = f'Channel ID: {channel.id}'
-        txt = f'{channel.mention}'
+        title: str = f'**Channel Deleted**'
+        colour = 0xff0000
+        timestamp: datetime = datetime.now(UTC)
+        id: str = f'Channel ID: {channel.id}'
+        creation_time: datetime = channel.created_at
+        time: str = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{creation_time.minute}'
+        txt: str = (f'**{channel.name}** was deleted\n'
+               f'Channel creation: {time}.')
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         try:
@@ -314,31 +272,51 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_member_update(self, before, after):
-        try:
-            guild = await Guild.get(after.guild.id)
-        except:
+    async def on_guild_channel_create(self, channel: discord.guild.GuildChannel) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(channel.guild)
+
+        log_channel = None
+        if db_guild and db_guild.log_channel_id:
+            log_channel: discord.TextChannel | None = self.bot.find_guild_text_channel(channel.guild, db_guild.log_channel_id)
+        if not log_channel:
             return
+        
+        self.log_event()
+        title: str = f'**Channel Created**'
+        colour = 0x00e400
+        timestamp: datetime = datetime.now(UTC)
+        id: str = f'Channel ID: {channel.id}'
+        txt: str = f'{channel.mention}'
+        embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
+        embed.set_footer(text=id)
+        try:
+            await log_channel.send(embed=embed)
+        except discord.Forbidden:
+            return
+
+    @Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(before.guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = after.guild.get_channel(guild.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before.guild, db_guild.log_channel_id)
         if not channel:
             return
 
         if before.nick != after.nick:
             self.log_event()
-            title = f'**Nickname Changed**'
+            title: str = f'**Nickname Changed**'
             colour = 0x00b2ff
-            timestamp = datetime.now(UTC)
-            id = f'User ID: {after.id}'
-            txt = f'{after.mention} ({after.name})'
-            url = after.display_avatar.url
+            timestamp: datetime = datetime.now(UTC)
+            id: str = f'User ID: {after.id}'
+            txt: str = f'{after.mention} ({after.name})'
+            url: str = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
-            before_nick = before.nick
+            before_nick: str | None = before.nick
             if not before_nick:
                 before_nick = 'N/A'
-            after_nick = after.nick
+            after_nick: str | None = after.nick
             if not after_nick:
                 after_nick = 'N/A'
             embed.add_field(name='Before', value=before_nick, inline=False)
@@ -352,8 +330,8 @@ class Logs(Cog):
                 return
         elif set(before.roles) != set(after.roles):
             self.log_event()
-            added_roles = []
-            removed_roles = []
+            added_roles: list[discord.Role] = []
+            removed_roles: list[discord.Role] = []
             for r in before.roles:
                 if not r in after.roles:
                     removed_roles.append(r)
@@ -367,7 +345,7 @@ class Logs(Cog):
             txt = f'{after.mention} ({after.name})'
             url = after.display_avatar.url
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
-            added = ""
+            added: str = ""
             if added_roles:
                 count = 0
                 for role in added_roles:
@@ -376,7 +354,7 @@ class Logs(Cog):
                     if count < len(added_roles):
                         added += ", "
                 embed.add_field(name='Added', value=added, inline=False)
-            removed = ""
+            removed: str = ""
             if removed_roles:
                 count = 0
                 for role in removed_roles:
@@ -393,31 +371,29 @@ class Logs(Cog):
                 return
 
     @Cog.listener()
-    async def on_guild_update(self, before, after):
-        try:
-            guild = await Guild.get(after.id)
-        except:
-            return
+    async def on_guild_update(self, before: discord.Guild, after: discord.Guild) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(before)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = after.get_channel(guild.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before, db_guild.log_channel_id)
         if not channel:
             return
+        
         if before.name != after.name:
             self.log_event()
-            owner = after.owner
-            title = f'**Server Name Changed**'
+            owner: discord.Member | None = after.owner
+            title: str = f'**Server Name Changed**'
             colour = 0x00b2ff
-            timestamp = datetime.now(UTC)
-            id = f'Server ID: {after.id}'
-            txt = f'Owner: {owner.mention} ({owner.name})'
-            url = after.icon.url
+            timestamp: datetime = datetime.now(UTC)
+            id: str = f'Server ID: {after.id}'
+            txt: str | None = f'Owner: {owner.mention} ({owner.name})' if owner else None
+            url: str | None = after.icon.url if after.icon else None
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
-            before_name = before.name
+            before_name: str = before.name
             if not before_name:
                 before_name = 'N/A'
-            after_name = after.name
+            after_name: str = after.name
             if not after_name:
                 after_name = 'N/A'
             embed.add_field(name='Before', value=before_name, inline=False)
@@ -430,57 +406,49 @@ class Logs(Cog):
                 return
 
     @Cog.listener()
-    async def on_guild_role_create(self, role):
-        try:
-            guild = await Guild.get(role.guild.id)
-        except:
-            return
+    async def on_guild_role_create(self, role: discord.Role) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(role.guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = role.guild.get_channel(guild.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(role.guild, db_guild.log_channel_id)
         if not channel:
             return
+        
         self.log_event()
-        title = f'**Role Created**'
+        title: str = f'**Role Created**'
         colour = 0x00e400
-        timestamp = datetime.now(UTC)
-        id = f'Role ID: {role.id}'
-        txt = f'{role.mention}'
+        timestamp: datetime = datetime.now(UTC)
+        id: str = f'Role ID: {role.id}'
+        txt: str = f'{role.mention}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         try:
             await channel.send(embed=embed)
         except discord.Forbidden:
             return
-        '''
-        TODO: state role permissions
-        '''
 
     @Cog.listener()
-    async def on_guild_role_delete(self, role):
-        try:
-            db_role = await Role.query.where(Role.guild_id==role.guild.id).where(Role.role_id==role.id).gino.first()
-        except:
-            return
-        if db_role:
-            await db_role.delete()
-        try:
-            guild = await Guild.get(role.guild.id)
-        except:
-            return
+    async def on_guild_role_delete(self, role: discord.Role) -> None:
+        async with self.bot.async_session() as session:
+            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == role.guild.id).where(Role.role_id == role.id))).scalar_one_or_none()
+            if db_role:
+                await session.delete(db_role)
+            db_guild: Guild = await self.bot.get_db_guild(role.guild, session)
+            await session.commit()
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = role.guild.get_channel(guild.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(role.guild, db_guild.log_channel_id)
         if not channel:
             return
+
         self.log_event()
-        title = f'**Role Deleted**'
+        title: str = f'**Role Deleted**'
         colour = 0xff0000
-        timestamp = datetime.now(UTC)
-        id = f'Role ID: {role.id}'
-        txt = f'{role.name}'
+        timestamp: datetime = datetime.now(UTC)
+        id: str = f'Role ID: {role.id}'
+        txt: str = f'{role.name}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         try:
@@ -489,24 +457,22 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_guild_role_update(self, before, after):
-        try:
-            guild = await Guild.get(after.guild.id)
-        except:
-            return
+    async def on_guild_role_update(self, before: discord.Role, after: discord.Role) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(before.guild)
+
         channel = None
-        if guild:
-            if guild.log_channel_id:
-                channel = after.guild.get_channel(guild.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before.guild, db_guild.log_channel_id)
         if not channel:
             return
+        
         if before.name != after.name:
             self.log_event()
-            title = f'**Role Name Changed**'
+            title: str = f'**Role Name Changed**'
             colour = 0x00b2ff
-            timestamp = datetime.now(UTC)
-            id = f'Role ID: {after.id}'
-            txt = f'Role: {after.mention}'
+            timestamp: datetime = datetime.now(UTC)
+            id: str = f'Role ID: {after.id}'
+            txt: str = f'Role: {after.mention}'
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             embed.add_field(name='Before', value=before.name, inline=False)
             embed.add_field(name='After', value=after.name, inline=False)
@@ -515,34 +481,28 @@ class Logs(Cog):
                 await channel.send(embed=embed)
             except discord.Forbidden:
                 return
-        '''
-        TODO: handle permission updates
-        '''
 
     @Cog.listener()
-    async def on_guild_emojis_update(self, guild, before, after):
-        try:
-            g = await Guild.get(guild.id)
-        except:
-            return
+    async def on_guild_emojis_update(self, guild: discord.Guild, before: Sequence[discord.Emoji], after: Sequence[discord.Emoji]) -> None:
+        db_guild: Guild = await self.bot.get_db_guild(guild)
+
         channel = None
-        if g:
-            if g.log_channel_id:
-                channel = guild.get_channel(g.log_channel_id)
+        if db_guild and db_guild.log_channel_id:
+            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(guild, db_guild.log_channel_id)
         if not channel:
             return
 
         if len(before) != len(after):
             self.log_event()
             added = False
-            new_emoji = None
+            new_emoji: discord.Emoji
             animated = False
             if len(before) > len(after):
-                title = f'Emoji Deleted'
+                title: str = f'Emoji Deleted'
                 for e in before:
                     if not e in after:
-                        name = e.name
-                        animated = e.animated
+                        name: str = e.name
+                        animated: bool = e.animated
                         break
                 if animated:
                     title = f'Animated Emoji Deleted'
@@ -559,13 +519,13 @@ class Logs(Cog):
                 if animated:
                     title = 'Animated Emoji Added'
                 colour = 0x00e400
-            timestamp = datetime.now(UTC)
-            id = f'Server ID: {guild.id}'
-            txt = ''
+            timestamp: datetime = datetime.now(UTC)
+            id: str = f'Server ID: {guild.id}'
+            txt: str = ''
             if added:
                 try:
-                    new_emoji_fetched = await guild.fetch_emoji(new_emoji.id)
-                    txt = f'Added by {new_emoji_fetched.user.mention}:\n'
+                    new_emoji_fetched: discord.Emoji = await guild.fetch_emoji(new_emoji.id)
+                    txt = f'Added by {new_emoji_fetched.user.mention}:\n' if new_emoji_fetched.user else ''
                 except:
                     pass
                 txt += f'{new_emoji} `{name}`\n'
@@ -590,14 +550,14 @@ class Logs(Cog):
                 return
             except discord.Forbidden:
                 return
-        before_names = []
+        before_names: list[str] = []
         for e in before:
             before_names.append(e.name)
-        after_names = []
+        after_names: list[str] = []
         for e in after:
             after_names.append(e.name)
-        old_name = ''
-        new_name = ''
+        old_name: str = ''
+        new_name: str = ''
         for name in before_names:
             if not name in after_names:
                 old_name = name
@@ -606,7 +566,7 @@ class Logs(Cog):
                 new_name = name
                 for e in after:
                     if e.name == name:
-                        afterEmoji = e
+                        afterEmoji: discord.Emoji = e
                         break
         if old_name and new_name:
             self.log_event()
@@ -622,5 +582,5 @@ class Logs(Cog):
             except discord.Forbidden:
                 return
 
-async def setup(bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Logs(bot))
