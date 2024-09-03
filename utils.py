@@ -2,16 +2,16 @@ import asyncio
 import codecs
 import json
 import re
-from typing import Coroutine, Any
-from numpy import number
+from typing import Coroutine, Any, Sequence
 from oauth2client.service_account import ServiceAccountCredentials
 from discord.ext import commands
 import math
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 import discord
 import imageio
 from imageio.core.util import Array
 import io
+from database import Uptime
 
 # convert float to string without scientific notation
 # https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
@@ -34,136 +34,6 @@ def get_config() -> dict[str, Any]:
 config: dict[str, Any] = get_config()
 
 max_cash = 2147483647
-
-'''
-Check functions used for commands
-'''
-def is_owner():
-    async def predicate(ctx: commands.Context) -> bool:
-        if ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Owner`')
-    return commands.check(predicate)
-
-def is_admin():
-    async def predicate(ctx: commands.Context) -> bool:
-        try:
-            portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
-            if portables:
-                member: discord.Member | None = await portables.fetch_member(ctx.author.id)
-                if member:
-                    admin_role: discord.Role | None = portables.get_role(config['adminRole'])
-                    if admin_role in member.roles:
-                        return True
-        except:
-            pass
-        if (isinstance(ctx.author, discord.Member) and ctx.author.guild_permissions.administrator) or (ctx.guild and ctx.guild.owner and ctx.author.id == ctx.guild.owner.id) or ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Admin`')
-    return commands.check(predicate)
-
-def portables_leader():
-    async def predicate(ctx: commands.Context) -> bool:
-        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
-        if portables:
-            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
-            if member:
-                leader_role: discord.Role | None = portables.get_role(config['leaderRole'])
-                if leader_role in member.roles:
-                    return True
-        if ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Portables leader`')
-    return commands.check(predicate)
-
-def portables_admin():
-    async def predicate(ctx: commands.Context) -> bool:
-        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
-        if portables:
-            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
-            if member:
-                admin_role: discord.Role | None = portables.get_role(config['adminRole'])
-                if admin_role in member.roles:
-                    return True
-        if ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Portables admin`')
-    return commands.check(predicate)
-
-def is_mod():
-    async def predicate(ctx: commands.Context) -> bool:
-        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
-        if portables:
-            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
-            if member:
-                mod_role: discord.Role | None = portables.get_role(config['modRole'])
-                if mod_role in member.roles:
-                    return True
-        if ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Portables moderator`')
-    return commands.check(predicate)
-
-def is_rank():
-    async def predicate(ctx: commands.Context) -> bool:
-        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
-        if portables:
-            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
-            if member:
-                rank_role: discord.Role | None = portables.get_role(config['rankRole'])
-                if rank_role in member.roles:
-                    return True
-        if ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Portables rank`')
-    return commands.check(predicate)
-
-def is_helper():
-    async def predicate(ctx: commands.Context) -> bool:
-        portables: discord.Guild | None = ctx.bot.get_guild(config['portablesServer'])
-        if portables:
-            member: discord.Member | None = await portables.fetch_member(ctx.author.id)
-            if member:
-                helper_role: discord.Role | None = portables.get_role(config['helperRole'])
-                if helper_role in member.roles:
-                    return True
-        if ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Portables helper`')
-    return commands.check(predicate)
-
-def portables_only():
-    async def predicate(ctx: commands.Context) -> bool:
-        if ctx.guild and ctx.guild.id == config['portablesServer']:
-            return True
-        if ctx.author.id == config['owner']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Portables server only`')
-    return commands.check(predicate)
-
-def obliterate_only():
-    async def predicate(ctx: commands.Context) -> bool:
-        if ctx.author.id == config['owner']:
-            return True
-        if ctx.guild and ctx.guild.id == config['obliterate_guild_id']:
-            return True
-        raise commands.CommandError(message='Insufficient permissions: `Obliterate server only`')
-    return commands.check(predicate)
-
-def obliterate_mods():
-    async def predicate(ctx: commands.Context) -> bool:
-        if ctx.author.id == config['owner']:
-            return True
-        obliterate: discord.Guild | None = ctx.bot.get_guild(config['obliterate_guild_id'])
-        if obliterate:
-            member: discord.Member | None = await obliterate.fetch_member(ctx.author.id)
-            if member:
-                mod_role: discord.Role | None = obliterate.get_role(config['obliterate_moderator_role_id'])
-                key_role: discord.Role | None = obliterate.get_role(config['obliterate_key_role_id'])
-                if mod_role in member.roles or key_role in member.roles:
-                    return True
-        raise commands.CommandError(message='Insufficient permissions: `Obliterate moderator`')
-    return commands.check(predicate)
 
 def get_coins_image_name(amount: int) -> str:
     amount = abs(amount)
@@ -1305,3 +1175,71 @@ def get_coins_image(amount: int) -> discord.File:
     return coins_image
 
 months: list[str] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+def uptime_fraction(events: Sequence[Uptime], year: int | None = None, month: int | None = None, day: int | None = None) -> float:
+    '''
+    Calculate the fraction of time that the bot was up from a sequence of uptime records.
+
+    Args:
+        events (Sequence[Uptime]): Sequence of uptime sequence
+        year (int, optional): The year during which to measure the uptime (optional). Defaults to None.
+        month (int, optional): The month during which to measure the uptime (optional). Defaults to None.
+        day (int, optional): The day during which to measure the uptime (optional). Defaults to None.
+
+    Returns:
+        float: The fraction of time during which the bot was up in the given time period
+    '''
+    if day and month and year:
+        today: date = date(year, month, day)
+        if not any(event.time.date() == today for event in events):
+            return 0
+        elapsed = timedelta(hours=24)
+        up = timedelta(seconds=0)
+        start_time: datetime = datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+        for i, event in enumerate(events):
+            if event.time.year == year and event.time.month == month and event.time.day == day:
+                if event.status == 'started':
+                    start_time = event.time
+                elif event.status == 'running':
+                    up += event.time - start_time
+            elif event.time > start_time:
+                last_event: Uptime = events[i-1]
+                elapsed: timedelta = last_event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+                break
+            if i == len(events) - 1:
+                elapsed = event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+        return up.total_seconds() / elapsed.total_seconds()
+    elif year and month:
+        start: datetime | None = None
+        end: datetime | None = None
+        for i, event in enumerate(events):
+            if event.time.year == year and event.time.month == month:
+                if not start:
+                    start = event.time
+                end = event.time
+            elif start and end:
+                break
+        percentages: list[float] = []
+        if start and end:
+            for day in range(start.day, end.day+1):
+                percentages.append(uptime_fraction(events, year=year, month=month, day=day))
+        return sum(percentages) / len(percentages)
+    elif year:
+        months: list[int] = []
+        for i, event in enumerate(events):
+            if event.time.year == year:
+                if not event.time.month in months:
+                    months.append(event.time.month)
+        percentages = []
+        for month in months:
+            percentages.append(uptime_fraction(events, year=year, month=month))
+        return sum(percentages) / len(percentages)
+    else:
+        years: list[int] = []
+        for i, event in enumerate(events):
+            if not event.time.year in years:
+                years.append(event.time.year)
+        percentages = []
+        for year in years:
+            percentages.append(uptime_fraction(events, year=year))
+        return sum(percentages) / len(percentages)

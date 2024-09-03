@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import select
-from main import Bot
+from bot import Bot
 from database import Poll
 import random
 from datetime import datetime, timedelta, UTC

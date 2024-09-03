@@ -6,7 +6,7 @@ from discord import SelectOption, TextStyle, app_commands
 from discord.ext.commands import Cog, CommandError
 import random
 import copy
-from main import Bot
+from bot import Bot
 from database import Guild
 import re
 from utils import is_int, wom_skills, wom_bosses, wom_clues, wom_minigames, wom_efficiency, wom_metrics

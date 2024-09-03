@@ -3,9 +3,6 @@ import discord
 from collections import deque
 import logging
 from utils import chunk_coroutines
-import sys
-sys.path.append('../')
-
 
 class QueueMessage:
     channel: discord.TextChannel

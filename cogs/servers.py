@@ -2,7 +2,7 @@ import discord
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, Guild, BannedGuild
+from bot import Bot, Guild, BannedGuild
 from sqlalchemy import select
 
 class Servers(Cog):

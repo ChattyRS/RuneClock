@@ -5,7 +5,7 @@ from discord.ext.commands import Cog
 import sys
 import traceback
 sys.path.append('../')
-from main import Bot, get_config, Guild, CustomRoleReaction
+from bot import Bot, get_config, Guild, CustomRoleReaction
 
 config = get_config()
 

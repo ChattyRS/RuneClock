@@ -3,11 +3,12 @@ import discord
 from discord import SelectOption, app_commands, TextStyle
 from discord.ext.commands import Cog
 from sqlalchemy import select
-from main import Bot
+from bot import Bot
 from database import ClanBankTransaction, Guild
 from datetime import datetime, UTC
 from utils import is_int, max_cash, get_coins_image
 import traceback
+from database_helpers import get_db_guild
 
 class Dropdown(discord.ui.Select):
     def __init__(self, bot: Bot, options: list[SelectOption]) -> None:
@@ -31,7 +32,7 @@ class Dropdown(discord.ui.Select):
             return
         
         async with self.bot.async_session() as session:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild.id, session)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild.id, session)
             guild.bank_role_id = role.id
             await session.commit()
             
@@ -227,7 +228,7 @@ class ClanBank(Cog):
             await interaction.response.send_message(f'This command can only be used in a server', ephemeral=True)
             return
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild)
             bank_role = None
             if guild.bank_role_id:
                 bank_role: discord.Role | None = interaction.guild.get_role(guild.bank_role_id)

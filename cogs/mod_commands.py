@@ -5,7 +5,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
 import sys
 sys.path.append('../')
-from main import Bot, get_config, increment_command_counter, Mute, Guild
+from bot import Bot, get_config, increment_command_counter, Mute, Guild
 from datetime import datetime, timedelta, UTC
 import re
 from utils import is_int, RoleConverter

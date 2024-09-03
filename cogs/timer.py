@@ -4,7 +4,7 @@ from discord.ext.commands import Cog
 import asyncio
 import sys
 sys.path.append('../')
-from main import Bot, increment_command_counter, User
+from bot import Bot, increment_command_counter, User
 from datetime import datetime, timedelta, UTC
 from utils import time_diff_to_string
 import pytz

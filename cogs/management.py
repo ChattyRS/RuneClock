@@ -2,11 +2,9 @@ import asyncio
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
-import os
-import sys
-sys.path.append('../')
-from main import Bot, get_config, increment_command_counter, get_command_counter, Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
-from datetime import datetime, timedelta, date, UTC
+from bot import Bot
+from database import Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
+from datetime import datetime, timedelta, UTC
 import psutil
 from pathlib import Path
 import traceback
@@ -16,98 +14,30 @@ from contextlib import redirect_stdout
 import io
 import itertools
 import utils
-from utils import is_owner, is_admin, portables_admin, portables_only, is_int
-from github import Github
+from checks import is_owner, is_admin, portables_admin, portables_only
+from utils import is_int, uptime_fraction
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 
-# to expose to the eval command
-from collections import Counter
-
-config = get_config()
-
-g = Github(config['github_access_token'])
-
-def restart():
-    print("Restarting script...")
-    os._exit(0)
-
-def reboot():
-    print('Rebooting...')
-    os.system('shutdown -t 0 -r -f')
-
-def uptime_fraction(events, year=0, month=0, day=0):
-    if day and month and year:
-        today = date(year, month, day)
-        if not any(event.time.date() == today for event in events):
-            return 0
-        elapsed = timedelta(hours=24)
-        up = timedelta(seconds=0)
-        start_time = datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
-        for i, event in enumerate(events):
-            if event.time.year == year and event.time.month == month and event.time.day == day:
-                if event.status == 'started':
-                    start_time = event.time
-                elif event.status == 'running':
-                    up += event.time - start_time
-            elif event.time > start_time:
-                last_event = events[i-1]
-                elapsed = last_event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
-                break
-            if i == len(events) - 1:
-                elapsed = event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
-        return up.total_seconds() / elapsed.total_seconds()
-    elif year and month:
-        start, end = None, None
-        for i, event in enumerate(events):
-            if event.time.year == year and event.time.month == month:
-                if not start:
-                    start = event.time
-                end = event.time
-            elif start and end:
-                break
-        percentages = []
-        for day in range(start.day, end.day+1):
-            percentages.append(uptime_fraction(events, year=year, month=month, day=day))
-        return sum(percentages) / len(percentages)
-    elif year:
-        months = []
-        for i, event in enumerate(events):
-            if event.time.year == year:
-                if not event.time.month in months:
-                    months.append(event.time.month)
-        percentages = []
-        for month in months:
-            percentages.append(uptime_fraction(events, year=year, month=month))
-        return sum(percentages) / len(percentages)
-    else:
-        years = []
-        for i, event in enumerate(events):
-            if not event.time.year in years:
-                years.append(event.time.year)
-        percentages = []
-        for year in years:
-            percentages.append(uptime_fraction(events, year=year))
-        return sum(percentages) / len(percentages)
-
-
 class Management(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
-        self._last_result = None
-        self.sessions = set()
-        commands.AutoShardedBot.remove_command(self.bot, 'help')
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
+        self.repl_session_channel_ids: set[int] = set()
+
+        # Remove the default help command, as it will be replaced by a customized help command in this cog
+        bot.remove_command('help')
+
         self.uptime_tracking.start()
         
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         self.uptime_tracking.cancel()
 
     @tasks.loop(seconds=60)
-    async def uptime_tracking(self):
-        now = datetime.now(UTC).replace(microsecond=0)
-        today = now.replace(hour=0, minute=0, second=0)
+    async def uptime_tracking(self) -> None:
+        now: datetime = datetime.now(UTC).replace(microsecond=0)
+        today: datetime = now.replace(hour=0, minute=0, second=0)
         
         latest_event_today = await Uptime.query.where(Uptime.time >= today).order_by(Uptime.time.desc()).gino.first()
         if not latest_event_today:
@@ -766,7 +696,6 @@ class Management(Cog):
             'author': ctx.author,
             'guild': ctx.guild,
             'message': ctx.message,
-            '_': self._last_result
         }
 
         env.update(globals())
@@ -803,7 +732,6 @@ class Management(Cog):
                 if value:
                     await ctx.send(f'```py\n{value}\n```')
             else:
-                self._last_result = ret
                 await ctx.send(f'```py\n{value}{ret}\n```')
 
     @commands.command(hidden=True)

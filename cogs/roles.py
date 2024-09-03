@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Cog
-from main import Bot, get_config, increment_command_counter, Guild, Role
+from bot import Bot, get_config, increment_command_counter, Guild, Role
 import sys
 sys.path.append('../')
 import random

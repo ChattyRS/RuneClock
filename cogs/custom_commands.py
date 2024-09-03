@@ -4,11 +4,11 @@ from discord.ext import commands
 from discord.ext.commands import Cog, CommandError, Context
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from main import Bot
+from bot import Bot
 from database import Command
 import re
 import utils
-from utils import is_admin
+from checks import is_admin
 
 class CustomCommands(Cog):
     def __init__(self, bot: Bot) -> None:

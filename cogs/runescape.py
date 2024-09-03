@@ -7,7 +7,7 @@ import sys
 
 from imageio.core.util import Array
 sys.path.append('../')
-from main import Bot, get_config, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
+from bot import Bot, get_config, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
 import re
 from datetime import datetime, timedelta, UTC
 import praw

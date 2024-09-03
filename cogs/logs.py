@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import select
-from main import Bot
+from bot import Bot
 from database import Guild, Role
 from datetime import datetime, UTC
 from utils import months

@@ -5,7 +5,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, get_config, increment_command_counter
+from bot import Bot, get_config, increment_command_counter
 import math
 import re
 import cmath

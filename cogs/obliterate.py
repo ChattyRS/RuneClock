@@ -6,7 +6,7 @@ from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import sys
 sys.path.append('../')
-from main import Bot, get_config, Guild, increment_command_counter
+from bot import Bot, get_config, Guild, increment_command_counter
 from datetime import datetime, timedelta, UTC
 import re
 import gspread
@@ -435,14 +435,14 @@ class AccountInfoModal(discord.ui.Modal, title='Account information'):
         traceback.print_tb(error.__traceback__)
 
 class Obliterate(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
-        self.track_discord_levels.start()
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         self.track_discord_levels.cancel()
     
-    def cog_load(self):
+    def cog_load(self) -> None:
+        self.track_discord_levels.start()
         # Register persistent views
         self.bot.add_view(ApplicationView(self.bot))
         self.bot.add_view(OpenPersonalInfoView(self.bot))
