@@ -9,13 +9,13 @@ from database import Poll
 import random
 from datetime import datetime, timedelta, UTC
 from operator import attrgetter
-from utils import is_int
+from number_utils import is_int
 import validators
+from date_utils import months
+from discord_utils import get_guild_text_channel
 
 rps: list[str] = ['Rock', 'Paper', 'Scissors']
 rps_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
-
-months: list[str] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 num_emoji: list[str] = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
@@ -506,7 +506,7 @@ class General(Cog):
             await session.commit()
 
         try: 
-            channel: discord.TextChannel = self.bot.get_guild_text_channel(ctx.guild, poll.channel_id)
+            channel: discord.TextChannel = get_guild_text_channel(ctx.guild, poll.channel_id)
             msg: discord.Message = await channel.fetch_message(msg_id)
         except:
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`. Was the poll deleted?')

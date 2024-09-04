@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import Bot
 from database import Command
 import re
-import utils
 from checks import is_admin
+from number_utils import is_int
 
 class CustomCommands(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -187,7 +187,7 @@ class CustomCommands(Cog):
                 if '+' in number:
                     plus = True
                     number = number.replace('+', '')
-                if not utils.is_int(number):
+                if not is_int(number):
                     continue
                 number = int(number)
                 if not plus:

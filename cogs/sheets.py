@@ -12,6 +12,7 @@ import copy
 import gspread
 from utils import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 import logging
+from runescape_utils import get_rsn
 
 config = get_config()
 
@@ -655,7 +656,7 @@ class Sheets(Cog):
         rank_role = discord.utils.get(portables.roles, id=config['rankRole'])
         if rank_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
-            name = utils.get_user_name(member) # and get the name of the user
+            name = get_rsn(member) # and get the name of the user
 
         await update_sheet(self.bot.agcm, 0, "", timestamp, name, is_rank) # update the sheet
 
@@ -1012,97 +1013,6 @@ class Sheets(Cog):
 
         await ctx.send(f'**{name}**\'s status has been set to active.')
 
-    @commands.command(pass_context=True, hidden=True)
-    @portables_admin()
-    async def addalt(self, ctx: commands.Context, name="", member=""):
-        '''
-        Adds a rank alt to the sheets (Admin+) (Portables only).
-        Arguments: name, member.
-        Member can be either a name or a mention.
-        Surround names containing spaces with quotation marks, e.g.: "name with spaces".
-        Constraints: name must be a valid RSN, member must be a rank.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        if not name:
-            raise commands.CommandError(message=f'Required argument missing: `name`.')
-        if not member:
-            raise commands.CommandError(message=f'Required argument missing: `member`.')
-        rank_role = discord.utils.get(ctx.guild.roles, id=config['rankRole'])
-        if ctx.message.mentions:
-            member = ctx.message.mentions[0]
-        else:
-            pattern = re.compile('[\W_]+')
-            member_name = pattern.sub('', member).upper()
-            member = discord.utils.find(lambda m: utils.is_name(member_name, m) and m.top_role >= rank_role, ctx.guild.members)
-            if not member:
-                raise commands.CommandError(message=f'Could not find rank: `{member_name}`.')
-        member_name = member.display_name
-        member_name = re.sub('[^A-z0-9 -]', '', member_name).replace('`', '').strip()
-        type = ''
-        mod_role = discord.utils.get(ctx.guild.roles, id=config['modRole'])
-        admin_role = discord.utils.get(ctx.guild.roles, id=config['adminRole'])
-        leader_role = discord.utils.get(ctx.guild.roles, id=config['leaderRole'])
-        if member.top_role >= admin_role:
-            type = 'Admin+ alt'
-        elif member.top_role >= mod_role:
-            type = 'Moderator alt'
-        else:
-            type = 'Rank alt'
-        if len(name) > 12:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(config['sheetName'])
-        sheet = await ss.worksheet('Smileys')
-
-        header_rows = 4
-        smileys = await sheet.col_values(1)
-        smileys = smileys[header_rows:]
-        types = await sheet.col_values(2)
-        types = types[header_rows:]
-
-        current_smileys = []
-        for i, smiley in enumerate(smileys):
-            if not smiley:
-                current_smileys = smileys[:i]
-                types = types[:i]
-                break
-        for smiley in current_smileys:
-            if name.upper() == smiley.upper():
-                raise commands.CommandError(message=f'Error: `{name}` is already on the smiley list.')
-        row = 0
-        if 'Rank' in type:
-            for i, t in enumerate(types):
-                if not 'ALT' in t.upper():
-                    row = i + header_rows + 1
-                    break
-        elif 'Mod' in type:
-            for i, t in enumerate(types):
-                if not 'ADMIN' in t.upper() and not 'MODERATOR' in t.upper():
-                    row = i + header_rows + 1
-                    break
-        elif 'Admin' in type:
-            for i, t in enumerate(types):
-                if not 'ADMIN' in t.upper():
-                    row = i + header_rows + 1
-                    break
-        if not row:
-            raise commands.CommandError(message=f'Unexpected error: Could not find row in spreadsheet.')
-        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
-        end_time = ''
-        values = [name, type, f'{member_name} alt', '', '', '', '', '', '', '', '', '', '', 'Pending', timestamp, end_time]
-
-        await sheet.insert_row(values, row)
-
-        await ctx.send(f'**{member_name}**\'s alt, **{name}**, has been added to the smileys sheet.')
-        if ctx.author.top_role < leader_role:
-            admin_channel = self.bot.get_channel(config['adminChannel'])
-            await admin_channel.send(f'**{member_name}**\'s alt, **{name}**, has been added to the smileys sheet with status **Pending**.')
-
     @commands.command(pass_context=True, aliases=['a'], ignore_extra=True)
     @portables_only()
     async def add(self, ctx: commands.Context):
@@ -1179,7 +1089,7 @@ class Sheets(Cog):
         helper_role = discord.utils.get(portables.roles, id=config['helperRole'])
         if helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_helper = True # then set isRank to true
-            name = utils.get_user_name(member) # and get the name of the user
+            name = get_rsn(member) # and get the name of the user
 
         await update_sheet(self.bot.agcm, col, new_val, timestamp, name, is_helper) # update the sheet
 
@@ -1268,7 +1178,7 @@ class Sheets(Cog):
         helper_role = discord.utils.get(portables.roles, id=config['helperRole'])
         if helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_helper = True # then set isRank to true
-            name = utils.get_user_name(member) # and get the name of the user
+            name = get_rsn(member) # and get the name of the user
 
         await update_sheet(self.bot.agcm, col, new_val, timestamp, name, is_helper) # update the sheet
 
@@ -1345,7 +1255,7 @@ class Sheets(Cog):
         rank_role = discord.utils.get(portables.roles, id=config['rankRole'])
         if rank_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
-            name = utils.get_user_name(member) # and get the name of the user
+            name = get_rsn(member) # and get the name of the user
 
         await update_sheet_row(self.bot.agcm, new_values, timestamp, name, is_rank)
 
@@ -1396,7 +1306,7 @@ class Sheets(Cog):
         rank_role = discord.utils.get(portables.roles, id=config['rankRole'])
         if rank_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
-            name = utils.get_user_name(member) # and get the name of the user
+            name = get_rsn(member) # and get the name of the user
 
         timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 

@@ -6,9 +6,10 @@ import sys
 sys.path.append('../')
 from bot import Bot, increment_command_counter, User
 from datetime import datetime, timedelta, UTC
-from utils import time_diff_to_string
+from date_utils import timedelta_to_string
 import pytz
-from utils import countries, is_int
+from localization import countries
+from number_utils import is_int
 
 def string_to_timezone(timezone):
     if timezone.upper() == 'USA':
@@ -134,7 +135,7 @@ class Timer(Cog):
         if time < 1 or time > 86400:
             raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
 
-        timeStr = time_diff_to_string(timedelta(seconds=time))
+        timeStr = timedelta_to_string(timedelta(seconds=time))
 
         await ctx.send(f'You have set a timer for **{timeStr}**.')
 

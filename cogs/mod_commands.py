@@ -8,8 +8,9 @@ sys.path.append('../')
 from bot import Bot, get_config, increment_command_counter, Mute, Guild
 from datetime import datetime, timedelta, UTC
 import re
-from utils import is_int, RoleConverter
-from utils import is_admin
+from converters import RoleConverter
+from number_utils import is_int
+from checks import is_admin
 
 config = get_config()
 

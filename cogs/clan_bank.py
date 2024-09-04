@@ -6,9 +6,11 @@ from sqlalchemy import select
 from bot import Bot
 from database import ClanBankTransaction, Guild
 from datetime import datetime, UTC
-from utils import is_int, max_cash, get_coins_image
+from runescape_utils import max_cash
+from graphics import get_coins_image
 import traceback
-from database_helpers import get_db_guild
+from database_utils import get_db_guild
+from number_utils import is_int
 
 class Dropdown(discord.ui.Select):
     def __init__(self, bot: Bot, options: list[SelectOption]) -> None:

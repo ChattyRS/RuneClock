@@ -17,14 +17,15 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 import math
 from bs4 import BeautifulSoup, NavigableString, ResultSet, Tag
-from utils import is_int, is_float, draw_num, xp_to_level, combat_level, draw_outline_osrs, draw_outline_rs3
-from utils import level_to_xp, time_diff_to_string, osrs_combat_level
+from number_utils import is_int, is_float, format_float
+from runescape_utils import xp_to_level, level_to_xp, combat_level, osrs_combat_level
+from graphics import draw_num, draw_outline_osrs, draw_outline_rs3
+from date_utils import timedelta_to_string
 import io
 import imageio
 import copy
 import numpy as np
 import random
-from utils import float_to_formatted_string
 
 config: dict[str, Any] = get_config()
 
@@ -94,11 +95,11 @@ def get_rotation(t: datetime, rotation_count: int, interval_days: int, offset_da
 
 def araxxor(t) -> tuple[str, str]:
     rotation, next = get_rotation(t, 3, 4, 9)
-    return (['Path 1 (Minions)', 'Path 2 (Acid)', 'Path 3 (Darkness)'][rotation], time_diff_to_string(next))
+    return (['Path 1 (Minions)', 'Path 2 (Acid)', 'Path 3 (Darkness)'][rotation], timedelta_to_string(next))
 
 def vorago(t) -> tuple[str, str]:
     rotation, next = get_rotation(t, 6, 7, 6)
-    return (['Ceiling collapse', 'Scopulus', 'Vitalis', 'Green bomb', 'Team split', 'The end'][rotation], time_diff_to_string(next))
+    return (['Ceiling collapse', 'Scopulus', 'Vitalis', 'Green bomb', 'Team split', 'The end'][rotation], timedelta_to_string(next))
 
 def rots(t) -> tuple[list[list[str]], str]:
     rotations: list[list[list[str]]] = [
@@ -125,7 +126,7 @@ def rots(t) -> tuple[list[list[str]], str]:
     ]
 
     rotation, next = get_rotation(t, 20, 1, 0)
-    return (rotations[rotation], time_diff_to_string(next))
+    return (rotations[rotation], timedelta_to_string(next))
 
 class Runescape(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -1035,9 +1036,9 @@ class Runescape(Cog):
         skills = []
         for i, (skill_name, skill_data) in enumerate(daily_data['data']['skills'].items()):
             skill = {
-                'xp': float_to_formatted_string(skill_data['experience']['end']), 
-                'today': float_to_formatted_string(skill_data['experience']['gained']), 
-                'week': float_to_formatted_string(weekly_data['data']['skills'][skill_name]['experience']['gained'])
+                'xp': format_float(skill_data['experience']['end']), 
+                'today': format_float(skill_data['experience']['gained']), 
+                'week': format_float(weekly_data['data']['skills'][skill_name]['experience']['gained'])
             }
             skills.append(skill)
 
@@ -1401,9 +1402,9 @@ class Runescape(Cog):
 
         skills = [data['overall']] + data['skills']
         for i, _ in enumerate(skills):
-            skills[i]['xpDelta'] = float_to_formatted_string(skills[i]['xpDelta'])
-            skills[i]['yday'] = float_to_formatted_string(yday_data[i]['xp'])
-            skills[i]['week'] = float_to_formatted_string(week_data[i]['xp'])
+            skills[i]['xpDelta'] = format_float(skills[i]['xpDelta'])
+            skills[i]['yday'] = format_float(yday_data[i]['xp'])
+            skills[i]['week'] = format_float(week_data[i]['xp'])
 
         skill_chars = 14
         today_chars = max(max([len(skill['xpDelta']) for skill in skills]), len('Today'))+1

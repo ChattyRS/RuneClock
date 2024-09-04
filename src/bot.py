@@ -8,7 +8,9 @@ from typing import Any, Sequence
 import discord
 from discord.ext import commands
 from sqlalchemy import delete, select
-from utils import get_config, get_gspread_creds, notification_roles
+from configuration import get_config
+from auth_utils import get_google_sheets_credentials
+from runescape_utils import dnd_names
 import string
 from aiohttp import ClientSession, ClientTimeout
 import gspread_asyncio
@@ -18,8 +20,8 @@ from message_queue import QueueMessage, MessageQueue
 from database import Guild, Role, Mute, Command, Repository, Notification, OnlineNotification, Poll, Uptime, ClanBankTransaction, CustomRoleReaction
 from database import get_db_engine, get_db_session_maker, create_all_database_tables
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-from discord_helpers import find_text_channel, get_text_channel, find_guild_text_channel
-from database_helpers import get_db_guild, find_or_create_db_guild
+from discord_utils import find_text_channel, get_text_channel, find_guild_text_channel
+from database_utils import get_db_guild, find_or_create_db_guild
 
 class Bot(commands.AutoShardedBot):
     bot: commands.AutoShardedBot
@@ -67,7 +69,7 @@ class Bot(commands.AutoShardedBot):
         )
         
         self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
-        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(get_gspread_creds)
+        self.agcm = gspread_asyncio.AsyncioGspreadClientManager(get_google_sheets_credentials)
         self.github = Github(self.config['github_access_token'])
         self.bot = self
 
@@ -127,7 +129,6 @@ class Bot(commands.AutoShardedBot):
 
     async def initialize(self) -> None:
         print(f'Initializing...')
-        config: dict[str, Any] = get_config()
         await asyncio.sleep(10) # Wait to ensure database is running on boot
 
         await self.setup_database()
@@ -145,7 +146,7 @@ class Bot(commands.AutoShardedBot):
         await self.wait_until_ready()
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='@RuneClock help'))
 
-        channel: discord.TextChannel | None = find_text_channel(self, config['testChannel'])
+        channel: discord.TextChannel | None = find_text_channel(self, self.config['testChannel'])
         self.app_info = await self.application_info()
         msg = (f'Logged in to Discord as: {self.user.name if self.user else "???"}\n'
             f'Using Discord.py version: {discord.__version__}\n'
@@ -216,9 +217,7 @@ class Bot(commands.AutoShardedBot):
         '''
         Attempts to load all .py files in /cogs/ as cog extensions
         '''
-        # await self.wait_until_ready()
-        config: dict[str, Any] = get_config()
-        channel: discord.TextChannel | None = find_text_channel(self, config['testChannel'])
+        channel: discord.TextChannel | None = find_text_channel(self, self.config['testChannel'])
         cogs: list[str] = [x.stem for x in Path('cogs').glob('*.py')]
         msg: str = ''
         discord_msg: str = ''
@@ -272,7 +271,6 @@ class Bot(commands.AutoShardedBot):
         '''
         print(f'Initializing role management...')
         logging.info('Initializing role management...')
-        config: dict[str, Any] = get_config()
 
         guilds: Sequence[Guild]
         async with self.async_session() as session:
@@ -289,14 +287,14 @@ class Bot(commands.AutoShardedBot):
             print(msg)
             print('-' * 10)
             logging.critical(msg)
-            logChannel: discord.TextChannel = get_text_channel(self, config['testChannel'])
+            logChannel: discord.TextChannel = get_text_channel(self, self.config['testChannel'])
             self.queue_message(QueueMessage(logChannel, msg))
             return
             
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
         notif_emojis: list[discord.Emoji] = []
-        for r in notification_roles:
-            emoji_id: int = config[f'{r.lower()}EmojiID']
+        for r in dnd_names:
+            emoji_id: int = self.config[f'{r.lower()}EmojiID']
             emoji: discord.Emoji | None = self.get_emoji(emoji_id)
             if emoji:
                 notif_emojis.append(emoji)
@@ -359,7 +357,7 @@ class Bot(commands.AutoShardedBot):
         if guild.role_channel_id == channel.id:
             emoji: discord.PartialEmoji = payload.emoji
             role_name: str = emoji.name
-            if emoji.name in notification_roles:
+            if emoji.name in dnd_names:
                 role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
             elif guild.id == self.config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
                 role = discord.utils.get(channel.guild.roles, name=role_name)
@@ -414,7 +412,7 @@ class Bot(commands.AutoShardedBot):
 
         emoji: discord.PartialEmoji = payload.emoji
         role_name: str = emoji.name
-        if emoji.name in notification_roles:
+        if emoji.name in dnd_names:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
         elif guild.id == self.config['portablesServer'] and emoji.name in ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']:
             role = discord.utils.get(channel.guild.roles, name=role_name)

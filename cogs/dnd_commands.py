@@ -6,7 +6,9 @@ from discord.ext.commands import Cog
 import copy
 from bot import Bot
 from datetime import datetime, timedelta, UTC
-from utils import time_diff_to_string, item_emojis, districts, wilderness_flash_events
+from configuration import item_emojis
+from runescape_utils import prif_districts, wilderness_flash_events
+from date_utils import timedelta_to_string
 import praw
 import math
 from bs4 import BeautifulSoup, NavigableString, Tag
@@ -127,9 +129,9 @@ class DNDCommands(Cog):
                         vos.append(data_point['district1'])
                         vos.append(data_point['district2'])
                     
-                    next_vos: list[str] = copy.deepcopy(districts)
+                    next_vos: list[str] = copy.deepcopy(prif_districts)
                     indices: list[int] = []
-                    for i, d in enumerate(districts):
+                    for i, d in enumerate(prif_districts):
                         if d in vos:
                             indices.append(i)
                     indices.sort(reverse=True)
@@ -249,16 +251,16 @@ class DNDCommands(Cog):
 
         msg = (
             f'Future:\n'
-            f'{self.bot.config["warbandsEmoji"]} **Wilderness warbands** will begin in {time_diff_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["vosEmoji"]} **Voice of Seren** will change in {time_diff_to_string((self.bot.next_vos if self.bot.next_vos else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["cacheEmoji"]} **Guthixian caches** will begin in {time_diff_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {time_diff_to_string((self.bot.next_yews48 if self.bot.next_yews48 else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {time_diff_to_string((self.bot.next_yews140 if self.bot.next_yews140 else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["goebiesEmoji"]} **Goebies supply run** will begin in {time_diff_to_string((self.bot.next_goebies if self.bot.next_goebies else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["sinkholeEmoji"]} **Sinkhole** will spawn in {time_diff_to_string((self.bot.next_sinkhole if self.bot.next_sinkhole else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["merchantEmoji"]} **Travelling merchant** stock will refresh in {time_diff_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["spotlightEmoji"]} **Minigame spotlight** will change in {time_diff_to_string((self.bot.next_spotlight if self.bot.next_spotlight else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {time_diff_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["warbandsEmoji"]} **Wilderness warbands** will begin in {timedelta_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["vosEmoji"]} **Voice of Seren** will change in {timedelta_to_string((self.bot.next_vos if self.bot.next_vos else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["cacheEmoji"]} **Guthixian caches** will begin in {timedelta_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {timedelta_to_string((self.bot.next_yews48 if self.bot.next_yews48 else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {timedelta_to_string((self.bot.next_yews140 if self.bot.next_yews140 else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["goebiesEmoji"]} **Goebies supply run** will begin in {timedelta_to_string((self.bot.next_goebies if self.bot.next_goebies else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["sinkholeEmoji"]} **Sinkhole** will spawn in {timedelta_to_string((self.bot.next_sinkhole if self.bot.next_sinkhole else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["merchantEmoji"]} **Travelling merchant** stock will refresh in {timedelta_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["spotlightEmoji"]} **Minigame spotlight** will change in {timedelta_to_string((self.bot.next_spotlight if self.bot.next_spotlight else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {timedelta_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now)}.\n'
         )
         
         await ctx.send(msg)
@@ -273,7 +275,7 @@ class DNDCommands(Cog):
         now: datetime = datetime.now(UTC)
         now = now.replace(second=0, microsecond=0)
         time_to_vos: timedelta | str = (self.bot.next_vos if self.bot.next_vos else datetime.now(UTC)) - now
-        time_to_vos = time_diff_to_string(time_to_vos)
+        time_to_vos = timedelta_to_string(time_to_vos)
 
         current: list[str] | None = self.bot.vos['vos'] if self.bot.vos else None
         next_vos: list[str] | None = self.bot.vos['next'] if self.bot.vos else None
@@ -304,7 +306,7 @@ class DNDCommands(Cog):
 
         embed = discord.Embed(title='Traveling Merchant\'s Shop', colour=0x00b2ff, timestamp=datetime.now(UTC), url='https://runescape.wiki/w/Travelling_Merchant%27s_Shop', description=self.bot.merchant)
         embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
-        embed.set_footer(text=f'Reset in {time_diff_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.')
+        embed.set_footer(text=f'Reset in {timedelta_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.')
         
         await ctx.send(embed=embed)
 
@@ -318,7 +320,7 @@ class DNDCommands(Cog):
         now: datetime = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg: str = self.bot.config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + time_diff_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now) + "."
+        msg: str = self.bot.config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + timedelta_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -332,7 +334,7 @@ class DNDCommands(Cog):
         now: datetime = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg: str = self.bot.config['cacheEmoji'] + " **Guthixian caches** will begin in " + time_diff_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now) + "."
+        msg: str = self.bot.config['cacheEmoji'] + " **Guthixian caches** will begin in " + timedelta_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -348,8 +350,8 @@ class DNDCommands(Cog):
         
         msg: str = (
             self.bot.config['yewsEmoji'] + " **Divine yews** will begin in " + 
-            time_diff_to_string((self.bot.next_yews48 if self.bot.next_yews48 else datetime.now(UTC)) - now) + " in w48 bu, and in " + 
-            time_diff_to_string((self.bot.next_yews140 if self.bot.next_yews140 else datetime.now(UTC)) - now) + " in w140 bu."
+            timedelta_to_string((self.bot.next_yews48 if self.bot.next_yews48 else datetime.now(UTC)) - now) + " in w48 bu, and in " + 
+            timedelta_to_string((self.bot.next_yews140 if self.bot.next_yews140 else datetime.now(UTC)) - now) + " in w140 bu."
         )
         
         await ctx.send(msg)
@@ -364,7 +366,7 @@ class DNDCommands(Cog):
         now: datetime = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg: str = self.bot.config['goebiesEmoji'] + " **Goebies supply run** will begin in " + time_diff_to_string((self.bot.next_goebies if self.bot.next_goebies else datetime.now(UTC)) - now) + "."
+        msg: str = self.bot.config['goebiesEmoji'] + " **Goebies supply run** will begin in " + timedelta_to_string((self.bot.next_goebies if self.bot.next_goebies else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -378,7 +380,7 @@ class DNDCommands(Cog):
         now: datetime = datetime.now(UTC)
         now = now.replace(microsecond=0)
         
-        msg: str = self.bot.config['sinkholeEmoji'] + " **Sinkhole** will spawn in " + time_diff_to_string((self.bot.next_sinkhole if self.bot.next_sinkhole else datetime.now(UTC)) - now) + "."
+        msg: str = self.bot.config['sinkholeEmoji'] + " **Sinkhole** will spawn in " + timedelta_to_string((self.bot.next_sinkhole if self.bot.next_sinkhole else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 
@@ -393,7 +395,7 @@ class DNDCommands(Cog):
         now = now.replace(microsecond=0)
         
         embed = discord.Embed(title='Minigame Spotlight', colour=0x00b2ff, description=self.bot.spotlight)
-        embed.set_footer(text=time_diff_to_string((self.bot.next_spotlight if self.bot.next_spotlight else datetime.now(UTC)) - now))
+        embed.set_footer(text=timedelta_to_string((self.bot.next_spotlight if self.bot.next_spotlight else datetime.now(UTC)) - now))
         
         await ctx.send(embed=embed)
 
@@ -552,7 +554,7 @@ class DNDCommands(Cog):
         
         txt: str = f'Current: {self.bot.wilderness_flash_event["current"]}\nNext: {self.bot.wilderness_flash_event["next"]}' if self.bot.wilderness_flash_event["current"] else f'Next: {self.bot.wilderness_flash_event["next"]}'
         embed = discord.Embed(title='Wilderness flash event', colour=0x00b2ff, description=txt)
-        embed.set_footer(text=time_diff_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now))
+        embed.set_footer(text=timedelta_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now))
         
         await ctx.send(embed=embed)
 

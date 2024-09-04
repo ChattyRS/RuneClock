@@ -17,8 +17,8 @@ from github.Repository import Repository as GitRepository
 from github.AuthenticatedUser import AuthenticatedUser
 from github.NamedUser import NamedUser
 from github.PaginatedList import PaginatedList
-from utils import districts
-from discord_helpers import get_text_channel, find_text_channel, find_guild_text_channel, get_guild_text_channel
+from runescape_utils import prif_districts
+from discord_utils import get_text_channel, find_text_channel, find_guild_text_channel, get_guild_text_channel
 
 class BackgroundTasks(Cog):
     notification_state_initialized: bool = False
@@ -93,7 +93,7 @@ class BackgroundTasks(Cog):
                     if 'Warbands' in m.content:
                         self.notified_this_hour_warbands = True
                         continue
-                    if any(d in m.content for d in districts):
+                    if any(d in m.content for d in prif_districts):
                         if current_time.minute <= 1:
                             self.reset = True
                         self.notified_this_hour_vos = True

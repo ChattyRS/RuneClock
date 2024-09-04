@@ -13,13 +13,13 @@ import inspect
 from contextlib import redirect_stdout
 import io
 import itertools
-import utils
 from checks import is_owner, is_admin, portables_admin, portables_only
-from utils import is_int, uptime_fraction
+from number_utils import is_int
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
+from date_utils import timedelta_to_string, uptime_fraction
 
 class Management(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -528,7 +528,7 @@ class Management(Cog):
             time = now.replace(microsecond=0, second=0, minute=0, hour=0)
             time -= start_time.replace(microsecond=0, second=0, minute=0, hour=0)
         delta = time
-        time = utils.time_diff_to_string(time)
+        time = timedelta_to_string(time)
         cpu_percent = str(psutil.cpu_percent(interval=None))
         ram = psutil.virtual_memory() # total, available, percent, used, free, active, inactive, buffers, cached, shared, slab
         ram_percent = ram[2]

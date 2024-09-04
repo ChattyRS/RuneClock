@@ -12,8 +12,8 @@ import cmath
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy
-from utils import is_int, is_float, float_to_formatted_string
-from utils import units, unit_aliases
+from number_utils import is_int, is_float, format_float
+from unit_conversion_utils import units, unit_aliases
 import io
 import multiprocessing
 
@@ -698,7 +698,7 @@ class Mathematics(Cog):
                 result = num * (10**exp)
             except Exception as e:
                 raise commands.CommandError(message=f'Invalid input: `{input}`. Error: {e}')
-            output = float_to_formatted_string(result)
+            output = format_float(result)
         else: # convert from number literal to scientific notation
             if not is_float(input):
                 raise commands.CommandError(message=f'Invalid input: `{input}`. Please give a number literal as argument.')
