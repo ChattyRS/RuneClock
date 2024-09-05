@@ -39,6 +39,7 @@ class Management(Cog):
         This command.
         Give a command or command category as argument for more specific help.
         '''
+        self.bot.increment_command_counter()
         guild: Guild = await get_db_guild(self.bot, ctx.guild)
 
         extension: str
@@ -158,14 +159,14 @@ class Management(Cog):
         [server] will be replaced by the name of your server.
         [user] will mention the user who joined.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        msg = ' '.join(msgParts)
+        msg: str = ' '.join(msgParts)
         if not msg:
             msg = f'Welcome to **[server]**, [user]!'
 
         if ctx.message.channel_mentions:
-            channel = ctx.message.channel_mentions[0]
+            channel: discord.abc.GuildChannel | discord.Thread = ctx.message.channel_mentions[0]
         elif channel:
             found = False
             for c in ctx.guild.text_channels:
@@ -185,9 +186,13 @@ class Management(Cog):
             await ctx.send(f'I will no longer send welcome messages in server **{ctx.guild.name}**.')
             return
 
-        guild = await Guild.get(ctx.guild.id)
-        await guild.update(welcome_channel_id=channel.id).apply()
-        await guild.update(welcome_message=msg).apply()
+
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild.welcome_channel_id = channel.id if channel.id else 
+            guild.welcome_message = msg
+            await session.commit()
+
 
         await ctx.send(f'The welcome channel for server **{ctx.guild.name}** has been changed to {channel.mention}.\n'
                        f'The welcome message has been set to \"{msg}\".')

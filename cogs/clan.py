@@ -4,36 +4,13 @@ from typing import Any
 import discord
 from discord import SelectOption, TextStyle, app_commands
 from discord.ext.commands import Cog, CommandError
-import random
-import copy
 from bot import Bot
 from database import Guild
 import re
-from utils import is_int, wom_skills, wom_bosses, wom_clues, wom_minigames, wom_efficiency, wom_metrics
-
-def choose_metric(exclude: list[str] = [], type: str = '') -> str:
-    type = type.lower().strip()
-
-    options: list[str] = copy.deepcopy(wom_metrics)
-    if 'skill' in type:
-        options = copy.deepcopy(wom_skills)
-    elif 'boss' in type:
-        options = copy.deepcopy(wom_bosses)
-    elif 'clue' in type:
-        options = copy.deepcopy(wom_clues)
-    elif 'minigame' in type:
-        options = copy.deepcopy(wom_minigames)
-    elif 'efficiency' in type:
-        options = copy.deepcopy(wom_efficiency)
-
-    for opt in exclude:
-        if opt in options:
-            options.remove(opt)
-
-    if not options:
-        raise Exception('No options to choose from')
-
-    return random.choice(options)
+from database_utils import get_db_guild
+from discord_utils import get_role
+from number_utils import is_int
+from wise_old_man import wom_metrics, choose_metric
     
 
 class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
@@ -75,7 +52,7 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
 
         # Store group id and verification code
         async with self.bot.async_session() as session:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild, session)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild, session)
             guild.wom_group_id = group_id
             guild.wom_verification_code = verification_code
             await session.commit()
@@ -106,9 +83,9 @@ class Dropdown(discord.ui.Select):
         # The self object refers to the Select object, 
         # and the values attribute gets a list of the user's
         # selected options. We only want the first one.
-        role: discord.Role = self.bot.get_role(interaction.guild, int(self.values[0]))
+        role: discord.Role = get_role(self.bot, interaction.guild, int(self.values[0]))
         async with self.bot.async_session() as session:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild, session)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild, session)
             guild.wom_role_id = role.id
             await session.commit()
         await interaction.response.send_message(f'The WOM management role has been set to `{role.name}`', ephemeral=True)
@@ -143,7 +120,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
 
         # Get WOM group
         group = None
-        guild: Guild = await self.bot.get_db_guild(interaction.guild)
+        guild: Guild = await get_db_guild(self.bot, interaction.guild)
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
@@ -198,7 +175,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
 
         # Get WOM group
         group = None
-        guild: Guild = await self.bot.get_db_guild(interaction.guild)
+        guild: Guild = await get_db_guild(self.bot, interaction.guild)
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
@@ -260,7 +237,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
             return
 
         # Get guild info from database
-        guild: Guild = await self.bot.get_db_guild(interaction.guild)
+        guild: Guild = await get_db_guild(self.bot, interaction.guild)
 
         # Calculate start and end datetimes
         now: datetime = datetime.now(UTC)
@@ -322,7 +299,7 @@ class RandomMetricView(discord.ui.View):
             return
         # Reroll result
         type: str = interaction.message.embeds[0].title.replace('*', '').lower().strip() if interaction.message and interaction.message.embeds[0].title else ''
-        guild: Guild = await self.bot.get_db_guild(interaction.guild)
+        guild: Guild = await get_db_guild(self.bot, interaction.guild)
         exclude: list[str] = await get_excluded_metrics(guild) + ([interaction.message.embeds[0].description] if interaction.message and interaction.message.embeds[0].description else [])
         try:
             metric: str = choose_metric(exclude, type)
@@ -352,7 +329,7 @@ class WOMExcludeModal(discord.ui.Modal, title='Wise Old Man: exclude metrics'):
                 return
 
         async with self.bot.async_session() as session:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild, session)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild, session)
             guild.wom_excluded_metrics = ','.join(metrics_to_exclude)
             await session.commit()
             
@@ -391,7 +368,7 @@ class Clan(Cog):
             await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
             return
         if interaction.guild and isinstance(interaction.user, discord.Member) and not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild)
             wom_role: discord.Role | None = None
             if guild.wom_role_id:
                 wom_role = interaction.guild.get_role(guild.wom_role_id)
@@ -470,7 +447,7 @@ class Clan(Cog):
     async def random_skill(self, interaction: discord.Interaction):
         # Choose a random skill
         try:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild)
             metric: str = choose_metric(await get_excluded_metrics(guild), 'skill')
         except:
             await interaction.response.send_message('Error choosing random skill.', ephemeral=True)
@@ -485,7 +462,7 @@ class Clan(Cog):
     async def random_boss(self, interaction: discord.Interaction) -> None:
         # Choose a random boss
         try:
-            guild: Guild = await self.bot.get_db_guild(interaction.guild)
+            guild: Guild = await get_db_guild(self.bot, interaction.guild)
             metric: str = choose_metric(await get_excluded_metrics(guild), 'boss')
         except:
             await interaction.response.send_message('Error choosing random boss.', ephemeral=True)

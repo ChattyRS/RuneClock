@@ -7,7 +7,11 @@ from sqlalchemy import select
 from bot import Bot
 from database import Guild, Role
 from datetime import datetime, UTC
-from utils import months
+from database_utils import get_db_guild
+from date_utils import months
+from discord.abc import GuildChannel
+
+from discord_utils import find_guild_text_channel
 
 class Logs(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -34,11 +38,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
-        guild: Guild = await self.bot.get_db_guild(member.guild)
+        guild: Guild = await get_db_guild(self.bot, member.guild)
 
         channel = None
         if guild and guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(member.guild, guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(member.guild, guild.log_channel_id)
         if not channel:
             return
         self.log_event()
@@ -65,11 +69,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
-        guild: Guild = await self.bot.get_db_guild(member.guild)
+        guild: Guild = await get_db_guild(self.bot, member.guild)
 
         channel = None
         if guild and guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(member.guild, guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(member.guild, guild.log_channel_id)
         if not channel:
             return
         try:
@@ -95,11 +99,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_member_ban(self, guild: discord.Guild, user: discord.User) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(guild)
+        db_guild: Guild = await get_db_guild(self.bot, guild)
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(guild, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -120,11 +124,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_member_unban(self, guild: discord.Guild, user: discord.User) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(guild)
+        db_guild: Guild = await get_db_guild(self.bot, guild)
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(guild, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -145,13 +149,13 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(message.guild)
+        db_guild: Guild = await get_db_guild(self.bot, message.guild)
 
         channel = None
         if not message.guild or not isinstance(message.channel, discord.TextChannel):
             return
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(message.guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(message.guild, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -178,13 +182,13 @@ class Logs(Cog):
     
     @Cog.listener()
     async def on_bulk_message_delete(self, messages: list[discord.Message]) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(messages[0].guild)
+        db_guild: Guild = await get_db_guild(self.bot, messages[0].guild)
 
         channel = None
         if not messages[0].guild or not isinstance(messages[0].channel, discord.TextChannel):
             return
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(messages[0].guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(messages[0].guild, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -200,13 +204,13 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(before.guild)
+        db_guild: Guild = await get_db_guild(self.bot, before.guild)
 
         channel = None
         if not before.guild or not isinstance(after.channel, discord.TextChannel):
             return
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before.guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(before.guild, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -246,12 +250,12 @@ class Logs(Cog):
                 return
 
     @Cog.listener()
-    async def on_guild_channel_delete(self, channel: discord.guild.GuildChannel) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(channel.guild)
+    async def on_guild_channel_delete(self, channel: GuildChannel) -> None:
+        db_guild: Guild = await get_db_guild(self.bot, channel.guild)
 
         log_channel = None
         if db_guild and db_guild.log_channel_id:
-            log_channel: discord.TextChannel | None = self.bot.find_guild_text_channel(channel.guild, db_guild.log_channel_id)
+            log_channel: discord.TextChannel | None = find_guild_text_channel(channel.guild, db_guild.log_channel_id)
         if not log_channel:
             return
         
@@ -272,12 +276,12 @@ class Logs(Cog):
             return
 
     @Cog.listener()
-    async def on_guild_channel_create(self, channel: discord.guild.GuildChannel) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(channel.guild)
+    async def on_guild_channel_create(self, channel: GuildChannel) -> None:
+        db_guild: Guild = await get_db_guild(self.bot, channel.guild)
 
         log_channel = None
         if db_guild and db_guild.log_channel_id:
-            log_channel: discord.TextChannel | None = self.bot.find_guild_text_channel(channel.guild, db_guild.log_channel_id)
+            log_channel: discord.TextChannel | None = find_guild_text_channel(channel.guild, db_guild.log_channel_id)
         if not log_channel:
             return
         
@@ -296,11 +300,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(before.guild)
+        db_guild: Guild = await get_db_guild(self.bot, before.guild)
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before.guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(before.guild, db_guild.log_channel_id)
         if not channel:
             return
 
@@ -372,11 +376,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(before)
+        db_guild: Guild = await get_db_guild(self.bot, before)
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(before, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -407,11 +411,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_guild_role_create(self, role: discord.Role) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(role.guild)
+        db_guild: Guild = await get_db_guild(self.bot, role.guild)
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(role.guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(role.guild, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -434,12 +438,12 @@ class Logs(Cog):
             db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == role.guild.id).where(Role.role_id == role.id))).scalar_one_or_none()
             if db_role:
                 await session.delete(db_role)
-            db_guild: Guild = await self.bot.get_db_guild(role.guild, session)
+            db_guild: Guild = await get_db_guild(self.bot, role.guild, session)
             await session.commit()
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(role.guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(role.guild, db_guild.log_channel_id)
         if not channel:
             return
 
@@ -458,11 +462,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_guild_role_update(self, before: discord.Role, after: discord.Role) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(before.guild)
+        db_guild: Guild = await get_db_guild(self.bot, before.guild)
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(before.guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(before.guild, db_guild.log_channel_id)
         if not channel:
             return
         
@@ -484,11 +488,11 @@ class Logs(Cog):
 
     @Cog.listener()
     async def on_guild_emojis_update(self, guild: discord.Guild, before: Sequence[discord.Emoji], after: Sequence[discord.Emoji]) -> None:
-        db_guild: Guild = await self.bot.get_db_guild(guild)
+        db_guild: Guild = await get_db_guild(self.bot, guild)
 
         channel = None
         if db_guild and db_guild.log_channel_id:
-            channel: discord.TextChannel | None = self.bot.find_guild_text_channel(guild, db_guild.log_channel_id)
+            channel: discord.TextChannel | None = find_guild_text_channel(guild, db_guild.log_channel_id)
         if not channel:
             return
 

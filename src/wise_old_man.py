@@ -1,3 +1,6 @@
+from copy import deepcopy
+import random
+
 wom_skills: list[str] = [
     'overall',
     'attack',
@@ -110,3 +113,40 @@ wom_minigames: list[str] = [
 wom_efficiency: list[str] = ['ehp', 'ehb']
 
 wom_metrics: list[str] = wom_skills + wom_bosses + wom_clues + wom_minigames + wom_efficiency
+
+def choose_metric(exclude: list[str] = [], type: str = '') -> str:
+    '''
+    Choose a WiseOldMan metric.
+
+    Args:
+        exclude (list[str], optional): List of metrics to exlude. Defaults to [].
+        type (str, optional): The type of metric too choose form.
+
+    Raises:
+        Exception: If no metric can be found.
+
+    Returns:
+        str: The metric
+    '''
+    type = type.lower().strip()
+
+    options: list[str] = deepcopy(wom_metrics)
+    if 'skill' in type:
+        options = deepcopy(wom_skills)
+    elif 'boss' in type:
+        options = deepcopy(wom_bosses)
+    elif 'clue' in type:
+        options = deepcopy(wom_clues)
+    elif 'minigame' in type:
+        options = deepcopy(wom_minigames)
+    elif 'efficiency' in type:
+        options = deepcopy(wom_efficiency)
+
+    for opt in exclude:
+        if opt in options:
+            options.remove(opt)
+
+    if not options:
+        raise Exception('No options to choose from')
+
+    return random.choice(options)
