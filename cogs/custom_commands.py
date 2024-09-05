@@ -2,13 +2,14 @@ from typing import Sequence, Tuple
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, CommandError, Context
-from sqlalchemy import select, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from bot import Bot
 from database import Command
 import re
 from checks import is_admin
 from number_utils import is_int
+from discord_utils import get_custom_command
+from database_utils import get_custom_db_commands, find_custom_db_command
 
 class CustomCommands(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -29,34 +30,10 @@ class CustomCommands(Cog):
             return aliases
     
     async def refresh_custom_command_aliases(self) -> None:
-        custom_command: commands.Command = self.get_custom_command()
+        custom_command: commands.Command = get_custom_command(self.bot)
         self.bot.remove_command(custom_command.name)
         custom_command.aliases = await self.get_aliases()
         self.bot.add_command(custom_command)
-
-    def get_custom_command(self, command_name: str | None = None) -> commands.Command:
-        command_name = command_name if command_name else 'custom_command' # Default built in 'custom_command', used as a proxy to execute custom commands
-        custom_command: commands.Command | None = self.bot.get_command(command_name)
-        if not custom_command:
-            raise CommandError(message=f'Custom command `{command_name}` was not found.')
-        return custom_command
-    
-    async def find_custom_db_command(self, guild_or_id: discord.Guild | int | None, command_name_or_alias: str, db_session: AsyncSession | None = None) -> Command | None:
-        if guild_or_id is None:
-            return None
-        guild_id: int = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
-
-        async with db_session if db_session else self.bot.async_session() as session:
-            custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == guild_id).where(or_(Command.name == command_name_or_alias, Command.aliases.contains(command_name_or_alias))))).scalar_one_or_none()
-            return custom_db_command
-        
-    async def get_custom_db_commands(self, guild_or_id: discord.Guild | int | None) -> Sequence[Command]:
-        if guild_or_id is None:
-            raise CommandError(message=f'Cannot use custom commands outside of a server.')
-        guild_id: int = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
-        async with self.bot.async_session() as session:
-            custom_db_commands: Sequence[Command] = (await session.execute(select(Command).where(Command.guild_id == guild_id))).scalars().all()
-            return custom_db_commands
 
     @commands.command()
     @is_admin()
@@ -92,7 +69,7 @@ class CustomCommands(Cog):
                 if custom_db_command:
                     await session.delete(custom_db_command)
                     await session.commit()
-                    custom_command: commands.Command = self.get_custom_command()
+                    custom_command: commands.Command = get_custom_command(self.bot)
                     self.bot.remove_command(custom_command.name)
                     custom_command.aliases = await self.get_aliases()
                     self.bot.add_command(custom_command)
@@ -104,7 +81,7 @@ class CustomCommands(Cog):
             command = command.replace(name, '', 1).strip()
 
         cmd: commands.Command | None = self.bot.get_command(name)
-        custom_command: commands.Command = self.get_custom_command()
+        custom_command: commands.Command = get_custom_command(self.bot)
         if cmd and cmd != custom_command:
             raise CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
         
@@ -119,7 +96,7 @@ class CustomCommands(Cog):
             await session.commit()
 
         if not cmd: # alias didn't exist yet, so we need to add it
-            custom_command = self.get_custom_command()
+            custom_command = get_custom_command(self.bot)
             self.bot.remove_command(custom_command.name)
             custom_command.aliases = await self.get_aliases()
             self.bot.add_command(custom_command)
@@ -139,7 +116,7 @@ class CustomCommands(Cog):
         if not ctx.invoked_with or not ctx.guild or not isinstance(ctx.channel, discord.TextChannel) or not isinstance(ctx.author, discord.Member):
             raise CommandError(message=f'Could not find the guild, channel, or alias that was used to invoke the command. This is unexpected.')
         alias: str = ctx.invoked_with.lower()
-        custom_db_command: Command | None = await self.find_custom_db_command(ctx.guild, alias)
+        custom_db_command: Command | None = await find_custom_db_command(self.bot, ctx.guild, alias)
         if not custom_db_command:
             return
         
@@ -276,7 +253,7 @@ class CustomCommands(Cog):
             cmd: commands.Command | None = self.bot.get_command(commandName)
             if not cmd:
                 raise CommandError(message=f'Missing command: `{commandName}`.')
-            custom_command: commands.Command | None = self.get_custom_command()
+            custom_command: commands.Command | None = get_custom_command(self.bot)
             if cmd == custom_command:
                 raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             arguments = command_arguments.split()
@@ -310,7 +287,7 @@ class CustomCommands(Cog):
         self.bot.increment_command_counter()
 
         embed = discord.Embed(title='Commands')
-        custom_commands: Sequence[Command] = await self.get_custom_db_commands(ctx.guild)
+        custom_commands: Sequence[Command] = await get_custom_db_commands(self.bot, ctx.guild)
 
         if not custom_commands:
             raise CommandError(message=f'This server does not have any custom commands.')
@@ -362,7 +339,7 @@ class CustomCommands(Cog):
         description_str: str = ' '.join(description)
 
         async with self.bot.async_session() as session:
-            custom_command: Command | None = await self.find_custom_db_command(ctx.guild, command, session)
+            custom_command: Command | None = await find_custom_db_command(self.bot, ctx.guild, command, session)
             if not custom_command:
                 raise CommandError(message=f'Error: no such command: `{command}`.')
 
@@ -383,13 +360,13 @@ class CustomCommands(Cog):
             raise CommandError(message=f'Error: `required arguments missing`.')
 
         cmd: commands.Command | None = self.bot.get_command(alias)
-        custom_command: commands.Command | None = self.get_custom_command()
+        custom_command: commands.Command | None = get_custom_command(self.bot)
         if cmd and cmd != custom_command:
             raise CommandError(message=f'Error: `alias already in use`.')
         
         msg: str = ''
         async with self.bot.async_session() as session:
-            custom_db_command: Command | None = await self.find_custom_db_command(ctx.guild, command, session)
+            custom_db_command: Command | None = await find_custom_db_command(self.bot, ctx.guild, command, session)
             if not custom_db_command:
                 raise CommandError(message=f'Error: no such command: `{command}`.')
 

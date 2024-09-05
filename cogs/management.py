@@ -1,6 +1,6 @@
 import asyncio
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord.ext.commands import Cog
 from bot import Bot
 from database import Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
@@ -20,6 +20,10 @@ from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 from date_utils import timedelta_to_string, uptime_fraction
+from string_utils import remove_code_blocks
+from exception_utils import format_syntax_error
+from discord_utils import get_custom_command
+from database_utils import find_custom_db_command, get_db_guild
 
 class Management(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -29,171 +33,111 @@ class Management(Cog):
         # Remove the default help command, as it will be replaced by a customized help command in this cog
         bot.remove_command('help')
 
-        self.uptime_tracking.start()
-        
-    def cog_unload(self) -> None:
-        self.uptime_tracking.cancel()
-
-    @tasks.loop(seconds=60)
-    async def uptime_tracking(self) -> None:
-        now: datetime = datetime.now(UTC).replace(microsecond=0)
-        today: datetime = now.replace(hour=0, minute=0, second=0)
-        
-        latest_event_today = await Uptime.query.where(Uptime.time >= today).order_by(Uptime.time.desc()).gino.first()
-        if not latest_event_today:
-            await Uptime.create(time=now, status='running')
-            return
-
-        if latest_event_today.status == 'running':
-            await latest_event_today.update(time=now).apply()
-        else:
-            await Uptime.create(time=now, status='running')
-
-    def cleanup_code(self, content):
-        """Automatically removes code blocks from the code."""
-        # remove ```py\n```
-        if content.startswith('```') and content.endswith('```'):
-            return '\n'.join(content.split('\n')[1:-1])
-        # remove `foo`
-        return content.strip('` \n')
-
-    def get_syntax_error(self, e):
-        if e.text is None:
-            return f'```py\n{e.__class__.__name__}: {e}\n```'
-        return f'```py\n{e.text}{"^":>{e.offset}}\n{e.__class__.__name__}: {e}```'
-
     @commands.command()
-    async def help(self, ctx: commands.Context, command=''):
+    async def help(self, ctx: commands.Context, command: str = '') -> None:
         '''
         This command.
         Give a command or command category as argument for more specific help.
         '''
-        extension = ''
+        guild: Guild = await get_db_guild(self.bot, ctx.guild)
+
+        extension: str
+
         if command:
-            cmd = self.bot.get_command(command)
-            custom_command = commands.AutoShardedBot.get_command(self.bot, 'custom_command')
+            cmd: commands.Command | None = self.bot.get_command(command)
+            custom_command: commands.Command = get_custom_command(self.bot)
             if not cmd:
                 if not self.bot.get_cog(command):
                     raise commands.CommandError(message=f'Invalid argument: `{command}`.')
                 else:
                     extension = command
             elif cmd == custom_command:
-                cmd = await Command.query.where(Command.guild_id==ctx.guild.id).where(Command.name==command).gino.first()
-                if not cmd:
+                db_cmd: Command | None = await find_custom_db_command(self.bot, ctx.guild, command)
+                if not db_cmd:
                     raise commands.CommandError(message=f'Invalid argument: `{command}`.')
-                function = cmd.function
-                aliases = cmd.aliases
-                description = cmd.description
-                alias_str = ''
-                if aliases:
-                    alias_str += ' | '
-                    for i, alias in enumerate(aliases):
-                        alias_str += f'`{alias}`'
-                        if i < len(aliases)-1:
-                            alias_str += ' | '
-                embed = discord.Embed(title=f'Help', description=f'`{command}`{alias_str}\n```{function}```\n{description}', colour=0x00e400, timestamp=datetime.now(UTC))
-                embed.set_author(name=ctx.guild.me.display_name, url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
+                alias_str: str = ' | '.join(db_cmd.aliases) if db_cmd.aliases else ''
+                embed = discord.Embed(title=f'Help', description=f'`{command}`{alias_str}\n```{db_cmd.function}```\n{db_cmd.description}', colour=0x00e400, timestamp=datetime.now(UTC))
+                embed.set_author(name=ctx.me.display_name, url=self.bot.config['github_link'], icon_url=ctx.me.display_avatar.url)
                 embed.set_footer(text=f'You can change the description of your custom command using the command \"description\".')
                 await ctx.send(embed=embed)
                 await ctx.message.add_reaction('✅')
                 return
             else:
-                params = cmd.clean_params
-                param_text = ''
-                for param in params:
-                    param_text += f'[{param}] '
-                param_text = param_text.strip()
-                alias_str = ''
-                if cmd.aliases:
-                    alias_str += ' | '
-                    for i, alias in enumerate(cmd.aliases):
-                        alias_str += f'{alias}'
-                        if i < len(cmd.aliases)-1:
-                            alias_str += ' | '
+                param_text: str = ' '.join([f'[{param}]' for param in cmd.clean_params])
+                alias_str: str = ' | '.join(cmd.aliases) if cmd.aliases else ''
                 embed = discord.Embed(title=f'Help', description=f'`{cmd.name}{alias_str} {param_text}`\n{cmd.help}', colour=0x00e400, timestamp=datetime.now(UTC))
-                embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
+                embed.set_author(name=f'{ctx.me.display_name}', url=self.bot.config['github_link'], icon_url=ctx.me.display_avatar.url)
                 embed.set_footer(text=f'For more help, use the support command')
                 await ctx.send(embed=embed)
                 await ctx.message.add_reaction('✅')
                 return
 
-        embed = discord.Embed(title=f'Help', description=f'{config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=config['github_link'], timestamp=datetime.now(UTC))
-        embed_short = discord.Embed(title=f'Help', description=f'{config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=config['github_link'], timestamp=datetime.now(UTC))
+        embed = discord.Embed(title=f'Help', description=f'{self.bot.config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=self.bot.config['github_link'], timestamp=datetime.now(UTC))
+        embed_short = discord.Embed(title=f'Help', description=f'{self.bot.config["description"]}\nFor more detailed information about a specific command, use `help [command]`.', colour=0x00e400, url=self.bot.config['github_link'], timestamp=datetime.now(UTC))
 
-        guild = await Guild.get(ctx.guild.id)
-        guild_prefix = guild.prefix
+        embed.add_field(name='Prefix', value=f'My prefix in **{ctx.guild}** is currently set to `{guild.prefix}`. To change this, administrators can use the `prefix` command.')
+        embed_short.add_field(name='Prefix', value=f'My prefix in **{ctx.guild}** is currently set to `{guild.prefix}`. To change this, administrators can use the `prefix` command.', inline=False)
 
-        embed.add_field(name='Prefix', value=f'My prefix in **{ctx.guild.name}** is currently set to `{guild_prefix}`. To change this, administrators can use the `prefix` command.')
-        embed_short.add_field(name='Prefix', value=f'My prefix in **{ctx.guild.name}** is currently set to `{guild_prefix}`. To change this, administrators can use the `prefix` command.', inline=False)
-
-        def category(tup):
-            cog = tup[1].cog_name
-            return cog + ':' if cog is not None else '\u200bNo Category:'
-
-        def predicate(cmd):
-            if ctx.author.id == config['owner']:
+        def predicate(cmd: commands.Command) -> bool:
+            if ctx.author.id == self.bot.config['owner']:
                     return True
             elif cmd.hidden:
                 return False
 
-            if ctx.guild.id == config['portablesServer']:
+            if ctx.guild and ctx.guild.id == self.bot.config['portablesServer']:
                 helper = False
                 admin = False
                 leader = False
-                for role in ctx.author.roles:
-                    if role.id == config['helperRole']:
+                for role in ctx.author.roles if isinstance(ctx.author, discord.Member) else []:
+                    if role.id == self.bot.config['helperRole']:
                         helper = True
-                    elif role.id == config['adminRole']:
+                    elif role.id == self.bot.config['adminRole']:
                         admin = True
-                    elif role.id == config['leaderRole']:
+                    elif role.id == self.bot.config['leaderRole']:
                         leader = True
-                if cmd.hidden and not ctx.author.id == config['owner']:
+                if cmd.hidden and not ctx.author.id == self.bot.config['owner']:
                     return False
-                if not leader and 'Leader+' in cmd.help:
+                if not leader and 'Leader+' in cmd.help if cmd.help else '':
                     return False
-                if not admin and 'Admin+' in cmd.help:
+                if not admin and 'Admin+' in cmd.help if cmd.help else '':
                     return False
-                if not helper and 'Helper+' in cmd.help:
+                if not helper and 'Helper+' in cmd.help if cmd.help else '':
                     return False
                 return True
             else:
-                if 'Portables only' in cmd.help:
+                if 'Portables only' in cmd.help if cmd.help else '':
                     return False
-                elif 'Admin+' in cmd.help or 'Leader+' in cmd.help:
-                    return ctx.author.guild_permissions.administrator
+                elif 'Admin+' in cmd.help or 'Leader+' in cmd.help if cmd.help else '':
+                    return isinstance(ctx.author, discord.Member) and ctx.author.guild_permissions.administrator
                 return True
 
-        command_list = self.bot.commands
-        command_list = filter(predicate, command_list)
-        command_list = sorted(command_list, key=lambda x: x.cog_name)
+        command_set: set[commands.Command] = self.bot.commands
+        command_list: list[commands.Command] = [c for c in command_set if predicate(c)]
+        command_list = sorted(command_list, key=lambda c: c.cog_name) # type: ignore
 
         for category, cmds in itertools.groupby(command_list, key=lambda x: x.cog_name):
-            if category.upper() == extension.upper() or not extension:
+            if isinstance(category, str) and category.upper() == extension.upper() or not extension:
                 cmds = list(cmds)
                 if len(cmds) > 0:
-                    val = ''
-                    val_short = ''
-                    for command in cmds:
-                        params = command.clean_params
-                        param_text = ''
-                        for param in params:
-                            param_text += f'[{param}] '
-                        param_text = param_text.strip()
-                        val += f'• `{(command.name + " " + param_text).strip()}`: {command.short_doc}\n'
-                        val_short += f'• `{(command.name + " " + param_text).strip()}`\n'
+                    val: str = ''
+                    val_short: str = ''
+                    for cmd in cmds:
+                        param_text = ' '.join([f'[{param}]' for param in cmd.clean_params])
+                        val += f'• `{(cmd.name + " " + param_text).strip()}`: {cmd.short_doc}\n'
+                        val_short += f'• `{(cmd.name + " " + param_text).strip()}`\n'
                     val = val.strip()
                     val_short = val_short.strip()
-                    if category.lower() == 'obliterate':
-                        if ctx.guild.id == config['obliterate_guild_id'] or ctx.author.id == config['owner']:
+                    if isinstance(category, str) and category.lower() == 'obliterate':
+                        if ctx.guild and ctx.guild.id == self.bot.config['obliterate_guild_id'] or ctx.author.id == self.bot.config['owner']:
                             embed.add_field(name=f'{category}', value=val, inline=False)
                             embed_short.add_field(name=f'{category}', value=val_short, inline=False)
                     else:
                         embed.add_field(name=f'{category}', value=val, inline=False)
                         embed_short.add_field(name=f'{category}', value=val_short, inline=False)
 
-        embed.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
+        embed.set_author(name=f'{ctx.me.display_name}', url=self.bot.config['github_link'], icon_url=ctx.me.display_avatar.url)
         embed.set_footer(text=f'{len(self.bot.commands)} commands • {len(self.bot.extensions)} extensions')
-        embed_short.set_author(name=f'{ctx.guild.me.display_name}', url=config['github_link'], icon_url=ctx.guild.me.display_avatar.url)
+        embed_short.set_author(name=f'{ctx.me.display_name}', url=self.bot.config['github_link'], icon_url=ctx.me.display_avatar.url)
         embed_short.set_footer(text=f'{len(self.bot.commands)} commands • {len(self.bot.extensions)} extensions')
 
         try:
@@ -704,7 +648,7 @@ class Management(Cog):
         if not body:
             raise commands.CommandError(message=f'Required argument missing: `body`.')
 
-        body = self.cleanup_code(body)
+        body = remove_code_blocks(body)
         stdout = io.StringIO()
 
         to_compile = f'async def func():\n{textwrap.indent(body, "  ")}'
@@ -820,7 +764,7 @@ class Management(Cog):
                 self.sessions.remove(ctx.channel.id)
                 break
 
-            cleaned = self.cleanup_code(response.content)
+            cleaned = remove_code_blocks(response.content)
 
             if cleaned in ('quit', 'exit', 'exit()'):
                 await ctx.send('Exiting.')
@@ -841,7 +785,7 @@ class Management(Cog):
                 try:
                     code = compile(cleaned, '<repl session>', 'exec')
                 except SyntaxError as e:
-                    await ctx.send(self.get_syntax_error(e))
+                    await ctx.send(format_syntax_error(e))
                     continue
 
             variables['message'] = response

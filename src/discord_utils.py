@@ -2,6 +2,7 @@ from bot import Bot
 from discord import Guild, Role, TextChannel, Thread
 from discord.guild import GuildChannel
 from discord.abc import PrivateChannel
+from discord.ext.commands import Command, CommandError
 
 def find_guild_text_channel(guild: Guild, id: int | None) -> TextChannel | None:
     '''
@@ -111,3 +112,23 @@ def get_role(bot: Bot, guild_or_id: Guild | int | None, role_id: int | None) -> 
     if not role:
         raise Exception(f'Role with id {role_id if role_id else "None"} was not found.')
     return role
+
+def get_custom_command(bot: Bot, command_name: str | None = None) -> Command:
+    '''
+    Gets a custom command by name.
+    If no name is provided, the template "custom_command" will be returned.
+
+    Args:
+        command_name (str | None, optional): Command name. Defaults to None.
+
+    Raises:
+        CommandError: If the command is not found.
+
+    Returns:
+        Command: The command.
+    '''
+    command_name = command_name if command_name else 'custom_command' # Default built in 'custom_command', used as a proxy to execute custom commands
+    custom_command: Command | None = bot.get_command(command_name)
+    if not custom_command:
+        raise CommandError(message=f'Custom command `{command_name}` was not found.')
+    return custom_command

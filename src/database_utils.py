@@ -1,8 +1,10 @@
+from typing import Sequence
 from bot import Bot
 from discord import Guild as DiscordGuild
-from database import Guild
+from database import Guild, Command
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from discord.ext.commands import CommandError
 
 async def find_db_guild(bot: Bot, guild_or_id: DiscordGuild | int | None, session: AsyncSession | None = None) -> Guild | None:
     '''
@@ -77,3 +79,45 @@ async def find_or_create_db_guild(bot: Bot, guild_or_id: DiscordGuild | int) -> 
     '''
     db_guild: Guild | None = await find_db_guild(bot, guild_or_id)
     return db_guild if db_guild else await create_db_guild(bot, guild_or_id)
+
+async def find_custom_db_command(bot: Bot, guild_or_id: DiscordGuild | int | None, command_name_or_alias: str, db_session: AsyncSession | None = None) -> Command | None:
+    '''
+    Finds a custom command in the database.
+
+    Args:
+        bot (Bot): The bot
+        guild_or_id (DiscordGuild | int | None): The discord guild or guild id
+        command_name_or_alias (str): The command name or an alias
+        db_session (AsyncSession | None, optional): The database session. If not provided, a new session will be created. Defaults to None.
+
+    Returns:
+        Command: The command if found.
+    '''
+    if guild_or_id is None:
+        return None
+    guild_id: int = guild_or_id.id if isinstance(guild_or_id, DiscordGuild) else guild_or_id
+
+    async with db_session if db_session else bot.async_session() as session:
+        custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == guild_id).where(or_(Command.name == command_name_or_alias, Command.aliases.contains(command_name_or_alias))))).scalar_one_or_none()
+        return custom_db_command
+    
+async def get_custom_db_commands(bot: Bot, guild_or_id: DiscordGuild | int | None) -> Sequence[Command]:
+    '''
+    Gets all custom commands for the given guild from the database.
+
+    Args:
+        bot (Bot): The bot
+        guild_or_id (DiscordGuild | int | None): The discord guild or guild id
+
+    Raises:
+        CommandError: If the guild id not found
+
+    Returns:
+        Sequence[Command]: The guild's custom commands.
+    '''
+    if guild_or_id is None:
+        raise CommandError(message=f'Cannot use custom commands outside of a server.')
+    guild_id: int = guild_or_id.id if isinstance(guild_or_id, DiscordGuild) else guild_or_id
+    async with bot.async_session() as session:
+        custom_db_commands: Sequence[Command] = (await session.execute(select(Command).where(Command.guild_id == guild_id))).scalars().all()
+        return custom_db_commands

@@ -11,7 +11,7 @@ from aiohttp import ClientResponse
 import feedparser
 import io
 from message_queue import QueueMessage
-from database import Guild, Mute, Repository, Notification, Poll, NewsPost, RS3Item, OSRSItem
+from database import Guild, Mute, Repository, Notification, Poll, NewsPost, RS3Item, OSRSItem, Uptime
 from github.Commit import Commit
 from github.Repository import Repository as GitRepository
 from github.AuthenticatedUser import AuthenticatedUser
@@ -58,6 +58,7 @@ class BackgroundTasks(Cog):
         '''
         Starts background tasks when loading the cog
         '''
+        self.uptime_tracking.start()
         self.notify.start()
         self.custom_notify.start()
         self.unmute.start()
@@ -69,12 +70,26 @@ class BackgroundTasks(Cog):
         '''
         Stops background tasks when unloading the cog
         '''
+        self.uptime_tracking.cancel()
         self.notify.cancel()
         self.custom_notify.cancel()
         self.unmute.cancel()
         self.rsnews.cancel()
         self.check_polls.cancel()
         self.git_tracking.cancel()
+
+    @tasks.loop(seconds=60)
+    async def uptime_tracking(self) -> None:
+        now: datetime = datetime.now(UTC).replace(microsecond=0)
+        today: datetime = now.replace(hour=0, minute=0, second=0)
+        
+        async with self.bot.async_session() as session:
+            latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today).order_by(Uptime.time.desc()))).scalars().first()
+            if latest_event_today and latest_event_today.status == 'running':
+                latest_event_today.time = now
+            else:
+                session.add(Uptime(time=now, status='running'))
+            await session.commit()
     
     async def initialize_notification_state(self) -> None:
         '''
