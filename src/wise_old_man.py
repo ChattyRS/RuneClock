@@ -59,6 +59,7 @@ wom_bosses: list[str] = [
     'kraken',
     'kreearra',
     'kril_tsutsaroth',
+    'lunar_chests',
     'mimic',
     'nex',
     'nightmare',
@@ -67,7 +68,9 @@ wom_bosses: list[str] = [
     'phantom_muspah',
     'sarachnis',
     'scorpia',
+    'scurrius',
     'skotizo',
+    'sol_heredit',
     'spindel',
     'tempoross',
     'the_gauntlet',
@@ -107,7 +110,8 @@ wom_minigames: list[str] = [
     'last_man_standing',
     'pvp_arena',
     'soul_wars_zeal',
-    'guardians_of_the_rift'
+    'guardians_of_the_rift',
+    'colosseum_glory'
 ]
 
 wom_efficiency: list[str] = ['ehp', 'ehb']
