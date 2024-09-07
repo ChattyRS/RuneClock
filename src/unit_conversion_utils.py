@@ -1,4 +1,18 @@
+import math
 from typing import Any
+
+def get_alias(unit: str) -> str:
+    '''
+    Gets the best matching unit for the given unit / alias
+    '''
+    best: str = ''
+    dif: float = math.inf
+    for alias in unit_aliases:
+        if unit in alias:
+            if len(alias) - len(unit) < dif:
+                dif = len(alias) - len(unit)
+                best = alias
+    return unit_aliases[best]
 
 unit_aliases: dict[str, str] = {
     # distance
