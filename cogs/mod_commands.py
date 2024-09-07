@@ -3,33 +3,21 @@ from typing import List
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
-import sys
-sys.path.append('../')
-from bot import Bot, get_config, increment_command_counter, Mute, Guild
+from bot import Bot, Mute, Guild
 from datetime import datetime, timedelta, UTC
-import re
 from converters import RoleConverter
+from database_utils import get_db_guild
+from discord_utils import get_guild_text_channel
 from number_utils import is_int
 from checks import is_admin
 
-config = get_config()
-
-pattern = re.compile(r'[\W_]+')
-
-def isName(member_name, member):
-    name = member.display_name.upper()
-    if member_name.upper() in pattern.sub('', name).upper():
-        return True
-    else:
-        return False
-
 class ModCommands(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
     
     @commands.command()
     @is_admin()
-    async def modmail(self, ctx: Context, public='', private=''):
+    async def modmail(self, ctx: Context, public: str | discord.TextChannel = '', private: str | discord.TextChannel = '') -> None:
         '''
         Set up a public and private modmail channel. (Admin+)
         Any messages sent in the public channel will be instantly deleted and then copied to the private channel.
@@ -38,57 +26,67 @@ class ModCommands(Cog):
         public: channel mention
         private: channel mention
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not ctx.guild:
             raise CommandError(message=f'Required argument missing: `guild`.')
 
         if not public and not private:
-            guild = await Guild.get(ctx.guild.id)
-            await guild.update(modmail_public=None, modmail_private=None).apply()
+            async with self.bot.async_session() as session:
+                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                guild.modmail_public = None
+                guild.modmail_private = None
+                await session.commit()
             await ctx.send(f'Modmail has been disabled for server **{ctx.guild.name}**.')
             return
 
-        if len(ctx.message.channel_mentions) < 2:
+        if len(ctx.message.channel_mentions) < 2 or not isinstance(ctx.message.channel_mentions[0], discord.TextChannel) or not isinstance(ctx.message.channel_mentions[1], discord.TextChannel):
             raise CommandError(message=f'Required arguments missing: 2 channel mentions required.')
-
+        
         public, private = ctx.message.channel_mentions[0], ctx.message.channel_mentions[1]
 
-        guild = await Guild.get(ctx.guild.id)
-
-        await guild.update(modmail_public=public.id, modmail_private=private.id).apply()
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild.modmail_public = public.id
+            guild.modmail_private = private.id
+            await session.commit()
 
         await ctx.send(f'Modmail public and private channels for server **{ctx.guild.name}** have been set to {public.mention} and {private.mention}.')
     
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message) -> None:
         '''
         Modmail listener
+
+        Args:
+            message (discord.Message): The discord message
         '''
-        if message.author.bot:
-            return
-        if message.guild is None:
+        if message.author.bot or message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
         try:
-            guild = await Guild.get(message.guild.id)
+            guild: Guild = await get_db_guild(self.bot, message.guild)
         except:
             return
-        if not guild and not guild.modmail_public is None and not guild.modmail_private is None and message.channel.id == guild.modmail_public:
+        if guild and guild.modmail_public and guild.modmail_private and message.channel.id == guild.modmail_public:
             embed = discord.Embed(description=f'In: {message.channel.mention}\n“{message.content}”', colour=0x00b2ff, timestamp=message.created_at)
             embed.set_author(name=f'{message.author.display_name} ({message.author.name})', icon_url=message.author.display_avatar.url)
             embed.set_footer(text=f'ID: {message.id}')
 
             await message.delete()
 
-            private = message.guild.get_channel(guild.modmail_private)
-            if private:
-                await private.send(embed=embed)
+            private: discord.TextChannel = get_guild_text_channel(message.guild, guild.modmail_private)
+
+            if message.attachments:
+                attachment: discord.Attachment = message.attachments[0]
+                file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description)
+                embed.set_image(url=f'attachment://{attachment.filename}')
+                await private.send(embed=embed, file=file)
             else:
-                await message.channel.send(f'Error: private modmail channel with ID `{guild.modmail_private}` not found.')
+                await private.send(embed=embed)
 
     @commands.command()
     @is_admin()
-    async def mute(self, ctx: Context, member='', duration='', reason='N/A'):
+    async def mute(self, ctx: Context, member='', duration='', reason='N/A') -> None:
         '''
         Assigns a role 'Muted' to given member. (Admin+)
         Arguments:
