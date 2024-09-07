@@ -1,7 +1,17 @@
 import asyncio
+from types import CodeType, ModuleType
+from typing import Any, Callable, Mapping, NamedTuple, Sequence
+from aiohttp import ClientResponse
 import discord
 from discord.ext import commands
-from discord.ext.commands import Cog
+from discord.ext.commands import Cog, Command as DiscordCommand
+from github.AuthenticatedUser import AuthenticatedUser
+from github.NamedUser import NamedUser
+from github.Repository import Repository as GitRepository
+from github.Commit import Commit
+from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet
+from numpy import ndarray
+from sqlalchemy import select, func
 from bot import Bot
 from database import Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
 from datetime import datetime, timedelta, UTC
@@ -13,7 +23,7 @@ import inspect
 from contextlib import redirect_stdout
 import io
 import itertools
-from checks import is_owner, is_admin, portables_admin, portables_only
+from checks import is_owner, is_admin
 from number_utils import is_int
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
@@ -22,8 +32,9 @@ from matplotlib.dates import DateFormatter
 from date_utils import timedelta_to_string, uptime_fraction
 from string_utils import remove_code_blocks
 from exception_utils import format_syntax_error
-from discord_utils import get_custom_command
-from database_utils import find_custom_db_command, get_db_guild
+from discord_utils import find_text_channel_by_name, get_custom_command, get_guild_text_channel, get_text_channel_by_name
+from database_utils import find_custom_db_command, get_db_guild, find_osrs_item_by_id, get_osrs_item_by_id
+from database_utils import find_rs3_item_by_id, get_rs3_item_by_id
 
 class Management(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -149,7 +160,7 @@ class Management(Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def welcome(self, ctx: commands.Context, channel='', *msgParts):
+    async def welcome(self, ctx: commands.Context, channel_name: str = '', *msgParts) -> None:
         '''
         Changes server's welcome channel and message. (Admin+)
         Arguments: channel, message (optional).
@@ -161,113 +172,103 @@ class Management(Cog):
         '''
         self.bot.increment_command_counter()
 
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+
         msg: str = ' '.join(msgParts)
         if not msg:
             msg = f'Welcome to **[server]**, [user]!'
 
         if ctx.message.channel_mentions:
             channel: discord.abc.GuildChannel | discord.Thread = ctx.message.channel_mentions[0]
-        elif channel:
-            found = False
-            for c in ctx.guild.text_channels:
-                if channel.upper() in c.name.upper():
-                    channel = c
-                    found = True
-                    break
-            if not found:
-                raise commands.CommandError(message=f'Missing channel: `{channel}`.')
+        elif channel_name:
+            channel = get_text_channel_by_name(ctx.guild, channel_name)
         else:
-            guild = await Guild.get(ctx.guild.id)
-            if not guild.welcome_channel_id and not guild.welcome_message:
-                await ctx.send(f'Please mention the channel in which you would like to receive welcome messages.')
+            async with self.bot.async_session() as session:
+                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                if not guild.welcome_channel_id and not guild.welcome_message:
+                    await ctx.send(f'Please mention the channel in which you would like to receive welcome messages.')
+                    return
+                guild.welcome_channel_id = None
+                guild.welcome_message = None
+                await session.commit()
+                await ctx.send(f'I will no longer send welcome messages in server **{ctx.guild.name}**.')
                 return
-            await guild.update(welcome_channel_id=None).apply()
-            await guild.update(welcome_message=None).apply()
-            await ctx.send(f'I will no longer send welcome messages in server **{ctx.guild.name}**.')
-            return
-
 
         async with self.bot.async_session() as session:
             guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
-            guild.welcome_channel_id = channel.id if channel.id else 
+            guild.welcome_channel_id = channel.id
             guild.welcome_message = msg
             await session.commit()
-
 
         await ctx.send(f'The welcome channel for server **{ctx.guild.name}** has been changed to {channel.mention}.\n'
                        f'The welcome message has been set to \"{msg}\".')
 
     @commands.command(pass_context=True, aliases=['servers', 'guilds', 'guildcount'])
-    async def servercount(self, ctx: commands.Context):
+    async def servercount(self, ctx: commands.Context) -> None:
         '''
         Returns the amount of servers that the bot is currently in.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.send(f'I am in **{len(self.bot.guilds)}** servers!')
 
     @commands.group(pass_context=True, invoke_without_command=True, aliases=['logging'])
     @is_admin()
-    async def log(self, ctx: commands.Context, channel=''):
+    async def log(self, ctx: commands.Context, channel_name: str = '') -> None:
         '''
         Changes server's logging channel. (Admin+)
         Arguments: channel.
         If no channel is given, logging messages will no longer be sent.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
 
         if ctx.message.channel_mentions:
-            channel = ctx.message.channel_mentions[0]
-        elif channel:
-            found = False
-            for c in ctx.guild.channels:
-                if channel.upper() == c.name.upper():
-                    channel = c
-                    found = True
-                    break
-            if not found:
-                for c in ctx.guild.channels:
-                    if channel.upper() in c.name.upper():
-                        channel = c
-                        found = True
-                        break
-            if not found:
-                raise commands.CommandError(message=f'Missing channel: `{channel}`.')
+            channel: discord.abc.GuildChannel | discord.Thread = ctx.message.channel_mentions[0]
+        elif channel_name:
+            channel = get_text_channel_by_name(ctx.guild, channel_name)
         else:
-            guild = await Guild.get(ctx.guild.id)
-            if not guild.log_channel_id:
-                await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
+            async with self.bot.async_session() as session:
+                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                if not guild.log_channel_id:
+                    await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
+                    return
+                guild.log_channel_id = None
+                await session.commit()
+                await ctx.send(f'I will no longer send logging messages in server **{ctx.guild.name}**.')
                 return
-            await guild.update(log_channel_id=None).apply()
-            await ctx.send(f'I will no longer send logging messages in server **{ctx.guild.name}**.')
-            return
         
-        guild = await Guild.get(ctx.guild.id)
-        await guild.update(log_channel_id=channel.id).apply()
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild.log_channel_id = channel.id
+            await session.commit()
 
         await ctx.send(f'The logging channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
     
     @log.command()
     @is_admin()
-    async def bots(self, ctx: commands.Context):
+    async def bots(self, ctx: commands.Context) -> None:
         '''
         Toggles logging for bot messages.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        guild = await Guild.get(ctx.guild.id)
-        new_val = False if guild.log_bots is None or guild.log_bots == True else True
-        await guild.update(log_bots=new_val).apply()
-
-        await ctx.send(f'Bot message deletion and edit logging {"enabled" if new_val else "disabled"}.')
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild.log_bots = False if guild.log_bots else True
+            await session.commit()
+            await ctx.send(f'Bot message deletion and edit logging {"enabled" if guild.log_bots else "disabled"}.')
 
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def command(self, ctx: commands.Context, cmd=''):
+    async def command(self, ctx: commands.Context, cmd: str = '') -> None:
         '''
         Disables/enables the given command for this server. (Admin+)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         cmd = cmd.strip()
         if not cmd:
@@ -275,149 +276,135 @@ class Management(Cog):
         elif cmd == 'command' or cmd == 'help':
             raise commands.CommandError(message=f'Invalid argument: `{cmd}`.')
         
-        guild = await Guild.get(ctx.guild.id)
-        if guild.disabled_commands is None:
-            await guild.update(disabled_commands=[cmd]).apply()
-            try:
-                await ctx.send(f'The command **{cmd}** has been **disabled**.')
-            except discord.Forbidden:
-                pass
-        elif cmd in guild.disabled_commands:
-            await guild.update(disabled_commands = guild.disabled_commands.remove(cmd)).apply()
-            try:
-                await ctx.send(f'The command **{cmd}** has been **enabled**.')
-            except discord.Forbidden:
-                pass
-        else:
-            await guild.update(disabled_commands = guild.disabled_commands + [cmd]).apply()
-            try:
-                await ctx.send(f'The command **{cmd}** has been **disabled**.')
-            except discord.Forbidden:
-                pass
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+
+            if guild.disabled_commands is None:
+                guild.disabled_commands = [cmd]
+                message: str = f'The command **{cmd}** has been **disabled**.'
+            elif cmd in guild.disabled_commands:
+                guild.disabled_commands = guild.disabled_commands.remove(cmd)
+                message = f'The command **{cmd}** has been **enabled**.'
+            else:
+                guild.disabled_commands = guild.disabled_commands + [cmd]
+                message = f'The command **{cmd}** has been **disabled**.'
+
+            await session.commit()
+            await ctx.send(message)
 
     @commands.command(pass_context=True, aliases=['setprefix'])
     @is_admin()
-    async def prefix(self, ctx: commands.Context, prefix='-'):
+    async def prefix(self, ctx: commands.Context, prefix: str = '-') -> None:
         '''
         Changes server's command prefix (default "-"). (Admin+)
         Arguments: prefix
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        guild = await Guild.get(ctx.guild.id)
-        await guild.update(prefix=prefix).apply()
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild.prefix = prefix
+            await session.commit()
         
         await ctx.send(f'The command prefix for server **{ctx.guild.name}** has been set to `{prefix}`.')
 
     @commands.command(pass_context=True, aliases=['latency', 'delay'])
-    async def ping(self, ctx: commands.Context):
+    async def ping(self, ctx: commands.Context) -> None:
         '''
         Pings the bot to check latency.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.send(f'`{int(self.bot.latency*1000)} ms`')
     
     @commands.command(aliases=['donate'])
-    async def patreon(self, ctx: commands.Context):
+    async def patreon(self, ctx: commands.Context) -> None:
         '''
         Provides a link to the RuneClock Patreon page where you can donate to help support ongoing development on RuneClock.
         '''
-        increment_command_counter()
-        await ctx.send(f'You can support the hosting and ongoing development of RuneClock on Patreon here:\n{config["patreon"]}')
+        self.bot.increment_command_counter()
+        await ctx.send(f'You can support the hosting and ongoing development of RuneClock on Patreon here:\n{self.bot.config["patreon"]}')
     
     @commands.command(aliases=['server'])
-    async def support(self, ctx: commands.Context):
+    async def support(self, ctx: commands.Context) -> None:
         '''
         Provides an invite link to the RuneClock support server.
         '''
-        increment_command_counter()
-        await ctx.send(config['support_server'])
+        self.bot.increment_command_counter()
+        await ctx.send(self.bot.config['support_server'])
 
     @commands.group(pass_context=True, invoke_without_command=True, aliases=['github'])
-    async def git(self, ctx: commands.Context):
+    async def git(self, ctx: commands.Context) -> None:
         '''
         Returns the link to the GitHub repository of this bot.
         '''
-        increment_command_counter()
-        name = ctx.guild.me.display_name
-        await ctx.send(f'**{name} on GitHub:**\n{config["github_link"]}')
+        self.bot.increment_command_counter()
+        await ctx.send(f'**{ctx.me.display_name} on GitHub:**\n{self.bot.config["github_link"]}')
     
     @git.command()
     @is_admin()
-    async def track(self, ctx: commands.Context, repo_url='', channel=''):
+    async def track(self, ctx: commands.Context, repo_url: str = '', channel_name: str = '') -> None:
         '''
         Receive notifications for updates to a GitHub repository in a channel.
         Arguments: GitHub repo url, channel
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
         if not repo_url:
             raise commands.CommandError(message=f'Required argument missing: `repo_url`.')
         
-        # Get channel
-        if channel:
-            if ctx.message.channel_mentions:
-                channel = ctx.message.channel_mentions[0]
-            else:
-                channel = discord.utils.get(ctx.guild.channels, name=channel)
-                if not channel:
-                    channel = ctx.channel
-        else:
-            channel = ctx.channel
+        channel: discord.TextChannel | None = find_text_channel_by_name(ctx.guild, channel_name)
+        channel = channel if channel else (ctx.channel if isinstance(ctx.channel, discord.TextChannel) else None)
+        if not channel:
+            raise commands.CommandError(message=f'A text channel is required.')
 
         try:
-            splits = repo_url.split('/')
+            splits: list[str] = repo_url.split('/')
             user_name, repo_name = splits[len(splits)-2:len(splits)]
         except:
             raise commands.CommandError(message=f'Invalid repository URL: `{repo_url}`.')
         
         try:
-            user = g.get_user(user_name)
-            if not user:
-                raise commands.CommandError(message=f'Could not find user: `{user_name}`.')
+            user: NamedUser | AuthenticatedUser = self.bot.github.get_user(user_name)
         except:
             raise commands.CommandError(message=f'Could not find user: `{user_name}`.')
         
         try:
-            repos = user.get_repos()
-            if not repos:
-                raise commands.CommandError(message=f'Could not find any repositories for user: `{user_name}`.')
+            repo: GitRepository | None = next((r for r in user.get_repos() if r.name.upper() == repo_name.upper()), None)
         except:
             raise commands.CommandError(message=f'Could not find any repositories for user: `{user_name}`.')
-        
-        num_repos = 0
-        for repo in repos:
-            num_repos += 1
+        if not repo:
+            raise commands.CommandError(message=f'Could not find a repository by the name: `{repo_name}`.')
 
-        for i, repo in enumerate(repos):
-            if repo.name.upper() == repo_name.upper():
-                break
-            elif i == num_repos - 1:
-                raise commands.CommandError(message=f'Could not find a repository by the name: `{repo_name}`.')
+        commit: Commit = repo.get_commits()[0]
 
-        commits = repo.get_commits()
-        
-        for i, commit in enumerate(commits):
-            commit_url = commit.url
-            break
-
-        r = await self.bot.aiohttp.get(commit_url)
+        r: ClientResponse = await self.bot.aiohttp.get(commit.url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch commit data.')
-            data = await r.json()
+            data: Any = await r.json()
 
-        repositories = await Repository.query.where(Repository.guild_id==ctx.guild.id).gino.all()
-        for r in repositories:
-            if r.user_name == user_name and r.repo_name == repo_name:
+        async with self.bot.async_session() as session:
+            if (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id).where(Repository.user_name == user_name).where(Repository.repo_name == repo_name))).scalar_one_or_none():
                 raise commands.CommandError(message=f'The repository `{repo_name}` is already being tracked.')
-
-        await Repository.create(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha)
+            
+            session.add(Repository(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha))
+            await session.commit()
 
         await ctx.send(f'The repository `{repo_name}` is now being tracked. Notifications for new commits will be sent to {channel.mention}.')
 
-        embed = discord.Embed(title=f'{user_name}/{repo_name}', colour=discord.Colour.blue(), timestamp=datetime.strptime(data['commit']['author']['date'], "%Y-%m-%dT%H:%M:%SZ"), description=f'[`{commit.sha[:7]}`]({commit_url}) {data["commit"]["message"]}\n{data["stats"]["additions"]} additions, {data["stats"]["deletions"]} deletions', url=repo_url)
+        embed = discord.Embed(
+            title=f'{user_name}/{repo_name}', 
+            colour=discord.Colour.blue(), 
+            timestamp=datetime.strptime(data['commit']['author']['date'], "%Y-%m-%dT%H:%M:%SZ"), 
+            description=f'[`{commit.sha[:7]}`]({commit.url}) {data["commit"]["message"]}\n{data["stats"]["additions"]} additions, {data["stats"]["deletions"]} deletions', 
+            url=repo_url
+        )
         embed.set_author(name=f'{data["commit"]["author"]["name"]}', url=f'{data["author"]["url"]}', icon_url=f'{data["author"]["avatar_url"]}')
 
         for file in data['files']:
@@ -427,13 +414,15 @@ class Management(Cog):
     
     @git.command()
     @is_admin()
-    async def untrack(self, ctx: commands.Context, repo_url=''):
+    async def untrack(self, ctx: commands.Context, repo_url: str = '') -> None:
         '''
         Stop receiving notifications for updates to a GitHub repository in a channel.
         Arguments: GitHub repo url, channel
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
         if not repo_url:
             raise commands.CommandError(message=f'Required argument missing: `repo_url`.')
 
@@ -443,97 +432,87 @@ class Management(Cog):
         except:
             raise commands.CommandError(message=f'Invalid repository URL: `{repo_url}`.')
         
-        repositories = await Repository.query.where(Repository.guild_id==ctx.guild.id).gino.all()
-        for r in repositories:
-            if r.user_name == user_name and r.repo_name == repo_name:
-                await r.delete()
+        async with self.bot.async_session() as session:
+            repo: Repository | None = (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id).where(Repository.user_name == user_name).where(Repository.repo_name == repo_name))).scalar_one_or_none()
+            if repo:
+                await session.delete(repo)
+                await session.commit()
                 await ctx.send(f'No longer tracking repository: `{repo_name}`.')
-                return
-        
-        raise commands.CommandError(message=f'Could not find any active trackers for the repository: `{repo_name}`.')
+            else:
+                raise commands.CommandError(message=f'Could not find any active trackers for the repository: `{repo_name}`.')
 
     @commands.command(aliases=['info'])
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def status(self, ctx: commands.Context):
+    async def status(self, ctx: commands.Context) -> None:
         '''
         Returns the bot's current status.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        now = datetime.now(UTC)
-        time = now.replace(microsecond=0)
-        start_time = self.bot.start_time
-        delta = time - start_time.replace(microsecond=0)
+        now: datetime = datetime.now(UTC).replace(microsecond=0)
+        start_time: datetime = self.bot.start_time.replace(microsecond=0)
+        delta: timedelta = now - start_time
         if delta < timedelta(minutes=1):
-            time = delta
+            pass
         elif delta < timedelta(hours=1):
-            time = now.replace(microsecond=0, second=0)
-            time -= start_time.replace(microsecond=0, second=0)
+            delta = now.replace(second=0) - start_time.replace(second=0)
         elif delta < timedelta(days=1):
-            time = now.replace(microsecond=0, second=0, minute=0)
-            time -= start_time.replace(microsecond=0, second=0, minute=0)
+            delta = now.replace(second=0, minute=0) - start_time.replace(second=0, minute=0)
         else:
-            time = now.replace(microsecond=0, second=0, minute=0, hour=0)
-            time -= start_time.replace(microsecond=0, second=0, minute=0, hour=0)
-        delta = time
-        time = timedelta_to_string(time)
+            delta = now.replace(second=0, minute=0, hour=0) - start_time.replace(second=0, minute=0, hour=0)
+        time: str = timedelta_to_string(delta)
+
         cpu_percent = str(psutil.cpu_percent(interval=None))
-        ram = psutil.virtual_memory() # total, available, percent, used, free, active, inactive, buffers, cached, shared, slab
-        ram_percent = ram[2]
-        disk_percent = psutil.disk_usage('/').percent
-        title = f'**Status**'
-        colour = 0x00e400
-        timestamp = datetime.now(UTC)
-        txt = f'**OK**. :white_check_mark:'
-        txt += f'\n**Shards:** {self.bot.shard_count}'
+        ram: NamedTuple = psutil.virtual_memory() # total, available, percent, used, free, active, inactive, buffers, cached, shared, slab
+        ram_percent: float = ram[2]
+        disk_percent: float = psutil.disk_usage('/').percent
+        txt: str = f'**OK**. :white_check_mark:\n**Shards:** {self.bot.shard_count}'
 
         try:
-            agc = await self.bot.agcm.authorize()
-            ss = await agc.open(config['sheetName'])
+            agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+            ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
             await ss.worksheet('Home')
-            gspread_status = f'Google API online'
+            gspread_status: str = f'Google API online'
         except:
             txt = '**Error**. :x:'
             gspread_status = f':x: Google API is down'
-        extensions = self.bot.extensions
-        cogs = [x.stem for x in Path('cogs').glob('*.py')]
-        cogs_txt = ''
+        extensions: Mapping[str, ModuleType] = self.bot.extensions
+        cogs: list[str] = [x.stem for x in Path('cogs').glob('*.py')]
+        cogs_txt: str = ''
         if len(extensions) < len(cogs):
             txt = '**Error**. :x:'
             cogs_txt += ':x: '
         cogs_txt += f'{len(extensions)}/{len(cogs)}'
 
-        embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
+        embed = discord.Embed(title='**Status**', colour=0x00e400, timestamp=now, description=txt)
 
-        system = f'**CPU:** {cpu_percent}%\n**RAM:** {ram_percent}%\n**Disk:** {disk_percent}%'
+        system: str = f'**CPU:** {cpu_percent}%\n**RAM:** {ram_percent}%\n**Disk:** {disk_percent}%'
         embed.add_field(name='__System__', value=system)
 
-        info = f'**Extensions:** {cogs_txt}\n**Uptime:** {time}\n**Latency:** {int(self.bot.latency*1000)} ms'
+        info: str = f'**Extensions:** {cogs_txt}\n**Uptime:** {time}\n**Latency:** {int(self.bot.latency*1000)} ms'
         embed.add_field(name='__Info__', value=info)
 
         channels = 0
         users = 0
         for g in self.bot.guilds:
             channels += len(g.text_channels)
-            users += g.member_count
+            users += g.member_count if g.member_count else 0
 
         connections = f'**Servers:** {len(self.bot.guilds)}\n**Channels:** {channels}\n**Users:** {users}'
         embed.add_field(name='__Connections__', value=connections)
 
-        notification_channels = 0
-        guilds = await Guild.query.gino.all()
-        for guild in guilds:
-            if guild.notification_channel_id:
-                notification_channels += 1
+        async with self.bot.async_session() as session:
+            notification_channels: int | None = await session.scalar(select(func.count()).select_from(Guild).filter(Guild.notification_channel_id.is_not(None)))
+            notification_channels = notification_channels if notification_channels else 0
 
-        notifications = round(delta.total_seconds() / 3600 * 3.365 * notification_channels)
-        processed = f'**Commands:** {get_command_counter()}\n**Events:** {self.bot.events_logged}\n**Notifications:** {notifications}'
+        notifications: int = round(delta.total_seconds() / 3600 * 3.365 * notification_channels)
+        processed = f'**Commands:** {self.bot.get_command_counter()}\n**Events:** {self.bot.events_logged}\n**Notifications:** {notifications}'
         embed.add_field(name='__Processed__', value=processed)
 
-        embed.set_author(name='@schattie', url='https://github.com/ChattyRS/Portables', icon_url=config['profile_picture_url'])
+        embed.set_author(name='@schattie', url='https://github.com/ChattyRS/Portables', icon_url=self.bot.config['profile_picture_url'])
 
-        embed.set_thumbnail(url=ctx.guild.me.display_avatar.url)
+        embed.set_thumbnail(url=ctx.me.display_avatar.url)
 
         if not 'OK' in txt:
             embed.add_field(name='__Details__', value=f'{gspread_status}', inline=False)
@@ -542,7 +521,7 @@ class Management(Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @is_owner()
-    async def restart(self, ctx: commands.Context):
+    async def restart(self, ctx: commands.Context) -> None:
         '''
         Restarts the bot.
         '''
@@ -554,92 +533,74 @@ class Management(Cog):
             await ctx.send('OK, restarting...')
         except:
             print('Error sending restart message')
-        restart()
-    
-    @commands.command(hidden=True)
-    @is_owner()
-    async def reboot(self, ctx: commands.Context):
-        '''
-        Restarts the system.
-        '''
-        try:
-            await self.bot.close_database_connection()
-        except:
-            pass
-        try:
-            await ctx.send('OK, restarting the system...')
-        except:
-            print('Error sending restart message')
-        reboot()
+        self.bot.restart()
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def say(self, ctx: commands.Context):
+    async def say(self, ctx: commands.Context) -> None:
         '''
         Makes the bot say something (Admin+).
         Arguments: channel_mention, message
         '''
-        increment_command_counter()
-        msg = ctx.message
-        if not msg.channel_mentions:
-            channel = msg.channel
-        else:
-            channel = msg.channel_mentions[0]
-        txt = msg.content
-        txt = txt.replace(ctx.prefix + "say", "", 1)
-        txt = txt.replace(channel.mention, "", 1)
-        txt = txt.strip()
+        self.bot.increment_command_counter()
+        channel = ctx.message.channel if not ctx.message.channel_mentions else ctx.message.channel_mentions[0]
+        if not isinstance(channel, discord.TextChannel):
+            raise commands.CommandError(message=f'Only text channels are supported')
+        
+        txt: str = ctx.message.content.replace(ctx.clean_prefix + "say", "", 1)
+        txt = txt.replace(channel.mention, "", 1).strip()
         if not txt:
             raise commands.CommandError(message=f'Required argument missing: `message`.')
         try:
-            await msg.delete()
+            await ctx.message.delete()
         except discord.Forbidden:
-            ctx.send(f'Missing permissions: `delete_message`.')
+            await ctx.send(f'Missing permissions: `delete_message`.')
 
         await channel.send(txt)
     
     @commands.command(name='embed')
     @is_admin()
-    async def _embed(self, ctx: commands.Context, title='Announcement', channel='', *message):
+    async def _embed(self, ctx: commands.Context, title: str = 'Announcement', *message) -> None:
         '''
         Sends an embed. (Admin+)
         Arguments: title, channel (optional), message
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        c = ctx.channel
-        if any(chan.mention == channel for chan in ctx.guild.text_channels):
-            c = ctx.message.channel_mentions[0]
-            msg = ' '.join(message)
-        else:
-            msg = channel + ' ' + ' '.join(message)
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+
+        channel = ctx.message.channel if not ctx.message.channel_mentions else ctx.message.channel_mentions[0]
+        if not isinstance(channel, discord.TextChannel):
+            raise commands.CommandError(message=f'Only text channels are supported')
         
+        msg: str = ' '.join(message)
         if not msg:
             raise commands.CommandError(message=f'Required argument missing: `message`.')
         
         try:
             await ctx.message.delete()
         except discord.Forbidden:
-            ctx.send(f'Missing permissions: `delete_message`.')
+            await ctx.send(f'Missing permissions: `delete_message`.')
 
         embed = discord.Embed(title=title, colour=0x00b2ff, timestamp=datetime.now(UTC), description=msg)
         embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 
-        await c.send(embed=embed)
+        await channel.send(embed=embed)
         
 
     @commands.command(pass_context=True, hidden=True)
     @is_owner()
-    async def eval(self, ctx: commands.Context, *, body=''):
+    async def eval(self, ctx: commands.Context, *, body: str = '') -> None:
         '''
         Evaluates code
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        env = {
+        env: dict[str, Any] = {
             'bot': self.bot,
-            'config': config,
+            'config': self.bot.config,
             'ctx': ctx,
             'channel': ctx.channel,
             'author': ctx.author,
@@ -656,19 +617,19 @@ class Management(Cog):
         body = remove_code_blocks(body)
         stdout = io.StringIO()
 
-        to_compile = f'async def func():\n{textwrap.indent(body, "  ")}'
+        to_compile: str = f'async def func():\n{textwrap.indent(body, "  ")}'
 
         try:
             exec(to_compile, env)
         except Exception as e:
             raise commands.CommandError(message=f'Error:\n```py\n{e.__class__.__name__}: {e}\n```')
 
-        func = env['func']
+        func: Any = env['func']
         try:
             with redirect_stdout(stdout):
-                ret = await func()
+                ret: Any = await func()
         except Exception as e:
-            value = stdout.getvalue()
+            value: str = stdout.getvalue()
             await ctx.send(f'```py\n{value}{traceback.format_exc()}\n```')
         else:
             value = stdout.getvalue()
@@ -685,9 +646,11 @@ class Management(Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def load(self, ctx: commands.Context, *, module):
-        """Loads a module."""
-        increment_command_counter()
+    async def load(self, ctx: commands.Context, *, module: str) -> None:
+        '''
+        Loads a module.
+        '''
+        self.bot.increment_command_counter()
         try:
             await self.bot.load_extension(f'cogs.{module}')
         except:
@@ -697,9 +660,11 @@ class Management(Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def unload(self, ctx: commands.Context, *, module):
-        """Unloads a module."""
-        increment_command_counter()
+    async def unload(self, ctx: commands.Context, *, module: str) -> None:
+        '''
+        Unloads a module.
+        '''
+        self.bot.increment_command_counter()
         try:
             await self.bot.unload_extension(f'cogs.{module}')
         except:
@@ -709,9 +674,11 @@ class Management(Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def reload(self, ctx: commands.Context, *, module):
-        """Reloads a module."""
-        increment_command_counter()
+    async def reload(self, ctx: commands.Context, *, module: str) -> None:
+        '''
+        Reloads a module.
+        '''
+        self.bot.increment_command_counter()
         try:
             await self.bot.reload_extension(f'cogs.{module}')
         except:
@@ -719,68 +686,51 @@ class Management(Cog):
         else:
             await ctx.send(f'Reloaded extension: **{module}**')
 
-    @commands.command(hidden=True)
-    @portables_admin()
-    @portables_only()
-    async def reload_sheets(self, ctx: commands.Context):
-        '''
-        Reloads the sheets extension.
-        '''
-        try:
-            await self.bot.reload_extension(f'cogs.sheets')
-        except:
-            raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
-        else:
-            await ctx.send(f'Reloaded extension: **sheets**')
-
     @commands.command(pass_context=True, hidden=True)
     @is_owner()
-    async def repl(self, ctx: commands.Context):
+    async def repl(self, ctx: commands.Context) -> None:
         """Launches an interactive REPL session."""
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        variables = {
+        variables: dict[str, Any] = {
             'ctx': ctx,
             'bot': self.bot,
-            'config': config,
+            'config': self.bot.config,
             'message': ctx.message,
             'guild': ctx.guild,
             'channel': ctx.channel,
             'author': ctx.author,
-            '_': None,
         }
 
-        if ctx.channel.id in self.sessions:
-            raise commands.CommandError(message=f'Error: duplicate REPL session in `{ctx.channel.name}`.')
+        if ctx.channel.id in self.repl_session_channel_ids:
+            raise commands.CommandError(message=f'Error: duplicate REPL session in `{ctx.channel}`.')
 
-        self.sessions.add(ctx.channel.id)
+        self.repl_session_channel_ids.add(ctx.channel.id)
         await ctx.send('Enter code to execute or evaluate. `exit()` or `quit` to exit.')
 
-        def check(m):
-            return m.author.id == ctx.author.id and \
-                   m.channel.id == ctx.channel.id and \
-                   m.content.startswith('`')
+        def check(m: discord.Message) -> bool:
+            return m.author.id == ctx.author.id and m.channel.id == ctx.channel.id and m.content.startswith('`')
 
         while True:
             try:
-                response = await self.bot.wait_for('message', check=check, timeout=10.0 * 60.0)
+                response: discord.Message = await self.bot.wait_for('message', check=check, timeout=5.0 * 60.0)
             except asyncio.TimeoutError:
                 await ctx.send('Exiting REPL session.')
-                self.sessions.remove(ctx.channel.id)
+                self.repl_session_channel_ids.remove(ctx.channel.id)
                 break
 
-            cleaned = remove_code_blocks(response.content)
+            cleaned: str = remove_code_blocks(response.content)
 
             if cleaned in ('quit', 'exit', 'exit()'):
                 await ctx.send('Exiting.')
-                self.sessions.remove(ctx.channel.id)
+                self.repl_session_channel_ids.remove(ctx.channel.id)
                 return
 
-            executor = exec
+            executor: Callable = exec
             if cleaned.count('\n') == 0:
                 # single statement, potentially 'eval'
                 try:
-                    code = compile(cleaned, '<repl session>', 'eval')
+                    code: CodeType = compile(cleaned, '<repl session>', 'eval')
                 except SyntaxError:
                     pass
                 else:
@@ -795,16 +745,16 @@ class Management(Cog):
 
             variables['message'] = response
 
-            fmt = None
+            fmt: str | None = None
             stdout = io.StringIO()
 
             try:
                 with redirect_stdout(stdout):
-                    result = executor(code, variables)
+                    result: Any = executor(code, variables)
                     if inspect.isawaitable(result):
                         result = await result
             except Exception as e:
-                value = stdout.getvalue()
+                value: str = stdout.getvalue()
                 fmt = f'```py\n{value}{traceback.format_exc()}\n```'
             else:
                 value = stdout.getvalue()
@@ -827,22 +777,23 @@ class Management(Cog):
     
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.channel)
-    async def uptime(self, ctx: commands.Context):
+    async def uptime(self, ctx: commands.Context) -> None:
         '''
         Uptime statistics
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        events = await Uptime.query.order_by(Uptime.time.asc()).gino.all()
+        async with self.bot.async_session() as session:
+            events: Sequence[Uptime] = (await session.execute(select(Uptime).order_by(Uptime.time.asc()))).scalars().all()
 
-        now = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        now: datetime = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
-        uptime_today = uptime_fraction(events, now.year, now.month, now.day)
-        uptime_today_round = '{:.1f}'.format(uptime_today*100)
+        uptime_today: float = uptime_fraction(events, now.year, now.month, now.day)
+        uptime_today_round: str = '{:.1f}'.format(uptime_today*100)
 
-        uptime_month = uptime_fraction(events, now.year, now.month)
-        uptime_month_round = '{:.1f}'.format(uptime_month*100)
+        uptime_month: float = uptime_fraction(events, now.year, now.month)
+        uptime_month_round: str = '{:.1f}'.format(uptime_month*100)
 
         loc = mdates.WeekdayLocator()
 
@@ -852,14 +803,14 @@ class Management(Cog):
 
         fig, ax = plt.subplots()
 
-        times = []
-        uptimes = []
+        times: list[datetime] = []
+        uptimes: list[float] = []
         for i in range(30):
-            day = now - timedelta(days=i)
+            day: datetime = now - timedelta(days=i)
             times.append(day)
             uptimes.append(100 * uptime_fraction(events, day.year, day.month, day.day))
 
-        dates = date2num(times)
+        dates: ndarray = date2num(times)
         plt.plot_date(dates, uptimes, color='#47a0ff', linestyle='-', ydate=False, xdate=True)
 
         ax.xaxis.set_major_locator(loc)
@@ -878,7 +829,7 @@ class Management(Cog):
         with open('images/uptime.png', 'rb') as f:
             file = io.BytesIO(f.read())
         
-        txt = f'Today: `{uptime_today_round}%`\nMonthly: `{uptime_month_round}%`'
+        txt: str = f'Today: `{uptime_today_round}%`\nMonthly: `{uptime_month_round}%`'
         
         embed = discord.Embed(title='Uptime', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
         
@@ -888,43 +839,38 @@ class Management(Cog):
         await ctx.send(file=image, embed=embed)
 
     @commands.command()
-    async def invite(self, ctx: commands.Context):
+    async def invite(self, ctx: commands.Context) -> None:
         '''
         Get an invite link to invite RuneClock to your servers.
         '''
+        self.bot.increment_command_counter()
         url = 'https://discordapp.com/api/oauth2/authorize?client_id=449462150491275274&permissions=8&scope=bot%20applications.commands'
         await ctx.send(f'**RuneClock invite link:**\n{url}')
     
-    @commands.command(hidden=True, aliases=['gino'])
-    async def ginonotes(self, ctx: commands.Context):
-        '''
-        Get link to gino notes.
-        '''
-        url = 'https://github.com/makupi/gino-notes/wiki'
-        await ctx.send(f'**GINO notes:**\n{url}')
-    
     @commands.command(hidden=True)
     @is_owner()
-    async def add_item_osrs(self, ctx: commands.Context, id=0):
+    async def add_item_osrs(self, ctx: commands.Context, id: int = 0) -> None:
         '''
         Add an item to the OSRS item database by ID.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        item = await OSRSItem.get(id)
+        item: OSRSItem | None = await find_osrs_item_by_id(self.bot, id)
+        if item:
+            raise commands.CommandError(message=f'Item {item.name} with ID {item.id} is already in the database.')
 
-        data_url = f'http://services.runescape.com/m=itemdb_oldschool/api/catalogue/detail.json?item={id}'
-        graph_url = f'http://services.runescape.com/m=itemdb_oldschool/api/graph/{id}.json'
-        item_data = None
-        graph_data = None
+        data_url: str = f'http://services.runescape.com/m=itemdb_oldschool/api/catalogue/detail.json?item={id}'
+        graph_url: str = f'http://services.runescape.com/m=itemdb_oldschool/api/graph/{id}.json'
+        item_data: Any = None
+        graph_data: Any = None
 
         while not item_data and not graph_data:
             if not item_data:
-                r = await self.bot.aiohttp.get(data_url)
+                r: ClientResponse = await self.bot.aiohttp.get(data_url)
                 async with r:
                     if r.status == 404:
                         raise commands.CommandError(message=f'Item with ID `{id}` does not exist.')
@@ -948,161 +894,157 @@ class Management(Cog):
                     except Exception as e:
                         raise commands.CommandError(message=f'Encountered exception:\n```{e}```')
         
-        name = item_data['item']['name']
-        icon_url = item_data['item']['icon_large']
-        type = item_data['item']['type']
-        description = item_data['item']['description']
-        members = True if item_data['item']['members'] == 'true' else False
+        name: str = item_data['item']['name']
+        icon_url: str = item_data['item']['icon_large']
+        type: str = item_data['item']['type']
+        description: str = item_data['item']['description']
+        members: bool = True if item_data['item']['members'] == 'true' else False
         
-        prices = []
-        for time, price in graph_data['daily'].items():
-            prices.append(price)
-        
-        current = prices[len(prices) - 1]
-        yesterday = prices[len(prices) - 2]
-        month_ago = prices[len(prices) - 31]
-        three_months_ago = prices[len(prices) - 91]
-        half_year_ago = prices[0]
-
-        today = str(int(current) - int(yesterday))
-        day30 = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
-        day90 = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
-        day180 = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
-
-        if not item:
-            await OSRSItem.create(id=int(id), name=name, icon_url=icon_url, type=type, description=description, members=members, current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data)
-        else:
-            await item.update(current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data).apply()
-
-        await ctx.send(f'Item added: `{name}`: `{current}`.')
-    
-    @commands.command(hidden=True)
-    @is_owner()
-    async def remove_item_osrs(self, ctx: commands.Context, id=0):
-        '''
-        Remove an item from the OSRS item database by ID.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        if not is_int(id):
-            raise commands.CommandError(message=f'Required argument missing: `ID`.')
-        id = int(id)
-        item = await OSRSItem.get(id)
-
-        if not item:
-            raise commands.CommandError(message=f'Could not find item by id: `{id}`.')
-        
-        await item.delete()
-
-        await ctx.send(f'Item removed: `{id}`: `{item.name}`.')
-
-    @commands.command(hidden=True)
-    @is_owner()
-    async def add_item_rs3(self, ctx: commands.Context, id=0):
-        '''
-        Add an item to the RS3 item database by ID.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        if not is_int(id):
-            raise commands.CommandError(message=f'Required argument missing: `ID`.')
-        id = int(id)
-        item = await RS3Item.get(id)
-
-        data_url = f'http://services.runescape.com/m=itemdb_rs/api/catalogue/detail.json?item={id}'
-        graph_url = f'http://services.runescape.com/m=itemdb_rs/api/graph/{id}.json'
-        item_data = None
-        graph_data = None
-
-        while not item_data and not graph_data:
-            if not item_data:
-                r = await self.bot.aiohttp.get(data_url)
-                async with r:
-                    if r.status == 404:
-                        raise commands.CommandError(message=f'Item with ID `{id}` does not exist.')
-                    elif r.status != 200:
-                        await asyncio.sleep(60)
-                        continue
-                    try:
-                        item_data = await r.json(content_type='text/html')
-                    except Exception as e:
-                        raise commands.CommandError(message=f'Encountered exception:\n```{e}```')
-            if not graph_data:
-                r = await self.bot.aiohttp.get(graph_url)
-                async with r:
-                    if r.status == 404:
-                        raise commands.CommandError(message=f'Item with ID `{id}` does not exist.')
-                    elif r.status != 200:
-                        await asyncio.sleep(60)
-                        continue
-                    try:
-                        graph_data = await r.json(content_type='text/html')
-                    except Exception as e:
-                        raise commands.CommandError(message=f'Encountered exception:\n```{e}```')
-        
-        name = item_data['item']['name']
-        icon_url = item_data['item']['icon_large']
-        type = item_data['item']['type']
-        description = item_data['item']['description']
-        members = True if item_data['item']['members'] == 'true' else False
-        
-        prices = []
+        prices: list[str] = []
         for _, price in graph_data['daily'].items():
             prices.append(price)
         
-        current = prices[len(prices) - 1]
-        yesterday = prices[len(prices) - 2]
-        month_ago = prices[len(prices) - 31]
-        three_months_ago = prices[len(prices) - 91]
-        half_year_ago = prices[0]
+        current: str = prices[len(prices) - 1]
+        yesterday: str = prices[len(prices) - 2]
+        month_ago: str = prices[len(prices) - 31]
+        three_months_ago: str = prices[len(prices) - 91]
+        half_year_ago: str = prices[0]
 
         today = str(int(current) - int(yesterday))
-        day30 = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
-        day90 = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
-        day180 = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
+        day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
+        day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
+        day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
 
-        if not item:
-            await RS3Item.create(id=int(id), name=name, icon_url=icon_url, type=type, description=description, members=members, current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data)
-        else:
-            await item.update(current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data).apply()
+        async with self.bot.async_session() as session:
+            session.add(OSRSItem(id=int(id), name=name, icon_url=icon_url, type=type, description=description, members=members, current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data))
+            await session.commit()
 
         await ctx.send(f'Item added: `{name}`: `{current}`.')
     
     @commands.command(hidden=True)
     @is_owner()
-    async def remove_item_rs3(self, ctx: commands.Context, id=0):
+    async def remove_item_osrs(self, ctx: commands.Context, id: int = 0) -> None:
         '''
-        Remove an item from the RS3 item database by ID.
+        Remove an item from the OSRS item database by ID.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        item = await RS3Item.get(id)
+        async with self.bot.async_session() as session:
+            item: OSRSItem = await get_osrs_item_by_id(self.bot, id, session)
+            await session.delete(item)
+            await session.commit()
 
-        if not item:
-            raise commands.CommandError(message=f'Could not find item by id: `{id}`.')
+        await ctx.send(f'Item removed: `{id}`: `{item.name}`.')
+
+    @commands.command(hidden=True)
+    @is_owner()
+    async def add_item_rs3(self, ctx: commands.Context, id: int = 0) -> None:
+        '''
+        Add an item to the RS3 item database by ID.
+        '''
+        self.bot.increment_command_counter()
+        await ctx.channel.typing()
+
+        if not is_int(id):
+            raise commands.CommandError(message=f'Required argument missing: `ID`.')
+        id = int(id)
+        item: RS3Item | None = await find_rs3_item_by_id(self.bot, id)
+        if item:
+            raise commands.CommandError(message=f'Item {item.name} with ID {item.id} is already in the database.')
+
+        data_url: str = f'http://services.runescape.com/m=itemdb_rs/api/catalogue/detail.json?item={id}'
+        graph_url: str = f'http://services.runescape.com/m=itemdb_rs/api/graph/{id}.json'
+        item_data: Any = None
+        graph_data: Any = None
+
+        while not item_data and not graph_data:
+            if not item_data:
+                r: ClientResponse = await self.bot.aiohttp.get(data_url)
+                async with r:
+                    if r.status == 404:
+                        raise commands.CommandError(message=f'Item with ID `{id}` does not exist.')
+                    elif r.status != 200:
+                        await asyncio.sleep(60)
+                        continue
+                    try:
+                        item_data = await r.json(content_type='text/html')
+                    except Exception as e:
+                        raise commands.CommandError(message=f'Encountered exception:\n```{e}```')
+            if not graph_data:
+                r = await self.bot.aiohttp.get(graph_url)
+                async with r:
+                    if r.status == 404:
+                        raise commands.CommandError(message=f'Item with ID `{id}` does not exist.')
+                    elif r.status != 200:
+                        await asyncio.sleep(60)
+                        continue
+                    try:
+                        graph_data = await r.json(content_type='text/html')
+                    except Exception as e:
+                        raise commands.CommandError(message=f'Encountered exception:\n```{e}```')
         
-        await item.delete()
+        name: str = item_data['item']['name']
+        icon_url: str = item_data['item']['icon_large']
+        type: str = item_data['item']['type']
+        description: str = item_data['item']['description']
+        members: bool = True if item_data['item']['members'] == 'true' else False
+        
+        prices: list[str] = []
+        for _, price in graph_data['daily'].items():
+            prices.append(price)
+        
+        current: str = prices[len(prices) - 1]
+        yesterday: str = prices[len(prices) - 2]
+        month_ago: str = prices[len(prices) - 31]
+        three_months_ago: str = prices[len(prices) - 91]
+        half_year_ago: str = prices[0]
+
+        today = str(int(current) - int(yesterday))
+        day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
+        day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
+        day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
+
+        async with self.bot.async_session() as session:
+            session.add(RS3Item(id=int(id), name=name, icon_url=icon_url, type=type, description=description, members=members, current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data))
+            await session.commit()
+
+        await ctx.send(f'Item added: `{name}`: `{current}`.')
+    
+    @commands.command(hidden=True)
+    @is_owner()
+    async def remove_item_rs3(self, ctx: commands.Context, id: int = 0) -> None:
+        '''
+        Remove an item from the RS3 item database by ID.
+        '''
+        self.bot.increment_command_counter()
+        await ctx.channel.typing()
+
+        if not is_int(id):
+            raise commands.CommandError(message=f'Required argument missing: `ID`.')
+        id = int(id)
+        async with self.bot.async_session() as session:
+            item: RS3Item = await get_rs3_item_by_id(self.bot, id, session)
+            await session.delete(item)
+            await session.commit()
 
         await ctx.send(f'Item removed: `{id}`: `{item.name}`.')
     
     @commands.command(hidden=True)
     @is_owner()
-    async def server_top(self, ctx: commands.Context):
+    async def server_top(self, ctx: commands.Context) -> None:
         '''
         Return a list of the top-10 servers by size.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        guilds = sorted(self.bot.guilds, key=lambda g: g.member_count, reverse=True)
+        guilds: list[discord.Guild] = sorted(self.bot.guilds, key=lambda g: g.member_count, reverse=True) # type: ignore
 
-        msg = '**Top 10 largest servers**'
+        msg: str = '**Top 10 largest servers**'
         for i, guild in enumerate(guilds):
             msg += f'\n{guild.name}: `{guild.member_count}`'
             if i >= 9:
@@ -1112,11 +1054,14 @@ class Management(Cog):
     
     @commands.command(hidden=True)
     @is_owner()
-    async def sim(self, ctx: commands.Context, key, val, command, *args):
+    async def sim(self, ctx: commands.Context, key: str, val: str | int, command: str, *args) -> None:
         '''
         Debugging command to simulate a command being invoked from a different context.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild or not ctx.channel:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
 
         if not key:
             raise commands.CommandError(message=f'Required argument missing: \'key\'.')
@@ -1131,20 +1076,16 @@ class Management(Cog):
 
         if not command:
             raise commands.CommandError(message=f'Required argument missing: \'command\'.')
-        cmd = self.bot.get_command(command)
+        cmd: DiscordCommand | None = self.bot.get_command(command)
         if not cmd:
             raise commands.CommandError(message=f'Command not found: `{command}`.')
 
         if key == 'user':
-            user = await ctx.guild.fetch_member(val)
-            if not user:
-                raise commands.CommandError(message=f'User not found: `{val}`.')
+            user: discord.Member = await ctx.guild.fetch_member(val)
             ctx.author = user
             ctx.message.author = user
         elif key == 'channel':
-            channel = ctx.guild.get_channel(val)
-            if not channel:
-                raise commands.CommandError(message=f'Channel not found: `{val}`.')
+            channel: discord.TextChannel = get_guild_text_channel(ctx.guild, val)
             ctx.channel = channel
             ctx.message.channel = channel
         
@@ -1155,27 +1096,27 @@ class Management(Cog):
         ctx.invoked_with = command
 
         if await cmd.can_run(ctx):
-            num_params = len(cmd.clean_params)
+            num_params: int = len(cmd.clean_params)
             if num_params >= len(args):
-                await cmd.callback(self, ctx, *args)
+                await cmd.callback(ctx, *args)
             elif num_params == 0:
-                await cmd.callback(self, ctx)
+                await cmd.callback(ctx)  # type: ignore
             else:
                 args = args[:num_params]
-                await cmd.callback(self, ctx, *args)
+                await cmd.callback(ctx, *args)
     
     @commands.command(hidden=True)
     @is_owner()
-    async def sync(self, ctx: commands.Context, *guild_ids):
+    async def sync(self, ctx: commands.Context, *guild_ids) -> None:
         '''
         Syncs application commands globally or to the given guild(s).
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if any(guild_ids):
             for guild_id in guild_ids:
-                guild = self.bot.get_guild(int(guild_id))
+                guild: discord.Guild | None = self.bot.get_guild(int(guild_id))
                 if guild:
                     await self.bot.tree.sync(guild=guild)
                     await ctx.send(f'Synced application commands with guild: `{guild.name}`')
@@ -1185,45 +1126,48 @@ class Management(Cog):
 
     @commands.command(hidden=True)
     @is_owner()
-    async def ban_guild(self, ctx: commands.Context, guild_id, name='', *reason):
-        increment_command_counter()
+    async def ban_guild(self, ctx: commands.Context, guild_id: str | int, name: str = '', *reasons) -> None:
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not guild_id or not is_int(guild_id):
             raise commands.CommandError(message=f'Invalid argument \'guild_id\': `{guild_id}`.')
         guild_id = int(guild_id)
-        banned_guild = await BannedGuild.get(guild_id)
+        async with self.bot.async_session() as session:
+            banned_guild: BannedGuild | None = (await session.execute(select(BannedGuild).where(BannedGuild.id == guild_id))).scalar_one_or_none()
         if banned_guild:
             raise commands.CommandError(message=f'Guild {banned_guild.name} with ID `{guild_id}` is already banned.')
-        reason = ' '.join(reason)
+        reason: str = ' '.join(reasons)
         if not reason:
             reason = 'No reason given'
 
-        guild = self.bot.get_guild(guild_id)
+        guild: discord.Guild | None = self.bot.get_guild(guild_id)
         if guild:
             await guild.leave()
         
-        await BannedGuild.create(id=guild_id, name=name, reason=reason)
+        async with self.bot.async_session() as session:
+            session.add(BannedGuild(id=guild_id, name=name, reason=reason))
+            await session.commit()
 
         await ctx.send(f'Banned guild `{name}` with ID `{guild_id}`.')
 
     @commands.command(hidden=True)
     @is_owner()
-    async def unban_guild(self, ctx: commands.Context, guild_id):
-        increment_command_counter()
+    async def unban_guild(self, ctx: commands.Context, guild_id: str | int) -> None:
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not guild_id or not is_int(guild_id):
             raise commands.CommandError(message=f'Invalid argument \'guild_id\': `{guild_id}`.')
         guild_id = int(guild_id)
-        banned_guild = await BannedGuild.get(guild_id)
-        if not banned_guild:
-            raise commands.CommandError(message=f'No banned guild found with ID `{guild_id}`.')
-
-        await banned_guild.delete()
+        async with self.bot.async_session() as session:
+            banned_guild: BannedGuild | None = (await session.execute(select(BannedGuild).where(BannedGuild.id == guild_id))).scalar_one_or_none()
+            if not banned_guild:
+                raise commands.CommandError(message=f'No banned guild found with ID `{guild_id}`.')
+            await session.delete(banned_guild)
+            await session.commit()
         
         await ctx.send(f'Guild `{banned_guild.name}` with ID `{guild_id}` has been unbanned.')
 
-
-async def setup(bot: Bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Management(bot))

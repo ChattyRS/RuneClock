@@ -28,7 +28,7 @@ class Guild(Base):
     role_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     delete_channel_ids: Mapped[Optional[list[int]]] = mapped_column(ARRAY(BigInteger))
     disabled_commands: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
-    log_bots: Mapped[Optional[Boolean]] = mapped_column(Boolean)
+    log_bots: Mapped[Optional[bool]] = mapped_column(Boolean)
     modmail_public: Mapped[Optional[int]] = mapped_column(BigInteger)
     modmail_private: Mapped[Optional[int]] = mapped_column(BigInteger)
     hall_of_fame_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -49,7 +49,7 @@ class Role(Base):
     )
     guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(String)
-    role_id: Mapped[BigInteger] = mapped_column(BigInteger)
+    role_id: Mapped[int] = mapped_column(BigInteger)
 
 class Mute(Base):
     __tablename__: str = 'mutes'

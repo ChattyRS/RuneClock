@@ -1,7 +1,7 @@
 from typing import Sequence
 from bot import Bot
 from discord import Guild as DiscordGuild
-from database import Guild, Command
+from database import Guild, Command, OSRSItem, RS3Item
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import or_, select
 from discord.ext.commands import CommandError
@@ -121,3 +121,65 @@ async def get_custom_db_commands(bot: Bot, guild_or_id: DiscordGuild | int | Non
     async with bot.async_session() as session:
         custom_db_commands: Sequence[Command] = (await session.execute(select(Command).where(Command.guild_id == guild_id))).scalars().all()
         return custom_db_commands
+    
+async def find_osrs_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None = None) -> OSRSItem | None:
+    '''
+    Finds an OSRS item by id.
+
+    Args:
+        id (int): The item id
+
+    Returns:
+        OSRSItem | None: The OSRS item
+    '''
+    async with db_session if db_session else bot.async_session() as session:
+        return (await session.execute(select(OSRSItem).where(OSRSItem.id == id))).scalar_one_or_none()
+    
+async def get_osrs_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None = None) -> OSRSItem:
+    '''
+    Gets an OSRS item by id.
+
+    Args:
+        id (int): The item id
+
+    Raises:
+        CommandError: If the item is not found
+
+    Returns:
+        OSRSItem: The OSRS item
+    '''
+    item: OSRSItem | None = await find_osrs_item_by_id(bot, id, db_session)
+    if not item:
+        raise CommandError(f'Item with ID {id} was not found.')
+    return item
+
+async def find_rs3_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None = None) -> RS3Item | None:
+    '''
+    Finds an RS3 item by id.
+
+    Args:
+        id (int): The item id
+
+    Returns:
+        RS3Item | None: The RS3 item
+    '''
+    async with db_session if db_session else bot.async_session() as session:
+        return (await session.execute(select(RS3Item).where(RS3Item.id == id))).scalar_one_or_none()
+    
+async def get_rs3_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None = None) -> RS3Item:
+    '''
+    Gets an RS3 item by id.
+
+    Args:
+        id (int): The item id
+
+    Raises:
+        CommandError: If the item is not found
+
+    Returns:
+        RS3Item: The RS3 item
+    '''
+    item: RS3Item | None = await find_rs3_item_by_id(bot, id, db_session)
+    if not item:
+        raise CommandError(f'Item with ID {id} was not found.')
+    return item

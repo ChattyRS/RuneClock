@@ -132,3 +132,35 @@ def get_custom_command(bot: Bot, command_name: str | None = None) -> Command:
     if not custom_command:
         raise CommandError(message=f'Custom command `{command_name}` was not found.')
     return custom_command
+
+def find_text_channel_by_name(guild: Guild, channel_name: str) -> TextChannel | None:
+    '''
+    Finds a guild text channel by name.
+
+    Args:
+        guild (Guild): The guild
+        channel_name (str): The channel name to search for
+
+    Returns:
+        TextChannel | None: The channel
+    '''
+    return next((c for c in guild.text_channels if c.name.upper() == channel_name.upper()), None)
+
+def get_text_channel_by_name(guild: Guild, channel_name: str) -> TextChannel:
+    '''
+    Gets a guild text channel by name.
+
+    Args:
+        guild (Guild): The guild
+        channel_name (str): The channel name to search for
+
+    Raises:
+        CommandError: If no such channel is found
+
+    Returns:
+        TextChannel: The channel
+    '''
+    channel: TextChannel | None = next((c for c in guild.text_channels if c.name.upper() == channel_name.upper()), None)
+    if not channel:
+        raise CommandError(f'Channel not found: {channel_name}')
+    return channel
