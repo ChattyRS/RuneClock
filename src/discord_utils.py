@@ -1,7 +1,6 @@
 from bot import Bot
 from discord import Guild, Role, TextChannel, Thread
-from discord.guild import GuildChannel
-from discord.abc import PrivateChannel
+from discord.abc import GuildChannel, PrivateChannel
 from discord.ext.commands import Command, CommandError
 
 def find_guild_text_channel(guild: Guild, id: int | None) -> TextChannel | None:

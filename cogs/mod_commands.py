@@ -1,8 +1,10 @@
 import asyncio
-from typing import List
+import re
+from typing import Any, List, Sequence
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
+from sqlalchemy import select
 from bot import Bot, Mute, Guild
 from datetime import datetime, timedelta, UTC
 from converters import RoleConverter
@@ -10,6 +12,7 @@ from database_utils import get_db_guild
 from discord_utils import get_guild_text_channel
 from number_utils import is_int
 from checks import is_admin
+from discord.abc import GuildChannel
 
 class ModCommands(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -86,7 +89,7 @@ class ModCommands(Cog):
 
     @commands.command()
     @is_admin()
-    async def mute(self, ctx: Context, member='', duration='', reason='N/A') -> None:
+    async def mute(self, ctx: Context, member_name: str | None = None, duration: str | None = None, reason: str | None = None) -> None:
         '''
         Assigns a role 'Muted' to given member. (Admin+)
         Arguments:
@@ -94,35 +97,30 @@ class ModCommands(Cog):
         duration: [number][unit], where unit in {d, h, m} (optional)
         reason: string (optional)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
-        
-        msg = ctx.message
-        guild = ctx.guild
 
-        if not member or not guild:
+        if not member_name or not ctx.guild:
             raise CommandError(message=f'Required argument missing: `member`.')
 
-        temp = None
-        member_mentions = [mention for mention in msg.mentions if isinstance(mention, discord.Member)]
+        member_mentions: List[discord.Member] = [mention for mention in ctx.message.mentions if isinstance(mention, discord.Member)]
         if member_mentions:
-            temp = member_mentions[0]
-        if not temp:
-            if is_int(member):
-                temp = await guild.fetch_member(int(member))
-        if not temp:
-            temp = discord.utils.get(guild.members, display_name=member)
-        if not temp:
-            temp = discord.utils.get(guild.members, name=member)
+            member: discord.Member | None = member_mentions[0]
+        if not member:
+            if is_int(member_name):
+                member = await ctx.guild.fetch_member(int(member_name))
+        if not member:
+            member = discord.utils.get(ctx.guild.members, display_name=member_name)
+        if not member:
+            member = discord.utils.get(ctx.guild.members, name=member_name)
 
-        if not temp:
-            raise CommandError(message=f'Could not find member: `{member}`.')
-        member = temp
+        if not member:
+            raise CommandError(message=f'Could not find member: `{member_name}`.')
 
-        mute_role = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), guild.roles)
+        mute_role: discord.Role | None = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), ctx.guild.roles)
         if not mute_role:
             try:
-                mute_role = await guild.create_role(name='Muted', permissions=discord.Permissions.none())
+                mute_role = await ctx.guild.create_role(name='Muted', permissions=discord.Permissions.none())
             except discord.Forbidden:
                 raise CommandError(message=f'Missing permissions: `create_role`.')
 
@@ -130,7 +128,7 @@ class ModCommands(Cog):
             raise CommandError(message=f'Error: {member.mention} is already muted.')
 
         try:
-            if not reason == 'N/A':
+            if reason:
                 await member.add_roles(mute_role, reason=reason)
             else:
                 await member.add_roles(mute_role)
@@ -141,11 +139,10 @@ class ModCommands(Cog):
 
         if duration:
             # format: [num][unit] where unit in {d, h, m}
-            temp = duration.replace(' ', '')
-            units = ['d', 'h', 'm']
-            input = []
-            num = ''
-            for char in temp:
+            units: List[str] = ['d', 'h', 'm']
+            input: list[tuple[int, str]] = []
+            num: str | int = ''
+            for char in duration.replace(' ', ''):
                 if not is_int(char) and not char.lower() in units:
                     raise CommandError(message=f'Invalid argument: `duration`.')
                 elif is_int(char):
@@ -155,12 +152,12 @@ class ModCommands(Cog):
                         raise CommandError(message=f'Invalid argument: `duration`.')
                     input.append((int(num), char.lower()))
                     num = ''
-            days = 0
-            hours = 0
-            minutes = 0
+            days: int = 0
+            hours: int = 0
+            minutes: int = 0
             for i in input:
                 num = i[0]
-                unit = i[1]
+                unit: str = i[1]
                 if unit == 'd':
                     days += num
                 elif unit == 'h':
@@ -171,27 +168,29 @@ class ModCommands(Cog):
                 raise CommandError(message=f'Invalid argument: `duration`.')
             elif days*24*60 + hours*60 + minutes > 60*24*366:
                 raise CommandError(message=f'Invalid argument: `duration`.')
-            duration = timedelta(days=days, hours=hours, minutes=minutes)
+            duration_delta: timedelta = timedelta(days=days, hours=hours, minutes=minutes)
 
-            end = str(datetime.now(UTC).replace(second=0, microsecond=0) + duration)
+            end: datetime = datetime.now(UTC).replace(second=0, microsecond=0) + duration_delta
 
-            await Mute.create(guild_id=ctx.guild.id, user_id=member.id, expiration=end, reason=reason)
+            async with self.bot.async_session() as session:
+                session.add(Mute(guild_id=ctx.guild.id, user_id=member.id, expiration=end, reason=reason))
+                await session.commit()
 
             await ctx.send(f'Mute expiration date set to: `{end}`.')
 
-        for c in guild.text_channels:
-            send = c.permissions_for(member).send_messages
-            if not send:
+        for c in ctx.guild.text_channels:
+            can_send: bool = c.permissions_for(member).send_messages
+            if not can_send:
                 continue
             overwritten = False
             for o in c.overwrites:
-                obj = o[0] if isinstance(o, List) else o
+                obj: discord.Role | discord.Member | Any = o[0] if isinstance(o, list) else o
                 if obj == mute_role:
                     overwritten = True
                     break
             if overwritten:
-                o = c.overwrites_for(mute_role)
-                if o.send_messages:
+                overwrite: discord.PermissionOverwrite = c.overwrites_for(mute_role)
+                if overwrite.send_messages:
                     try:
                         await c.set_permissions(mute_role, send_messages=False)
                     except discord.Forbidden:
@@ -201,8 +200,8 @@ class ModCommands(Cog):
                     await c.set_permissions(mute_role, send_messages=False)
                 except discord.Forbidden:
                     raise CommandError(message=f'Missing permissions: `channel_permission_overwrites`.')
-            send = c.permissions_for(member).send_messages
-            if send:
+            can_send = c.permissions_for(member).send_messages
+            if can_send:
                 try:
                     await c.set_permissions(member, send_messages=False)
                 except discord.Forbidden:
@@ -210,55 +209,39 @@ class ModCommands(Cog):
 
     @commands.command()
     @is_admin()
-    async def mutes(self, ctx: Context):
+    async def mutes(self, ctx: Context) -> None:
         '''
         Get a list of temp mutes for this server. (Admin+)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        msg = 'User ID             Expiration date      Reason'
-        mutes = await Mute.query.where(Mute.guild_id==ctx.guild.id).gino.all()
+        if not ctx.guild:
+            raise CommandError(message=f'This command can only be used from a server.')
+
+        msg = 'User ID             Expiration date      Reason\n'
+        async with self.bot.async_session() as session:
+            mutes: Sequence[Mute] = (await session.execute(select(Mute).where(Mute.guild_id == ctx.guild.id))).scalars().all()
         if not mutes:
             raise CommandError(message=f'No mutes active.')
-    
-        for mute in mutes:
-            msg += f'\n{mute.user_id}  {mute.expiration}  {mute.reason}'
+        
+        msg += '\n'.join([f'{mute.user_id}  {mute.expiration}  {mute.reason}' for mute in mutes])
 
         await ctx.send(f'```{msg}```')
 
     @commands.command()
     @is_admin()
-    async def unmute(self, ctx: Context, member):
+    async def unmute(self, ctx: Context, *, member: discord.Member) -> None:
         '''
         Unmute a member. (Admin+)
         member: name, nickname, id, mention
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not ctx.guild:
-            raise CommandError(message=f'Required argument missing: `guild`.')
-        
-        msg = ctx.message
-        guild = ctx.guild
+            raise CommandError(message=f'This command can only be used from a server.')
 
-        temp = None
-        member_mentions = [mention for mention in msg.mentions if isinstance(mention, discord.Member)]
-        if member_mentions:
-            temp = member_mentions[0]
-        if not temp:
-            if is_int(member):
-                temp = await guild.fetch_member(int(member))
-        if not temp:
-            temp = discord.utils.get(guild.members, display_name=member)
-        if not temp:
-            temp = discord.utils.get(guild.members, name=member)
-
-        if not temp:
-            raise CommandError(message=f'Could not find member: `{member}`.')
-        member = temp
-
-        mute_role = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), guild.roles)
+        mute_role: discord.Role | None = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), ctx.guild.roles)
         if not mute_role:
             raise CommandError(message=f'Missing role: `muted`.')
 
@@ -270,22 +253,24 @@ class ModCommands(Cog):
             except discord.Forbidden:
                 raise CommandError(message=f'Missing permissions: `role_management`.')
         
-        mute = await Mute.query.where(Mute.guild_id==ctx.guild.id).where(Mute.user_id==member.id).gino.first()
-        if mute:
-            await mute.delete()
+        async with self.bot.async_session() as session:
+            mute: Mute | None = (await session.execute(select(Mute).where(Mute.guild_id == ctx.guild.id).where(Mute.user_id == member.id))).scalar_one_or_none()
+            if mute:
+                await session.delete(mute)
+                await session.commit()
 
         await ctx.send(f'{member.mention} has been **unmuted**.')
 
-        for c in guild.text_channels:
-            send = c.permissions_for(member).send_messages
-            if send:
+        for c in ctx.guild.text_channels:
+            can_send: bool = c.permissions_for(member).send_messages
+            if can_send:
                 continue
             if member in c.overwrites:
-                overwrite = c.overwrites[member]
+                overwrite: discord.PermissionOverwrite = c.overwrites[member]
                 if not overwrite.pair()[1].send_messages:
                     try:
                         await c.set_permissions(member, send_messages=None)
-                        c = guild.get_channel(c.id)
+                        c: GuildChannel | None = ctx.guild.get_channel(c.id)
                         if c and member in c.overwrites:
                             overwrite = c.overwrites[member]
                             if not overwrite.pair()[1]:
@@ -295,14 +280,14 @@ class ModCommands(Cog):
 
     @commands.command()
     @is_admin()
-    async def kick(self, ctx: Context, *, member: discord.Member):
+    async def kick(self, ctx: Context, *, member: discord.Member) -> None:
         '''
         Kicks the given user (Admin+).
         Arguments: member
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        if isinstance(ctx.author, discord.Member) and member.top_role >= ctx.author.top_role and member.id != config['owner']:
+        if isinstance(ctx.author, discord.Member) and member.top_role >= ctx.author.top_role and member.id != self.bot.config['owner']:
             raise CommandError(message=f'You have insufficient permissions to kick this user.')
         try:
             await member.kick()
@@ -313,14 +298,14 @@ class ModCommands(Cog):
 
     @commands.command()
     @is_admin()
-    async def ban(self, ctx: Context, *, member: discord.Member):
+    async def ban(self, ctx: Context, *, member: discord.Member) -> None:
         '''
         Bans the given user (Admin+).
         Arguments: member
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        if isinstance(ctx.author, discord.Member) and member.top_role >= ctx.author.top_role and member.id != config['owner']:
+        if isinstance(ctx.author, discord.Member) and member.top_role >= ctx.author.top_role and member.id != self.bot.config['owner']:
             raise CommandError(message=f'You have insufficient permissions to ban this user.')
         try:
             await member.ban()
@@ -331,13 +316,13 @@ class ModCommands(Cog):
 
     @commands.command(pass_context=True, aliases=['delete', 'clear'])
     @is_admin()
-    async def purge(self, ctx: Context, num=0):
+    async def purge(self, ctx: Context, num: int | str = 0) -> None:
         '''
         Deletes given amount of messages (Admin+).
         Arguments: integer.
         Constraints: You can delete up to 100 messages at a time.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not isinstance(ctx.channel, discord.TextChannel):
             raise CommandError(message=f'Invalid channel type.')
@@ -356,27 +341,25 @@ class ModCommands(Cog):
             except:
                 pass
             await ctx.channel.purge(limit=num)
-            msg = await ctx.send(f'{num} messages deleted!')
-            await asyncio.sleep(3)
-            await msg.delete()
+            await ctx.send(f'{num} messages deleted!', delete_after = 3)
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `delete_message`.')
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def role(self, ctx: Context, role: RoleConverter, *, member: discord.Member):
+    async def role(self, ctx: Context, role: RoleConverter, *, member: discord.Member) -> None:
         '''
         Toggles the given role for the given user (Admin+).
         Arguments: role, member
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not role or not isinstance(role, discord.Role):
             raise CommandError(message=f'Could not convert role.')
 
-        if isinstance(ctx.author, discord.Member) and member.top_role >= ctx.author.top_role and member.id != config['owner']:
+        if isinstance(ctx.author, discord.Member) and member.top_role >= ctx.author.top_role and member.id != self.bot.config['owner']:
             raise CommandError(message=f'You have insufficient permissions to edit this user\'s roles.')
-        if isinstance(ctx.author, discord.Member) and role > ctx.author.top_role and member.id != config['owner']:
+        if isinstance(ctx.author, discord.Member) and role > ctx.author.top_role and member.id != self.bot.config['owner']:
             raise CommandError(message=f'You have insufficient permissions to assign or remove this role.')
 
         if not role in member.roles:
@@ -394,76 +377,51 @@ class ModCommands(Cog):
 
     @commands.command(pass_context=True, aliases=['mention'])
     @is_admin()
-    async def mentionable(self, ctx: Context, role_name=""):
+    async def mentionable(self, ctx: Context, role: RoleConverter) -> None:
         '''
         Toggles mentionable for the given role (Admin+).
         Arguments: role
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        guild = ctx.guild
-
-        if not role_name or not guild:
-            raise CommandError(message=f'Required argument missing: `role`.')
-        role = ""
-        for r in guild.roles:
-            if role_name.upper() == r.name.upper():
-                role = r
-                break
-        if not role:
-            for r in guild.roles:
-                if role_name.upper() in r.name.upper():
-                    role = r
-                    break
-        if not role:
-            raise CommandError(message=f'Could not find role: `{role_name}`.')
-        else:
-            mentionable = role.mentionable
-            emoji = ""
-            x = ""
-            if mentionable:
-                mentionable = False
-                emoji = ":no_entry_sign: "
-                x = "not "
-            else:
-                emoji = ":white_check_mark: "
-                mentionable = True
-            try:
-                await role.edit(mentionable=mentionable)
-            except discord.Forbidden:
-                raise CommandError(message=f'Missing permissions: `edit_role`.')
-            await ctx.send(f'{emoji}Role **{role.name}** has been made **{x}mentionable**.')
+        if not role or not isinstance(role, discord.Role):
+            raise CommandError(message=f'Could not convert role.')
+        
+        emoji: str = ':no_entry_sign:' if role.mentionable else ':white_check_mark:'
+        not_if_off: str = 'not ' if role.mentionable else ''
+        message: str = f'{emoji} Role **{role.name}** has been made **{not_if_off}mentionable**.'
+        
+        try:
+            await role.edit(mentionable = not role.mentionable)
+        except discord.Forbidden:
+            raise CommandError(message=f'Missing permissions: `edit_role`.')
+        await ctx.send(message)
 
     @commands.command(pass_context=True, aliases=['rolecolor'])
     @is_admin()
-    async def rolecolour(self, ctx: Context, role_name="", colour=""):
+    async def rolecolour(self, ctx: Context, role: RoleConverter, colour: str | discord.Colour = "") -> None:
         '''
         Changes the colour of the given role to the given colour (Admin+).
         Arguments: role, #hexcode
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if not role_name or not colour or not ctx.guild or not isinstance(ctx.author, discord.Member):
-            raise CommandError(message=f'Required argument(s) missing: `role/colour`.')
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            raise CommandError(message=f'This command can only be used from a server.')
 
-        guild = ctx.guild
-        roles = guild.roles
-        role_exists = False
-        role: discord.Role
-        for r in roles:
-            if r.name.upper() == role_name.upper():
-                role = r
-                role_exists = True
-                break
-        if not role_exists:
-            raise CommandError(message=f'Could not find role: `{role_name}`.')
-        match = re.search(r'^#(?:[0-9a-fA-F]{3}){1,2}$', colour)
-        if not match:
+        if not role or not isinstance(role, discord.Role):
+            raise CommandError(message=f'Could not convert role.')
+
+        if not colour:
+            raise CommandError(message=f'Required argument(s) missing: `colour`.')
+
+        if not isinstance(colour, discord.Colour) and not re.match(r'^#(?:[0-9a-fA-F]{3}){1,2}$', colour):
             raise CommandError(message=f'Invalid argument: `{colour}`.')
-        colour = discord.Colour(int(colour.replace("#", "0x"), 16))
-        roles = ctx.author.roles
+        
+        colour = discord.Colour(int(colour.replace("#", "0x"), 16)) if isinstance(colour, str) else colour
+
         try:
             await role.edit(colour=colour)
             await ctx.send(f'The colour for role **{role.name}** has been changed to **{str(colour)}**.')
@@ -471,47 +429,43 @@ class ModCommands(Cog):
             raise CommandError(message=f'Missing permissions: `edit_role`.')
 
     @commands.command(pass_context=True, aliases=['changenick', 'nick'])
-    async def setnick(self, ctx: Context, *username):
+    async def setnick(self, ctx: Context, *, username: str | None) -> None:
         '''
         Changes the user's nickname.
         Arguments: nickname
         If no nickname is given, your nickname will be removed.
         Constraints: nickname must be a valid RSN
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not isinstance(ctx.author, discord.Member):
             raise CommandError(message=f'User is not a guild member.')
         
-        input = ''
-        for word in username:
-            input += word + ' '
-        input = input.replace('_', ' ')
-        input = input.strip()
-        if not input:
+        username = username.replace('_', '').strip() if username else None
+        if not username:
             try:
                 await ctx.author.edit(nick=None)
                 await ctx.send(f'Your nickname has been removed.')
                 return
             except discord.Forbidden:
                 raise CommandError(message=f'Missing permissions: `manage_nicknames`.')
-        if len(input) > 12:
-            raise CommandError(message=f'Invalid argument: `{input}`. Character limit exceeded.')
-        if re.match('^[A-z0-9 -]+$', input) is None:
-            raise CommandError(message=f'Invalid argument: `{input}`. Forbidden character.')
+        if len(username) > 12:
+            raise CommandError(message=f'Invalid argument: `{username}`. Character limit exceeded.')
+        if re.match('^[A-z0-9 -]+$', username) is None:
+            raise CommandError(message=f'Invalid argument: `{username}`. Forbidden character.')
         try:
-            await ctx.author.edit(nick=input)
-            await ctx.send(f'Your nickname has been changed to **{input}**.')
+            await ctx.author.edit(nick=username)
+            await ctx.send(f'Your nickname has been changed to **{username}**.')
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `manage_nicknames`.')
     
     @commands.command()
     @is_admin()
-    async def edit_nick(self, ctx: Context, member: discord.Member, *nickname):
+    async def edit_nick(self, ctx: Context, member: discord.Member, *, nickname: str | None) -> None:
         '''
         Edits the nickname of the given user.
         '''
-        nickname = ' '.join(nickname)
+        nickname = ' '.join(nickname) if nickname else None
         if not nickname:
             raise CommandError(message=f'Required argument missing: `nickname`.')
         try:
@@ -522,107 +476,61 @@ class ModCommands(Cog):
 
     @commands.command(aliases=['delall'])
     @is_admin()
-    async def deleteall(self, ctx: Context, channel=''):
+    async def deleteall(self, ctx: Context, *, channel: GuildChannel) -> None:
         '''
         Deletes all messages that will be sent in the given channel. (Admin+)
         Arguments: channel (mention, name, or id)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not channel or not ctx.guild:
-            raise CommandError(message=f'Required argument missing: `channel`.')
-        elif ctx.message.channel_mentions:
-            channel = ctx.message.channel_mentions[0]
-        else:
-            found = False
-            if is_int(channel):
-                for c in ctx.guild.text_channels:
-                    if c.id == int(channel):
-                        channel = c
-                        found = True
-                        break
-            if not found and isinstance(channel, str):
-                for c in ctx.guild.text_channels:
-                    if c.name.upper() == channel.upper():
-                        channel = c
-                        found = True
-                        break
-            if not found and isinstance(channel, str):
-                for c in ctx.guild.text_channels:
-                    if channel.upper() in c.name.upper():
-                        channel = c
-                        found = True
-                        break
-            if not found:
-                raise CommandError(message=f'Could not find channel: `{channel}`.')
-            
-        if not isinstance(channel, discord.TextChannel):
-            raise CommandError(message=f'Could not find channel: `{channel}`.')
+            raise CommandError(message=f'Required argument missing: `GuildChannel`.')
 
-        guild = await Guild.get(ctx.guild.id)
-        if guild.delete_channel_ids:
-            if channel.id in guild.delete_channel_ids:
-                await guild.update(delete_channel_ids=guild.delete_channel_ids.remove(channel.id)).apply()
-                await ctx.send(f'Messages in {channel.mention} will no longer be deleted.')
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            if guild.delete_channel_ids:
+                if channel.id in guild.delete_channel_ids:
+                    guild.delete_channel_ids = guild.delete_channel_ids.remove(channel.id)
+                    message: str = f'Messages in {channel.mention} will no longer be deleted.'
+                else:
+                    guild.delete_channel_ids = guild.delete_channel_ids + [channel.id]
+                    message = f'All future messages in {channel.mention} will be deleted.'
             else:
-                await guild.update(delete_channel_ids=guild.delete_channel_ids + [channel.id]).apply()
-                await ctx.send(f'All future messages in {channel.mention} will be deleted.')
-        else:
-            await guild.update(delete_channel_ids=[channel.id]).apply()
-            await ctx.send(f'All future messages in {channel.mention} will be deleted.')
+                guild.delete_channel_ids = [channel.id]
+                message = f'All future messages in {channel.mention} will be deleted.'
+            await session.commit()
+        await ctx.send(message)
+
     
     @commands.command(hidden=True, aliases=['hof'])
     @is_admin()
-    async def hall_of_fame(self, ctx: Context, channel='', react_num=10):
+    async def hall_of_fame(self, ctx: Context, *, channel: GuildChannel | None, react_num: int = 10) -> None:
         '''
         Sets the hall of fame channel and number of reactions for this server. (Admin+)
         Arguments: channel (mention, name, or id), react_num (int)
         After [react_num] reactions with the :star2: emoji, messages will be shown in the hall of fame channel.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not ctx.guild:
             raise CommandError(message=f'Required argument missing: `guild`.')
-
-        guild = await Guild.get(ctx.guild.id)
-
-        if not channel:
-            await guild.update(hall_of_fame_channel_id=None).apply()
-            await ctx.send(f'Disabled hall of fame for this server.')
-            return
-        elif ctx.message.channel_mentions:
-            channel = ctx.message.channel_mentions[0]
-        else:
-            found = False
-            if is_int(channel):
-                for c in ctx.guild.text_channels:
-                    if c.id == int(channel):
-                        channel = c
-                        found = True
-                        break
-            if not found and isinstance(channel, str):
-                for c in ctx.guild.text_channels:
-                    if c.name.upper() == channel.upper():
-                        channel = c
-                        found = True
-                        break
-            if not found and isinstance(channel, str):
-                for c in ctx.guild.text_channels:
-                    if channel.upper() in c.name.upper():
-                        channel = c
-                        found = True
-                        break
-            if not found:
-                raise CommandError(message=f'Could not find channel: `{channel}`.')
-            
-        if not isinstance(channel, discord.TextChannel):
-            raise CommandError(message=f'Could not find channel: `{channel}`.')
-
-        if react_num < 1:
+        
+        if channel and react_num < 1:
             raise CommandError(message=f'Invalid argument: `react_num` (`{react_num}`). Must be at least 1.')
 
-        await guild.update(hall_of_fame_channel_id=channel.id, hall_of_fame_react_num=react_num).apply()
-        await ctx.send(f'Set the hall of fame channel for this server to {channel.mention}. The number of :star2: reactions required has been set to `{react_num}`.')
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
 
-async def setup(bot: Bot):
+            if not channel:
+                guild.hall_of_fame_channel_id = None
+                message: str = f'Disabled hall of fame for this server.'
+            else:
+                guild.hall_of_fame_channel_id = channel.id
+                guild.hall_of_fame_react_num = react_num
+                message = f'Set the hall of fame channel for this server to {channel.mention}. The number of :star2: reactions required has been set to `{react_num}`.'
+            await session.commit()
+
+        await ctx.send(message)
+
+async def setup(bot: Bot) -> None:
     await bot.add_cog(ModCommands(bot))
