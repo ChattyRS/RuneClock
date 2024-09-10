@@ -1,7 +1,7 @@
 from bot import Bot
 from discord import Guild, Role, TextChannel, Thread
 from discord.abc import GuildChannel, PrivateChannel
-from discord.ext.commands import Command, CommandError
+from discord.ext.commands import Command, CommandError, Context
 
 def find_guild_text_channel(guild: Guild, id: int | None) -> TextChannel | None:
     '''
@@ -163,3 +163,11 @@ def get_text_channel_by_name(guild: Guild, channel_name: str) -> TextChannel:
     if not channel:
         raise CommandError(f'Channel not found: {channel_name}')
     return channel
+
+async def send_code_block_over_multiple_messages(ctx: Context, message: str) -> None:
+    # https://stackoverflow.com/questions/13673060/split-string-into-strings-by-length
+    chunk_size: int = 1994 # msg at most 2000 chars, and we have 6 ` chars
+    characters: int = len(message) # number of chunks is initialized at the length of the message
+    message_chunks: list[str] = [message[i:i+chunk_size] for i in range(0, characters, chunk_size)]
+    for message_chunk in message_chunks:
+        await ctx.send(f'```{message_chunk}```')

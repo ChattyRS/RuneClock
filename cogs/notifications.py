@@ -1,3 +1,4 @@
+from typing import Sequence
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
@@ -6,7 +7,7 @@ from bot import Bot
 from database import Guild, Notification, OnlineNotification
 from datetime import datetime, timedelta, UTC
 from database_utils import get_db_guild
-from discord_utils import get_text_channel_by_name
+from discord_utils import get_text_channel_by_name, send_code_block_over_multiple_messages
 from number_utils import is_int
 from checks import is_admin
 from runescape_utils import dnd_names
@@ -28,7 +29,7 @@ class Notifications(Cog):
         self.bot.increment_command_counter()
 
         if not ctx.guild:
-            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+            raise commands.CommandError(message=f'This command can only be used in a server.')
         
         async with self.bot.async_session() as session:
             guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
@@ -58,7 +59,7 @@ class Notifications(Cog):
         self.bot.increment_command_counter()
 
         if not ctx.guild:
-            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+            raise commands.CommandError(message=f'This command can only be used in a server.')
         
         async with self.bot.async_session() as session:
             guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
@@ -88,7 +89,7 @@ class Notifications(Cog):
         await ctx.channel.typing()
 
         if not ctx.guild:
-            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+            raise commands.CommandError(message=f'This command can only be used in a server.')
         
         if channel:
             permissions: discord.Permissions = discord.Permissions.none()
@@ -130,7 +131,7 @@ class Notifications(Cog):
         await ctx.channel.typing()
 
         if not ctx.guild:
-            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+            raise commands.CommandError(message=f'This command can only be used in a server.')
         if not channel:
             raise commands.CommandError(message=f'Required argument missing: `channel`.')
         if not time:
@@ -173,28 +174,23 @@ class Notifications(Cog):
         await ctx.send(f'Notification added with id: `{id}`\n```channel:  {channel.id}\ntime:     {str(time)} UTC\ninterval: {int(interval.total_seconds())} (seconds)\nmessage:  {message}```')
 
     @commands.command()
-    async def notifications(self, ctx: commands.Context):
+    async def notifications(self, ctx: commands.Context) -> None:
         '''
         Returns list of custom notifications for this server.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        notifications = await Notification.query.where(Notification.guild_id==ctx.guild.id).order_by(Notification.notification_id.asc()).gino.all()
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+
+        async with self.bot.async_session() as session:
+            notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalars().all()
+
         if not notifications:
             raise commands.CommandError(message=f'Error: this server does not have any custom notifications.')
         
-        msg = ''
-        for notification in notifications:
-            msg += f'id:       {notification.notification_id}\nchannel:  {notification.channel_id}\ntime:     {notification.time} UTC\ninterval: {notification.interval} (seconds)\nmessage:  {notification.message}\n\n'
-        msg = msg.strip()
-        if len(msg) <= 1994:
-            await ctx.send(f'```{msg}```')
-        else:
-            # https://stackoverflow.com/questions/13673060/split-string-into-strings-by-length
-            chunks, chunk_size = len(msg), 1994 # msg at most 2000 chars, and we have 6 ` chars
-            msgs = [msg[i:i+chunk_size] for i in range(0, chunks, chunk_size)]
-            for msg in msgs:
-                await ctx.send(f'```{msg}```')
+        msg: str = '\n\n'.join([f'id:       {n.notification_id}\nchannel:  {n.channel_id}\ntime:     {n.time} UTC\ninterval: {n.interval} (seconds)\nmessage:  {n.message}' for n in notifications])
+        await send_code_block_over_multiple_messages(ctx, msg)
 
     @commands.command()
     @is_admin()
@@ -206,7 +202,7 @@ class Notifications(Cog):
         increment_command_counter()
 
         if not ctx.guild:
-            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+            raise commands.CommandError(message=f'This command can only be used in a server.')
 
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
@@ -243,7 +239,7 @@ class Notifications(Cog):
         increment_command_counter()
 
         if not ctx.guild:
-            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+            raise commands.CommandError(message=f'This command can only be used in a server.')
 
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
@@ -459,7 +455,7 @@ class Notifications(Cog):
         increment_command_counter()
 
         if not ctx.guild:
-            raise commands.CommandError(message=f'Required argument missing: `guild`.')
+            raise commands.CommandError(message=f'This command can only be used in a server.')
         
         if not member:
             raise commands.CommandError(message=f'Required argument missing: `member`.')
