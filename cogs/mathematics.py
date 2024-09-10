@@ -1,4 +1,3 @@
-from locale import strcoll
 from multiprocessing.managers import DictProxy, SyncManager
 from typing import Any
 import discord

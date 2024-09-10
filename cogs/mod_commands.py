@@ -1,11 +1,11 @@
-import asyncio
 import re
 from typing import Any, List, Sequence
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
 from sqlalchemy import select
-from bot import Bot, Mute, Guild
+from bot import Bot
+from database import Mute, Guild
 from datetime import datetime, timedelta, UTC
 from converters import RoleConverter
 from database_utils import get_db_guild
