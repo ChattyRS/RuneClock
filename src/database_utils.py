@@ -1,9 +1,9 @@
 from typing import Sequence
 from bot import Bot
 from discord import Guild as DiscordGuild
-from database import Guild, Command, OSRSItem, RS3Item
+from database import ClanBankTransaction, CustomRoleReaction, Guild, Command, Mute, Notification, OSRSItem, OnlineNotification, Poll, RS3Item, Repository, Role
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from discord.ext.commands import CommandError
 
 async def find_db_guild(bot: Bot, guild_or_id: DiscordGuild | int | None, session: AsyncSession | None = None) -> Guild | None:
@@ -183,3 +183,21 @@ async def get_rs3_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None 
     if not item:
         raise CommandError(f'Item with ID {id} was not found.')
     return item
+
+async def purge_guild(session: AsyncSession, guild: Guild) -> None:
+    '''
+    Purge all data relating to a specific Guild from the database
+
+    Args:
+        guild (Guild): The guild whose data to purge
+    '''
+    await session.execute(delete(Role).where(Role.guild_id == guild.id))
+    await session.execute(delete(Mute).where(Mute.guild_id == guild.id))
+    await session.execute(delete(Command).where(Command.guild_id == guild.id))
+    await session.execute(delete(Repository).where(Repository.guild_id == guild.id))
+    await session.execute(delete(Notification).where(Notification.guild_id == guild.id))
+    await session.execute(delete(OnlineNotification).where(OnlineNotification.guild_id == guild.id))
+    await session.execute(delete(Poll).where(Poll.guild_id == guild.id))
+    await session.execute(delete(ClanBankTransaction).where(ClanBankTransaction.guild_id == guild.id))
+    await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id))
+    await session.delete(guild)

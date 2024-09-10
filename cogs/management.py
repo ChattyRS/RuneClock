@@ -24,6 +24,7 @@ from contextlib import redirect_stdout
 import io
 import itertools
 from checks import is_owner, is_admin
+from message_queue import QueueMessage
 from number_utils import is_int
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
@@ -32,7 +33,7 @@ from matplotlib.dates import DateFormatter
 from date_utils import timedelta_to_string, uptime_fraction
 from string_utils import remove_code_blocks
 from exception_utils import format_syntax_error
-from discord_utils import find_text_channel_by_name, get_custom_command, get_guild_text_channel, get_text_channel_by_name
+from discord_utils import find_guild_text_channel, find_text_channel_by_name, get_custom_command, get_guild_text_channel, get_text_channel_by_name
 from database_utils import find_custom_db_command, get_db_guild, find_osrs_item_by_id, get_osrs_item_by_id
 from database_utils import find_rs3_item_by_id, get_rs3_item_by_id
 
@@ -43,6 +44,25 @@ class Management(Cog):
 
         # Remove the default help command, as it will be replaced by a customized help command in this cog
         bot.remove_command('help')
+
+    @Cog.listener()
+    async def on_member_join(self, member: discord.Member) -> None:
+        '''
+        Function to send welcome messages
+        '''
+        guild: Guild = await get_db_guild(self.bot, member.guild)
+
+        if not guild.welcome_message or not guild.welcome_channel_id:
+            return
+        
+        welcome_channel: discord.TextChannel | None = find_guild_text_channel(member.guild, guild.welcome_channel_id)
+        if not isinstance(welcome_channel, discord.TextChannel):
+            return
+        
+        welcome_message: str = guild.welcome_message.replace('[user]', member.mention)
+        welcome_message = welcome_message.replace('[server]', member.guild.name)
+
+        self.bot.queue_message(QueueMessage(welcome_channel, welcome_message))
 
     @commands.command()
     async def help(self, ctx: commands.Context, command: str = '') -> None:

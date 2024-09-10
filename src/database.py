@@ -31,7 +31,7 @@ class Guild(Base):
     log_bots: Mapped[Optional[bool]] = mapped_column(Boolean)
     modmail_public: Mapped[Optional[int]] = mapped_column(BigInteger)
     modmail_private: Mapped[Optional[int]] = mapped_column(BigInteger)
-    hall_of_fame_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    hall_of_fame_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger) # deprecated
     hall_of_fame_react_num: Mapped[Optional[int]] = mapped_column(BigInteger)
     bank_role_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     wom_role_id: Mapped[Optional[int]] = mapped_column(BigInteger)
