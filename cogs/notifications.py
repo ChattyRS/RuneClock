@@ -1,175 +1,123 @@
-from typing import Any
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from bot import Bot, get_config, increment_command_counter, Guild, Notification, OnlineNotification
-import sys
-sys.path.append('../')
+from sqlalchemy import select
+from bot import Bot
+from database import Guild, Notification, OnlineNotification
 from datetime import datetime, timedelta, UTC
-from utils import is_int, is_admin
-
-config = get_config()
-
-ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys',
-         'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',
-         'Spotlight', 'WildernessFlashEvents']
+from database_utils import get_db_guild
+from discord_utils import get_text_channel_by_name
+from number_utils import is_int
+from checks import is_admin
+from runescape_utils import dnd_names
+from discord.abc import GuildChannel
+from date_utils import parse_datetime_string, parse_timedelta_string
 
 class Notifications(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
     @commands.command(aliases=['rsnewschannel', 'newschannel'])
     @is_admin()
-    async def rs3newschannel(self, ctx: commands.Context, channel=''):
+    async def rs3newschannel(self, ctx: commands.Context, *, channel: GuildChannel | None) -> None:
         '''
         Changes the server's RS3 news channel. (Admin+)
         Arguments: channel
         If no channel is given, RS3 news messages will be disabled.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not ctx.guild:
             raise commands.CommandError(message=f'Required argument missing: `guild`.')
+        
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
 
-        guild = await Guild.get(ctx.guild.id)
-
-        if not channel:
-            if guild.rs3_news_channel_id:
-                await guild.update(rs3_news_channel_id=None).apply()
+            if not channel and not guild.rs3_news_channel_id:
+                raise commands.CommandError(message=f'Required argument missing: `channel`.')
+            elif not channel:
+                guild.rs3_news_channel_id = None
+                await session.commit()
                 await ctx.send('RS3 news messages have been disabled for this server.')
                 return
-            else:
-                raise commands.CommandError(message=f'Required argument missing: `channel`.')
-        else:
-            if ctx.message.channel_mentions:
-                channel = ctx.message.channel_mentions[0]
-            elif is_int(channel):
-                id = channel
-                channel = ctx.guild.get_channel(int(id))
-                if not channel:
-                    raise commands.CommandError(message=f'Could not find channel: `{id}`.')
-            else:
-                found = False
-                for c in ctx.guild.text_channels:
-                    if c.name.lower() == channel.lower():
-                        channel = c
-                        found = True
-                        break
-                if not found:
-                    raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
             
-            if not isinstance(channel, discord.TextChannel):
-                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
-            
-            await guild.update(rs3_news_channel_id=channel.id).apply()
+            guild.rs3_news_channel_id = channel.id
+            await session.commit()
 
             await ctx.send(f'The RS3 news channel has been set to {channel.mention}.')
 
 
     @commands.command(aliases=['07newschannel'])
     @is_admin()
-    async def osrsnewschannel(self, ctx: commands.Context, channel=''):
+    async def osrsnewschannel(self, ctx: commands.Context, *, channel: GuildChannel | None) -> None:
         '''
         Changes the server's OSRS news channel. (Admin+)
         Arguments: channel
         If no channel is given, OSRS news messages will be disabled.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not ctx.guild:
             raise commands.CommandError(message=f'Required argument missing: `guild`.')
+        
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
 
-        guild = await Guild.get(ctx.guild.id)
-
-        if not channel:
-            if guild.osrs_news_channel_id:
-                await guild.update(osrs_news_channel_id=None).apply()
-                await ctx.send('OSRS news messages have been disabled for this server.')
-                return
-            else:
+            if not channel and not guild.osrs_news_channel_id:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')
-        else:
-            if ctx.message.channel_mentions:
-                channel = ctx.message.channel_mentions[0]
-            elif is_int(channel):
-                id = channel
-                channel = ctx.guild.get_channel(int(id))
-                if not channel:
-                    raise commands.CommandError(message=f'Could not find channel: `{id}`.')
-            else:
-                found = False
-                for c in ctx.guild.text_channels:
-                    if c.name.lower() == channel.lower():
-                        channel = c
-                        found = True
-                        break
-                if not found:
-                    raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
-                
-            if not isinstance(channel, discord.TextChannel):
-                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+            elif not channel:
+                guild.osrs_news_channel_id = None
+                await session.commit()
+                await ctx.send(content='OSRS news messages have been disabled for this server.')
+                return
             
-            await guild.update(osrs_news_channel_id=channel.id).apply()
+            guild.osrs_news_channel_id = channel.id
+            await session.commit()
 
             await ctx.send(f'The OSRS news channel has been set to {channel.mention}.')
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def rsnotify(self, ctx: commands.Context, channel=''):
+    async def rsnotify(self, ctx: commands.Context, *, channel: GuildChannel | None) -> None:
         '''
         Changes server's RS notification channel. (Admin+)
         Arguments: channel.
         If no channel is given, notifications will no longer be sent.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not ctx.guild:
             raise commands.CommandError(message=f'Required argument missing: `guild`.')
-
-        if ctx.message.channel_mentions:
-            channel = ctx.message.channel_mentions[0]
-        elif channel:
-            found = False
-            for c in ctx.guild.text_channels:
-                if channel.upper() in c.name.upper():
-                    channel = c
-                    found = True
-                    break
-            if not found:
-                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
-        else:
-            guild = await Guild.get(ctx.guild.id)
-            if guild.notification_channel_id:
-                await guild.update(notification_channel_id=None).apply()
-                await ctx.send(f'I will no longer send notifications in server **{ctx.guild.name}**.')
-                return
-            else:
-                raise commands.CommandError(message=f'Required argument missing: `channel`.')
-            
-        if not isinstance(channel, discord.TextChannel):
-            raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
-
-        permissions = discord.Permissions.none()
-        colour = discord.Colour.default()
-        role_names = []
-        for role in ctx.guild.roles:
-            role_names.append(role.name.upper())
-        for rank in ranks:
-            if not rank.upper() in role_names:
+        
+        if channel:
+            permissions: discord.Permissions = discord.Permissions.none()
+            colour: discord.Colour = discord.Colour.default()
+            for rank in [dnd_name for dnd_name in dnd_names if not dnd_name.upper() in [role.name.upper() for role in ctx.guild.roles]]:
                 try:
                     await ctx.guild.create_role(name=rank, permissions=permissions, colour=colour, hoist=False, mentionable=True)
                 except discord.Forbidden:
                     raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
         
-        guild = await Guild.get(ctx.guild.id)
-        await guild.update(notification_channel_id=channel.id).apply()
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+
+            if not channel and not guild.notification_channel_id:
+                raise commands.CommandError(message=f'Required argument missing: `channel`.')
+            elif not channel:
+                guild.notification_channel_id = None
+                await session.commit()
+                await ctx.send(content='I will no longer send notifications in server **{ctx.guild.name}**.')
+                return
+
+            guild.notification_channel_id = channel.id
+            await session.commit()
         
         await ctx.send(f'The notification channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
 
     @commands.command()
     @is_admin()
-    async def addnotification(self, ctx: commands.Context, channel, time, interval, *message):
+    async def addnotification(self, ctx: commands.Context, channel: GuildChannel | str | int | None, time: datetime | str | None, interval: timedelta | str | None, *, message: str) -> None:
         '''
         Adds a custom notification. (Admin+)
         Format:
@@ -178,222 +126,51 @@ class Notifications(Cog):
         interval: HH:MM, [num][unit]* where unit in {d, h, m}, 0 (one time only notification)
         message: string
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not ctx.guild:
             raise commands.CommandError(message=f'Required argument missing: `guild`.')
-
-        guild = ctx.guild
-        msg = ctx.message
+        if not channel:
+            raise commands.CommandError(message=f'Required argument missing: `channel`.')
+        if not time:
+            raise commands.CommandError(message=f'Required argument missing: `time`.')
+        if not interval:
+            raise commands.CommandError(message=f'Required argument missing: `interval`.')
+        if not message:
+            raise commands.CommandError(message=f'Required argument missing: `message`.')
 
         # Check given channel
-        temp = None
-        if channel:
-            if msg.channel_mentions:
-                temp = msg.channel_mentions[0]
+        if channel and not isinstance(channel, GuildChannel):
+            if ctx.message.channel_mentions and isinstance(ctx.message.channel_mentions[0], GuildChannel):
+                channel = ctx.message.channel_mentions[0]
             elif is_int(channel):
-                temp = guild.get_channel(int(channel))
-                if not temp:
-                    for c in guild.text_channels:
-                        if c.name.upper() == channel.upper():
-                            temp = c
-                            break
-            else:
-                for c in guild.text_channels:
-                    if c.name.upper() == channel.upper():
-                        temp = c
-                        break
-        if temp:
-            channel = temp
-        else:
-            raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+                channel_by_id = ctx.guild.get_channel(int(channel))
+                channel = channel_by_id if channel_by_id else str(channel)
+            if isinstance(channel, str):
+                channel = get_text_channel_by_name(ctx.guild, channel)
+        if not isinstance(channel, GuildChannel):
+            raise commands.CommandError(f'Could not find channel.')
 
         # Handle input time
-        input_time = time
-        time = time.replace('/', '-')
-        parts = time.split('-')
-        if ' ' in parts[len(parts)-1]:
-            temp = parts[len(parts)-1]
-            parts = parts[:len(parts)-1]
-            for part in temp.split(' '):
-                parts.append(part.strip())
-        if len(parts) == 1: # format: HH:MM
-            parts = parts[0].split(':')
-            if len(parts) != 2:
-                await ctx.send(f'Time `{input_time}` was not correctly formatted. For the correct format, please use the `help addnotification` command.')
-                return
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 17.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 18.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 19.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 20.')
-            time = datetime.now(UTC)
-            time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours)
-        elif len(parts) == 3: # format: DD-MM HH:MM
-            day = parts[0]
-            month = parts[1]
-            time_of_day = parts[2]
-            if not is_int(month):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 21.')
-            month = int(month)
-            if month < 1 or month > 12:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 22.')
-            if not is_int(day):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 23.')
-            day = int(day)
-            year = datetime.now(UTC).year
-            if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 24.')
-            elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 25.')
-            elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 26.')
-            elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 27.')
-            parts = time_of_day.split(':')
-            if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 28.')
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 29.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 30.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 31.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 32.')
-            time = datetime.now(UTC)
-            time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month)
-        elif len(parts) == 4:
-            day = parts[0]
-            month = parts[1]
-            year = parts[2]
-            time_of_day = parts[3]
-            if not is_int(year):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 1.')
-            year = int(year)
-            if year < datetime.now(UTC).year or year > datetime.now(UTC).year+1:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 2.')
-            if not is_int(month):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 3.')
-            month = int(month)
-            if month < 1 or month > 12:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 4.')
-            if not is_int(day):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 5.')
-            day = int(day)
-            if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 6.')
-            elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 7.')
-            elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 8.')
-            elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 9.')
-            parts = time_of_day.split(':')
-            if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 10.')
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 11.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 12.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 13.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 14.')
-            time = datetime.now(UTC)
-            time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month, year=year)
-        else:
-            raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 15.')
+        time = parse_datetime_string(time) if isinstance(time, str) else time
         if time < datetime.now(UTC):
-            raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 16.')
+            raise commands.CommandError(f'Invalid argument: `{time}`. Time cannot be in the past.')
 
         # Handle input time interval
-        if interval == '0':
-            interval = timedelta(minutes=0)
-        elif ':' in interval: # format: HH:MM
-            parts = interval.split(':')
-            if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            interval = timedelta(hours=hours, minutes=minutes)
-        else: # format: [num][unit] where unit in {d, h, m}
-            temp = interval.replace(' ', '')
-            units = ['d', 'h', 'm']
-            input = []
-            num = ''
-            for char in temp:
-                if not is_int(char) and not char.lower() in units:
-                    raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                elif is_int(char):
-                    num += char
-                elif char.lower() in units:
-                    if not num:
-                        raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                    input.append((int(num), char.lower()))
-                    num = ''
-            days = 0
-            hours = 0
-            minutes = 0
-            for i in input:
-                num = i[0]
-                unit = i[1]
-                if unit == 'd':
-                    days += num
-                elif unit == 'h':
-                    hours += num
-                elif unit == 'm':
-                    minutes += num
-            if days*24*60 + hours*60 + minutes <= 0:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            elif days*24*60 + hours*60 + minutes > 60*24*366:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            interval = timedelta(days=days, hours=hours, minutes=minutes)
-
+        interval = parse_timedelta_string(interval) if isinstance(interval, str) else interval
+        if (interval.days if interval.days else 0) * 24 * 60 * 60 + (interval.seconds if interval.seconds else 0) > 366 * 24 * 60 * 60:
+            raise commands.CommandError(f'Invalid argument: `{interval}`. Interval cannot exceed 1 year.')
         if 0 < interval.total_seconds() < 900:
-            raise commands.CommandError(message=f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
-
-        # Handle input message
-        msg = ''
-        for m in message:
-            msg += m + ' '
-        msg = msg.strip()
-        if not msg:
-            raise commands.CommandError(message=f'Invalid argument: `message`.')
+            raise commands.CommandError(f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
         
-        notifications = await Notification.query.where(Notification.guild_id==ctx.guild.id).order_by(Notification.notification_id.desc()).gino.all()
-        id = 0
-        if notifications:
-            id = notifications[0].notification_id + 1
-        await Notification.create(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=interval.total_seconds(), message=msg)
+        async with self.bot.async_session() as session:
+            id: int | None = (await session.execute(select(Notification.notification_id).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalar()
+            id = id if id else 0
+            session.add(Notification(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=interval.total_seconds(), message=message))
+            await session.commit()
 
-        await ctx.send(f'Notification added with id: `{id}`\n```channel:  {channel.id}\ntime:     {str(time)} UTC\ninterval: {int(interval.total_seconds())} (seconds)\nmessage:  {msg}```')
+        await ctx.send(f'Notification added with id: `{id}`\n```channel:  {channel.id}\ntime:     {str(time)} UTC\ninterval: {int(interval.total_seconds())} (seconds)\nmessage:  {message}```')
 
     @commands.command()
     async def notifications(self, ctx: commands.Context):
