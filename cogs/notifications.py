@@ -292,7 +292,7 @@ class Notifications(Cog):
         async with self.bot.async_session() as session:
             id: int | None = (await session.execute(select(Notification.notification_id).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalar()
             id = id if id else 0
-            session.add(Notification(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=interval.total_seconds(), message=message))
+            session.add(Notification(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=round(interval.total_seconds()), message=message))
             await session.commit()
 
         await ctx.send(f'Notification added with id: `{id}`\n```channel:  {channel.id}\ntime:     {str(time)} UTC\ninterval: {int(interval.total_seconds())} (seconds)\nmessage:  {message}```')
@@ -318,12 +318,12 @@ class Notifications(Cog):
 
     @commands.command()
     @is_admin()
-    async def removenotification(self, ctx: commands.Context, id):
+    async def removenotification(self, ctx: commands.Context, id: str | int) -> None:
         '''
         Removes a custom notification by ID. (Admin+)
         To get the ID of the notification that you want to remove, use the command "notifications".
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not ctx.guild:
             raise commands.CommandError(message=f'This command can only be used in a server.')
@@ -335,22 +335,26 @@ class Notifications(Cog):
         else:
             id = int(id)
 
-        notification = await Notification.query.where(Notification.guild_id==ctx.guild.id).where(Notification.notification_id==id).gino.first()
-        if not notification:
-            raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
-        
-        await notification.delete()
+        async with self.bot.async_session() as session:
+            notifications: list[Notification] = [n for n in (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.asc()))).scalars().all()]
+            notification: list[Notification] | Notification = [n for n in notifications if n.notification_id == id]
+            if not notification:
+                raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
+            notification = notification[0]
 
-        notifications = await Notification.query.where(Notification.guild_id==ctx.guild.id).order_by(Notification.notification_id.asc()).gino.all()
-        if notifications:
-            for i, notification in enumerate(notifications):
-                await notification.update(notification_id=i).apply()
+            notifications.remove(notification)
+            await session.delete(notification)
+
+            for i, n in enumerate(notifications):
+                n.notification_id = i
+
+            await session.commit()
 
         await ctx.send(f'Removed custom notification: `{id}`')
     
     @commands.command(aliases=['updatenotification'])
     @is_admin()
-    async def editnotification(self, ctx: commands.Context, id, key='message', *value):
+    async def editnotification(self, ctx: commands.Context, id: int | str, key: str = 'message', *, value: GuildChannel | datetime | timedelta | str | None) -> None:
         '''
         Update an existing notification. (Admin+)
         Key can be "channel", "time", "interval", or "message"
@@ -360,7 +364,7 @@ class Notifications(Cog):
         interval: HH:MM, [num][unit]* where unit in {d, h, m}, 0 (one time only notification)
         message: string
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not ctx.guild:
             raise commands.CommandError(message=f'This command can only be used in a server.')
@@ -375,193 +379,57 @@ class Notifications(Cog):
         if not key in ['channel', 'time', 'interval', 'message']:
             raise commands.CommandError(message=f'Invalid argument: `{key}`. Key must be channel, time, interval, or message.')
 
+        if isinstance(value, str):
+            value = ' '.join(value).strip()
         if not value:
             raise commands.CommandError(message=f'Required argument missing: `value`.')
-        value = ' '.join(value).strip()
-        if not value:
-            raise commands.CommandError(message=f'Required argument missing: `value`.')
-
-        notification = await Notification.query.where(Notification.guild_id==ctx.guild.id).where(Notification.notification_id==id).gino.first()
-        if not notification:
-            raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
         
-        if key == 'channel':
-            if ctx.message.channel_mentions:
-                temp = ctx.message.channel_mentions[0]
-            elif is_int(value):
-                temp = ctx.guild.get_channel(int(value))
-                if not temp:
-                    for c in ctx.guild.text_channels:
-                        if c.name.upper() == value.upper():
-                            temp = c
-                            break
-            else:
-                for c in ctx.guild.text_channels:
-                    if c.name.upper() == value.upper():
-                        temp = c
-                        break
-            if temp:
-                channel = temp
-            else:
-                raise commands.CommandError(message=f'Could not find channel: `{value}`.')
-            await notification.update(channel_id=channel.id).apply()
+        async with self.bot.async_session() as session:
+            notification: Notification | None = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).where(Notification.notification_id == id))).scalar_one_or_none()
+            if not notification:
+                raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
         
-        elif key == 'time':
-            time = value
-            input_time = time
-            time = time.replace('/', '-')
-            parts = time.split('-')
-            if ' ' in parts[len(parts)-1]:
-                temp = parts[len(parts)-1]
-                parts = parts[:len(parts)-1]
-                for part in temp.split(' '):
-                    parts.append(part)
-            if len(parts) == 1: # format: HH:MM
-                parts = parts[0].split(':')
-                if len(parts) != 2:
-                    await ctx.send(f'Time `{input_time}` was not correctly formatted. For the correct format, please use the `help addnotification` command.')
-                    return
-                hours, minutes = parts[0], parts[1]
-                if not is_int(hours):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours = int(hours)
-                if hours < 0 or hours > 23:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+            if key == 'channel':
+                channel: str | GuildChannel | datetime | timedelta | None = value
+                if channel and not isinstance(channel, GuildChannel):
+                    if ctx.message.channel_mentions and isinstance(ctx.message.channel_mentions[0], GuildChannel):
+                        channel = ctx.message.channel_mentions[0]
+                    elif is_int(channel):
+                        channel_by_id: GuildChannel | None = ctx.guild.get_channel(int(channel)) # type: ignore
+                        channel = channel_by_id if channel_by_id else str(channel)
+                    if isinstance(channel, str):
+                        channel = get_text_channel_by_name(ctx.guild, channel)
+                if not isinstance(channel, GuildChannel):
+                    raise commands.CommandError(f'Could not find channel.')
+            
+                notification.channel_id = channel.id
+            
+            elif key == 'time':
+                if not isinstance(value, datetime) and not isinstance(value, str):
+                    raise commands.CommandError(message=f'Could not parse time: `{value}`')
+                time: datetime = parse_datetime_string(value) if isinstance(value, str) else value
+                
+                if time < datetime.now(UTC):
+                    raise commands.CommandError(message=f'Invalid argument: `{time}`. Time cannot be in the past.')
 
-                if not is_int(minutes):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                minutes = int(minutes)
-                if minutes < 0 or minutes > 59:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.now(UTC)
-                time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours)
-            elif len(parts) == 3: # format: DD-MM HH:MM
-                day = parts[0]
-                month = parts[1]
-                time_of_day = parts[2]
-                if not is_int(month):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                month = int(month)
-                if month < 1 or month > 12:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                if not is_int(day):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                day = int(day)
-                year = datetime.now(UTC).year
-                if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                parts = time_of_day.split(':')
-                if len(parts) != 2:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours, minutes = parts[0], parts[1]
-                if not is_int(hours):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours = int(hours)
-                if hours < 0 or hours > 23:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                notification.time = time
+            
+            elif key == 'interval':
+                if not isinstance(value, timedelta) and not isinstance(value, str):
+                    raise commands.CommandError(message=f'Could not parse interval: `{value}`')
+                interval: timedelta | int = parse_timedelta_string(value) if isinstance(value, str) else value
 
-                if not is_int(minutes):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                minutes = int(minutes)
-                if minutes < 0 or minutes > 59:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.now(UTC)
-                time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month)
-            elif len(parts) == 4:
-                day = parts[0]
-                month = parts[1]
-                year = parts[2]
-                time_of_day = parts[3]
-                if not is_int(year):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                year = int(year)
-                if year < datetime.now(UTC).year or year > datetime.now(UTC).year+1:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                if not is_int(month):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                month = int(month)
-                if month < 1 or month > 12:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                if not is_int(day):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                day = int(day)
-                if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                parts = time_of_day.split(':')
-                if len(parts) != 2:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours, minutes = parts[0], parts[1]
-                if not is_int(hours):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours = int(hours)
-                if hours < 0 or hours > 23:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-
-                if not is_int(minutes):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                minutes = int(minutes)
-                if minutes < 0 or minutes > 59:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.now(UTC)
-                time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month, year=year)
-            else:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-            if time < datetime.now(UTC):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-
-            await notification.update(time=time).apply()
+                if (interval.days if interval.days else 0) * 24 * 60 * 60 + (interval.seconds if interval.seconds else 0) > 366 * 24 * 60 * 60:
+                    raise commands.CommandError(f'Invalid argument: `{interval}`. Interval cannot exceed 1 year.')
+                if 0 < interval.total_seconds() < 900:
+                    raise commands.CommandError(f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
         
-        elif key == 'interval':
-            interval = value
-            temp = interval.replace(' ', '')
-            units = ['d', 'h', 'm']
-            input = []
-            num = ''
-            for char in temp:
-                if not is_int(char) and not char.lower() in units:
-                    raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                elif is_int(char):
-                    num += char
-                elif char.lower() in units:
-                    if not num:
-                        raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                    input.append((int(num), char.lower()))
-                    num = ''
-            days = 0
-            hours = 0
-            minutes = 0
-            for i in input:
-                num = i[0]
-                unit = i[1]
-                if unit == 'd':
-                    days += num
-                elif unit == 'h':
-                    hours += num
-                elif unit == 'm':
-                    minutes += num
-            if days*24*60 + hours*60 + minutes <= 0:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            elif days*24*60 + hours*60 + minutes > 60*24*366:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            interval = timedelta(days=days, hours=hours, minutes=minutes)
-            interval = interval.total_seconds()
+                notification.interval = round(interval.total_seconds())
+            
+            elif isinstance(value, str):
+                notification.message = value
 
-            await notification.update(interval=interval).apply()
-        
-        else:
-            await notification.update(message=value).apply()
+            await session.commit()
         
         await ctx.send(f'Notification edited with id: `{id}`\n```channel:  {notification.channel_id}\ntime:     {notification.time} UTC\ninterval: {notification.interval} (seconds)\nmessage:  {notification.message}```')
 
