@@ -8,7 +8,7 @@ from bot import Bot
 from database import Guild, Notification, OnlineNotification
 from datetime import datetime, timedelta, UTC
 from database_utils import get_db_guild
-from discord_utils import find_text_channel, get_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
+from discord_utils import find_text_channel, get_guild_text_channel, get_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
 from message_queue import QueueMessage
 from number_utils import is_int
 from checks import is_admin
@@ -49,7 +49,7 @@ class Notifications(Cog):
             print(msg)
             print('-' * 10)
             logging.critical(msg)
-            logChannel: discord.TextChannel = get_text_channel(self.bot, self.config['testChannel'])
+            logChannel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['testChannel'])
             self.bot.queue_message(QueueMessage(logChannel, msg))
             return
             
@@ -434,7 +434,7 @@ class Notifications(Cog):
         await ctx.send(f'Notification edited with id: `{id}`\n```channel:  {notification.channel_id}\ntime:     {notification.time} UTC\ninterval: {notification.interval} (seconds)\nmessage:  {notification.message}```')
 
     @commands.command()
-    async def online(self, ctx: commands.Context, *member):
+    async def online(self, ctx: commands.Context, *, member: discord.Member, type: int = 1) -> None:
         '''
         Notify next time a user comes online.
         Arguments: member (mention, id, name), (optional: int type [1-4])
@@ -444,57 +444,10 @@ class Notifications(Cog):
         Type 4: notify when member goes offline
         Type 1-3 also trigger when the member sends a message
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not ctx.guild:
             raise commands.CommandError(message=f'This command can only be used in a server.')
-        
-        if not member:
-            raise commands.CommandError(message=f'Required argument missing: `member`.')
-        type = 1
-        potential_type = member[len(member) - 1]
-        if is_int(potential_type):
-            if 1 <= int(potential_type) <= 4:
-                type = int(potential_type)
-                member = member[0:len(member) - 1]
-
-        member_mentions = [mention for mention in ctx.message.mentions if isinstance(mention, discord.Member)]
-        if member_mentions:
-            member = member_mentions[0]
-        else:
-            name = ""
-            for m in member:
-                name += m + " "
-            name = name.strip()
-
-            found = False
-            if is_int(name):
-                potential_id = int(name)
-                for m in ctx.guild.members:
-                    if m.id == potential_id:
-                        found = True
-                        member = m
-                        break
-            if not found:
-                for m in ctx.guild.members:
-                    if m.display_name.upper().replace(" ", "") == name.upper().replace(" ", ""):
-                        found = True
-                        member = m
-                        break
-            if not found:
-                for m in ctx.guild.members:
-                    if name.upper().replace(" ", "") in m.display_name.upper().replace(" ", ""):
-                        found = True
-                        member = m
-                        break
-            if not found:
-                raise commands.CommandError(message=f'Could not find member: `{name}`.')
-        
-        if not isinstance(member, discord.Member):
-            raise commands.CommandError(message=f'Could not find member.')
-        
-        members = await ctx.guild.query_members(user_ids=[member.id], presences=True)
-        member = members[0]
 
         if type in [1,2,3] and str(member.status) == 'online':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already online.')
@@ -505,82 +458,79 @@ class Notifications(Cog):
         elif type == 4 and str(member.status) == 'offline':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already offline.')
         
-        online_notification = await OnlineNotification.query.where(OnlineNotification.guild_id==ctx.guild.id).where(OnlineNotification.author_id==ctx.author.id).where(OnlineNotification.member_id==member.id).gino.first()
-        if online_notification:
-            await online_notification.delete()
-            await ctx.send(f'You will no longer be notified of `{member.display_name}`\'s status.')
-        else:
-            await OnlineNotification.create(guild_id=ctx.guild.id, author_id=ctx.author.id, member_id=member.id, channel_id=ctx.message.channel.id, type=type)
-            if type in [1,2,3]:
-                await ctx.send(f'You will be notified when `{member.display_name}` is online.')
+        async with self.bot.async_session() as session:
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == ctx.guild.id)
+                                                                                    .where(OnlineNotification.author_id == ctx.author.id).where(OnlineNotification.member_id == member.id))).scalar_one_or_none()
+            if online_notification:
+                await session.delete(online_notification)
+                await session.commit()
+                await ctx.send(f'You will no longer be notified of `{member.display_name}`\'s status.')
             else:
-                await ctx.send(f'You will be notified when `{member.display_name}` is offline.')
+                session.add(OnlineNotification(guild_id=ctx.guild.id, author_id=ctx.author.id, member_id=member.id, channel_id=ctx.message.channel.id, type=type))
+                await session.commit()
+                if type in [1,2,3]:
+                    await ctx.send(f'You will be notified when `{member.display_name}` is online.')
+                else:
+                    await ctx.send(f'You will be notified when `{member.display_name}` is offline.')
 
     @commands.Cog.listener()
-    async def on_member_update(self, before, after):
+    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
         '''
         Notify users of status updates.
         '''
-        if before.status != after.status:
-            try:
-                online_notification = await OnlineNotification.query.where(OnlineNotification.guild_id==after.guild.id).where(OnlineNotification.member_id==after.id).gino.first()
-            except:
-                return
+        if before.status == after.status:
+            return
+        
+        async with self.bot.async_session() as session:
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == after.guild.id)
+                                                                                    .where(OnlineNotification.member_id == after.id))).scalar_one_or_none()
             if not online_notification:
                 return
-            if online_notification.type in [1,2,3] and str(after.status) == 'online':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is online! {user.mention}')
-                except:
-                    pass
-            elif online_notification.type in [2,3] and str(after.status) == 'idle':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is online! {user.mention}')
-                except:
-                    pass
-            elif online_notification.type == 2 and str(after.status) == 'dnd':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is online! {user.mention}')
-                except:
-                    pass
-            elif online_notification.type == 4 and str(after.status) == 'offline':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is offline! {user.mention}')
-                except:
-                    pass
-            else:
-                return
+            try:
+                channel: discord.TextChannel = get_guild_text_channel(after.guild, online_notification.channel_id)
+                user: discord.Member | None = discord.utils.get(after.guild.members, id=online_notification.author_id)
+                if not channel or not user:
+                    raise commands.CommandError('User or channel not found.')
+                if ((online_notification.type in [1,2,3] and str(after.status) == 'online') or (online_notification.type in [2,3] and str(after.status) == 'idle') 
+                    or (online_notification.type == 2 and str(after.status) == 'dnd') or (online_notification.type == 4 and str(after.status) == 'offline')):
+                    on_or_offline: str = 'offline' if online_notification.type == 4 else 'online'
+                    await channel.send(f'`{after.display_name}` is {on_or_offline}! {user.mention}')
+                else:
+                    return
+            except:
+                pass
 
-            await online_notification.delete()
+            await session.delete(online_notification)
+            await session.commit()
     
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message) -> None:
         '''
         Notify of online status on activity.
         '''
         if message.guild is None:
             return
-        try:
-            online_notification = await OnlineNotification.query.where(OnlineNotification.guild_id==message.guild.id).where(OnlineNotification.member_id==message.author.id).gino.first()
-        except:
-            return
-        if online_notification:
-            if online_notification.type in [1,2,3]:
-                try:
-                    channel = discord.utils.get(message.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(message.guild.members, id=online_notification.author_id)
+        
+        async with self.bot.async_session() as session:
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == message.guild.id)
+                                                                                    .where(OnlineNotification.member_id == message.author.id))).scalar_one_or_none()
+            if not online_notification:
+                return
+            
+            try:
+                channel: discord.TextChannel = get_guild_text_channel(message.guild, online_notification.channel_id)
+                user: discord.Member | None = discord.utils.get(message.guild.members, id=online_notification.author_id)
+                if not channel or not user:
+                    raise commands.CommandError('User or channel not found.')
+                if online_notification.type in [1,2,3]:
                     await channel.send(f'`{message.author.display_name}` is online! {user.mention}')
-                except:
-                    pass
-                await online_notification.delete()
+                else:
+                    return
+            except:
+                pass
 
-async def setup(bot: Bot):
+            await session.delete(online_notification)
+            await session.commit()
+
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Notifications(bot))
