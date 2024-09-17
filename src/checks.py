@@ -27,7 +27,7 @@ def is_admin() -> Check[Context[Bot]]:
         raise CommandError(message='Insufficient permissions: `Admin`')
     return check(predicate)
 
-def portables_leader():
+def portables_leader() -> Check[Context[Bot]]:
     async def predicate(ctx: Context[Bot]) -> bool:
         portables: Guild | None = ctx.bot.get_guild(ctx.bot.config['portablesServer'])
         if portables:

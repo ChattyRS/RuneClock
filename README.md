@@ -4,10 +4,10 @@ RuneClock is a general-purpose Discord bot for RuneScape Discord servers, origin
 
 ## Usage
 
-* Invite the bot to your server using the following link: [invite](https://discordapp.com/api/oauth2/authorize?client_id=449462150491275274&permissions=8&scope=bot%20applications.commands). Replace the permission number in the url if you want to invite the bot with different permissions.
+* Invite the bot to your server using the [invite link](https://discordapp.com/api/oauth2/authorize?client_id=449462150491275274&permissions=8&scope=bot%20applications.commands). Replace the permission number in the url if you want to invite the bot with different permissions. Note that some features may not work if the appropriate permissions are not granted.
 * When the bot is joined to your server, the default command prefix will be a dash ("-"). You can change this prefix using the `prefix` command.
 * For any further information regarding commands, please use the `help` command.
-* Feel free to join the support server for any help or questions: [support](https://discord.gg/Pcbz2HH).
+* Feel free to join the [support server](https://discord.gg/Pcbz2HH) for any help or questions!
 
 ## Authors
 

@@ -1,23 +1,21 @@
 import io
-from typing import List
 import discord
 from discord import app_commands, TextStyle
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
-import sys
-sys.path.append('../')
-from bot import Bot, get_config, Guild, increment_command_counter
+from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
+from bot import Bot
+from database import Guild
 from datetime import datetime, timedelta, UTC
 import re
 import gspread
 import traceback
-from utils import is_int, obliterate_only, obliterate_mods
+from number_utils import is_int
+from checks import obliterate_only, obliterate_mods
 
-config = get_config()
+ranks: list[str] = ['Bronze', 'Iron', 'Steel', 'Mithril', 'Adamant', 'Rune']
 
-ranks = ['Bronze', 'Iron', 'Steel', 'Mithril', 'Adamant', 'Rune']
-
-reqs = {
+reqs: dict[str, dict[str, int]] = {
     'Bronze': { 'number': 2, 'events': 5, 'top3': 2, 'appointments': 5, 'appreciations': 2, 'discord': 2, 'months': 1 },
     'Iron': { 'number': 2, 'events': 15, 'top3': 3, 'appointments': 15, 'appreciations': 4, 'discord': 3, 'months': 2 },
     'Steel': { 'number': 3, 'events': 20, 'top3': 4, 'appointments': 25, 'appreciations': 6, 'discord': 5, 'months': 3 },
@@ -25,45 +23,31 @@ reqs = {
     'Adamant': { 'number': 4, 'events': 40, 'top3': 6, 'appointments': 40, 'appreciations': 10, 'discord': 10, 'months': 9 }
 }
 
-'''
-Returns true iff the interaction user is an obliterate recruiter, moderator, or key.
-'''
-def is_obliterate_recruiter(interaction: discord.Interaction) -> bool:
-    if interaction.user.id == config['owner']:
-        return True
-    if interaction.guild.id == config['obliterate_guild_id']:
-        recruiter_role = interaction.guild.get_role(config['obliterate_recruiter_role_id'])
-        mod_role = interaction.guild.get_role(config['obliterate_moderator_role_id'])
-        key_role = interaction.guild.get_role(config['obliterate_key_role_id'])
-        if recruiter_role in interaction.user.roles or mod_role in interaction.user.roles or key_role in interaction.user.roles:
-            return True
-    return False
-
-async def update_row(sheet, row_num, new_row):
-    cell_list = [gspread.Cell(row_num, i+1, value=val) for i, val in enumerate(new_row)]
-    await sheet.update_cells(cell_list, nowait=True)
+async def update_row(sheet: AsyncioGspreadWorksheet, row_num: int, new_row: list[str | None] | list[str]) -> None:
+    cell_list: list[gspread.Cell] = [gspread.Cell(row_num, i+1, value=val) for i, val in enumerate(new_row)]
+    await sheet.update_cells(cell_list, nowait=True) # type: ignore - extra arg nowait is supported via an odd decorator
 
 class AppreciationModal(discord.ui.Modal, title='Appreciation'):
-    def __init__(self, bot, member_to_appreciate):
+    def __init__(self, bot: Bot, member_to_appreciate: discord.Member) -> None:
         super().__init__()
-        self.bot = bot
-        self.member_to_appreciate = member_to_appreciate
+        self.bot: Bot = bot
+        self.member_to_appreciate: discord.Member = member_to_appreciate
 
     message = discord.ui.TextInput(label='Message', min_length=1, max_length=1000, required=True, style=TextStyle.long)
     anonymous = discord.ui.TextInput(label='Should this post be anonymous?', min_length=1, max_length=3, required=True, placeholder='Yes / No', style=TextStyle.short)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        message = self.message.value
-        anonymous = self.anonymous.value
-        member_to_appreciate = self.member_to_appreciate
-
-        if not 'Y' in anonymous.upper() and not 'N' in anonymous.upper():
-            await interaction.response.send_message(f'Error: invalid value for anonymous: `{anonymous}`', ephemeral=True)
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not 'Y' in self.anonymous.value.upper() and not 'N' in self.anonymous.value.upper():
+            await interaction.response.send_message(f'Error: invalid value for anonymous: `{self.anonymous.value}`', ephemeral=True)
             return
-        anonymous = 'Y' in anonymous.upper()
+        anonymous: bool = 'Y' in self.anonymous.value.upper()
+
+        if anonymous and not interaction.channel:
+            await interaction.response.send_message(f'Error: anonymous appreciation messages can only be sent in a server channel.', ephemeral=True)
+            return
 
         # Create an embed to send to the appreciation station channel
-        embed = discord.Embed(title=f'Appreciation message', description=message, colour=0x00e400)
+        embed: discord.Embed = discord.Embed(title=f'Appreciation message', description=self.message.value, colour=0x00e400)
         if anonymous:
             with open('images/default_avatar.png', 'rb') as f:
                 default_avatar = io.BytesIO(f.read())
@@ -73,24 +57,24 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
             embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
 
         # Update appreciation sheet on roster
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(config['obliterate_roster_key'])
-        appreciations = await ss.worksheet('Appreciation')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+        appreciations: AsyncioGspreadWorksheet = await ss.worksheet('Appreciation')
 
-        members_col = await appreciations.col_values(1)
-        rows = len(members_col)
+        members_col: list[str | None] = await appreciations.col_values(1)
+        rows: int = len(members_col)
 
-        date_str = datetime.now(UTC).strftime('%d %b %Y')
+        date_str: str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row = [interaction.user.display_name, member_to_appreciate.display_name, date_str, message]
+        new_row: list[str | None] = [interaction.user.display_name, self.member_to_appreciate.display_name, date_str, self.message.value]
 
         # Update appreciation column on roster
-        roster = await ss.worksheet('Roster')
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
         appreciation_col = 9
 
-        raw_members = await roster.get_all_values()
+        raw_members: list[list[str]] = await roster.get_all_values()
         raw_members = raw_members[1:]
-        members = []
+        members: list[list[str]] = []
         # Ensure expected row length
         for member in raw_members:
             while len(member) < appreciation_col + 1:
@@ -100,13 +84,14 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
             members.append(member)
 
         # Find member row
-        member_row, member_index = None, 0
+        member_row: list[str] = []
+        member_index: int = 0
         for i, member in enumerate(members):
-            if member[4].strip() == f'{member_to_appreciate.name}#{member_to_appreciate.discriminator}':
+            if member[4].strip() == f'{self.member_to_appreciate.name}#{self.member_to_appreciate.discriminator}':
                 member_row, member_index = member, i
                 break
         if not member_row:
-            await interaction.response.send_message(f'Could not find member on roster: `{member_to_appreciate.name}#{member_to_appreciate.discriminator}`')
+            await interaction.response.send_message(f'Could not find member on roster: `{self.member_to_appreciate.name}#{self.member_to_appreciate.discriminator}`')
             return
 
         if not is_int(member_row[appreciation_col]):
@@ -115,15 +100,15 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
 
         # Send an embed to the appreciation station channel
         if anonymous:
-            await interaction.channel.send(member_to_appreciate.mention, embed=embed, file=default_avatar)
-            await interaction.response.send_message(f'Your appreciation message for {member_to_appreciate.mention} has been sent!', ephemeral=True)
+            await interaction.channel.send(self.member_to_appreciate.mention, embed=embed, file=default_avatar) # type: ignore - interaction.channel is checked earlier for anonymous appreciations
+            await interaction.response.send_message(f'Your appreciation message for {self.member_to_appreciate.mention} has been sent!', ephemeral=True)
         else:
-            await interaction.response.send_message(member_to_appreciate.mention, embed=embed)
+            await interaction.response.send_message(self.member_to_appreciate.mention, embed=embed)
 
         await update_row(appreciations, rows+1, new_row)
         await update_row(roster, member_index+2, member_row) # +2 for header row and 1-indexing
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
@@ -210,10 +195,24 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
         traceback.print_tb(error.__traceback__)
 
 class ApplicationView(discord.ui.View):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__(timeout=None)
-        self.bot = bot
+        self.bot: Bot = bot
         self.value = None
+
+    def is_obliterate_recruiter(self, interaction: discord.Interaction) -> bool:
+        '''
+        Returns true iff the interaction user is an obliterate recruiter, moderator, or key.
+        '''
+        if interaction.user.id == self.bot.config['owner']:
+            return True
+        if interaction.guild and interaction.guild.id == self.bot.config['obliterate_guild_id']:
+            recruiter_role: discord.Role | None = interaction.guild.get_role(self.bot.config['obliterate_recruiter_role_id'])
+            mod_role: discord.Role | None = interaction.guild.get_role(self.bot.config['obliterate_moderator_role_id'])
+            key_role: discord.Role | None = interaction.guild.get_role(self.bot.config['obliterate_key_role_id'])
+            if isinstance(interaction.user, discord.Member) and (recruiter_role in interaction.user.roles or mod_role in interaction.user.roles or key_role in interaction.user.roles):
+                return True
+        return False
     
     @discord.ui.button(label='Decline', style=discord.ButtonStyle.danger, custom_id='obliterate_app_decline_button')
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -625,7 +624,7 @@ class Obliterate(Cog):
         self,
         interaction: discord.Interaction,
         current: str,
-    ) -> List[app_commands.Choice[str]]:
+    ) -> list[app_commands.Choice[str]]:
         members = [m for m in interaction.guild.members if current.upper() in m.display_name.upper() or current.upper() in m.name.upper()]
         # filter out names that cannot be displayed, all clan member names should match this pattern (valid RSNs)
         members = [m for m in members if not re.match('^[A-z0-9 -]+$', m.display_name) is None]
