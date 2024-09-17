@@ -1,6 +1,8 @@
 import io
+from typing import Any
+from aiohttp import ClientResponse
 import discord
-from discord import app_commands, TextStyle
+from discord import Member, TextChannel, app_commands, TextStyle
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
@@ -10,8 +12,11 @@ from datetime import datetime, timedelta, UTC
 import re
 import gspread
 import traceback
+from database_utils import find_db_guild
+from discord_utils import find_guild_text_channel, get_guild_text_channel, get_text_channel
 from number_utils import is_int
 from checks import obliterate_only, obliterate_mods
+from configuration import config
 
 ranks: list[str] = ['Bronze', 'Iron', 'Steel', 'Mithril', 'Adamant', 'Rune']
 
@@ -47,7 +52,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
             return
 
         # Create an embed to send to the appreciation station channel
-        embed: discord.Embed = discord.Embed(title=f'Appreciation message', description=self.message.value, colour=0x00e400)
+        embed = discord.Embed(title=f'Appreciation message', description=self.message.value, colour=0x00e400)
         if anonymous:
             with open('images/default_avatar.png', 'rb') as f:
                 default_avatar = io.BytesIO(f.read())
@@ -114,17 +119,16 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         traceback.print_tb(error.__traceback__)
 
 class NameChangeModal(discord.ui.Modal, title='Name change'):
-    def __init__(self, bot, member_to_rename: discord.Member):
+    def __init__(self, bot: Bot, member_to_rename: discord.Member) -> None:
         self.new_name.placeholder = member_to_rename.display_name
         super().__init__()
-        self.bot = bot
-        self.member_to_rename = member_to_rename
+        self.bot: Bot = bot
+        self.member_to_rename: discord.Member = member_to_rename
 
     new_name = discord.ui.TextInput(label='New name', min_length=1, max_length=12, required=True, style=TextStyle.short, placeholder='New name')
 
-    async def on_submit(self, interaction: discord.Interaction):
-        new_name = self.new_name.value.strip()
-        member_to_rename = self.member_to_rename
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        new_name: str = self.new_name.value.strip()
 
         if not interaction.guild:
             await interaction.response.send_message(f'Error: could not find guild.', ephemeral=True)
@@ -133,26 +137,27 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
         if not new_name or re.match('^[A-z0-9 -]+$', new_name) is None or len(new_name) > 12:
             await interaction.response.send_message(f'Error: invalid RSN: `{new_name}`', ephemeral=True)
             return
-        if new_name == member_to_rename.display_name:
+        if new_name == self.member_to_rename.display_name:
             await interaction.response.send_message(f'Error: new name cannot be the same as the previous name: `{new_name}`', ephemeral=True)
             return
 
         # Create an embed to send to the name change channel
         embed = discord.Embed(title=f'Name change', colour=0x00e400)
-        embed.add_field(name='Previous name', value=member_to_rename.display_name, inline=False)
+        embed.add_field(name='Previous name', value=self.member_to_rename.display_name, inline=False)
         embed.add_field(name='New name', value=new_name, inline=False)
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
-        embed.set_footer(text=f'User ID: {member_to_rename.id}')
+        embed.set_footer(text=f'User ID: {self.member_to_rename.id}')
 
         # Update name on roster
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(config['obliterate_roster_key'])
-        roster = await ss.worksheet('Roster')
-        name_col, notes_col = 0, 5
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
+        name_col: int = 0
+        notes_col: int = 5
 
-        raw_members = await roster.get_all_values()
+        raw_members: list[list[str]] = await roster.get_all_values()
         raw_members = raw_members[1:]
-        members = []
+        members: list[list[str]] = []
         # Ensure expected row length
         for member in raw_members:
             while len(member) < notes_col + 1:
@@ -162,13 +167,14 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
             members.append(member)
 
         # Find member row
-        member_row, member_index = None, 0
+        member_row: list[str] = []
+        member_index: int = 0
         for i, member in enumerate(members):
-            if member[4].strip() == f'{member_to_rename.name}#{member_to_rename.discriminator}':
+            if member[4].strip() == f'{self.member_to_rename.name}#{self.member_to_rename.discriminator}':
                 member_row, member_index = member, i
                 break
         if not member_row:
-            await interaction.response.send_message(f'Could not find member on roster: `{member_to_rename.name}#{member_to_rename.discriminator}`')
+            await interaction.response.send_message(f'Could not find member on roster: `{self.member_to_rename.name}#{self.member_to_rename.discriminator}`')
             return
 
         member_row[notes_col] = (member_row[notes_col].strip() + ('.' if member_row[notes_col].strip() and not member_row[notes_col].strip().endswith('.') else '') + f' Formerly known as {member_row[name_col]}.').strip()
@@ -178,18 +184,18 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
 
         renamed = False
         try:
-            await member_to_rename.edit(nick=new_name)
+            await self.member_to_rename.edit(nick=new_name)
             renamed = True
         except discord.Forbidden:
             pass
 
         # Send an embed to the name change channel
-        channel = interaction.guild.get_channel(config['obliterate_promotions_channel_id'])
+        channel: discord.TextChannel = get_guild_text_channel(interaction.guild, self.bot.config['obliterate_promotions_channel_id'])
         await channel.send(embed=embed)
-        await interaction.response.send_message(f'Member renamed from `{member_to_rename.display_name}` to `{new_name}`.'
-            + f'\nInsufficient permissions to change nickname for user: {member_to_rename.mention}.' if not renamed else '', ephemeral=True)
+        await interaction.response.send_message(f'Member renamed from `{self.member_to_rename.display_name}` to `{new_name}`.'
+            + f'\nInsufficient permissions to change nickname for user: {self.member_to_rename.mention}.' if not renamed else '', ephemeral=True)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
@@ -198,7 +204,7 @@ class ApplicationView(discord.ui.View):
     def __init__(self, bot: Bot) -> None:
         super().__init__(timeout=None)
         self.bot: Bot = bot
-        self.value = None
+        self.value: bool | None = None
 
     def is_obliterate_recruiter(self, interaction: discord.Interaction) -> bool:
         '''
@@ -215,31 +221,37 @@ class ApplicationView(discord.ui.View):
         return False
     
     @discord.ui.button(label='Decline', style=discord.ButtonStyle.danger, custom_id='obliterate_app_decline_button')
-    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def decline(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         # Validate permissions
-        if not is_obliterate_recruiter(interaction):
+        if not self.is_obliterate_recruiter(interaction):
             await interaction.response.send_message('Missing permissions: `Obliterate moderator`', ephemeral=True)
             return
+        if not interaction.message:
+            await interaction.response.send_message('Could not find interaction message.', ephemeral=True)
+            return
         # Update message
-        embed = interaction.message.embeds[0]
+        embed: discord.Embed = interaction.message.embeds[0]
         embed.set_footer(text=f'Declined by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/cross-mark_274c.png')
         await interaction.message.edit(embed=embed, view=None)
         await interaction.response.send_message('Application declined successfully.', ephemeral=True)
         self.value = False
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='obliterate_app_accept_button')
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def accept(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         # Validate permissions
-        if not is_obliterate_recruiter(interaction):
+        if not self.is_obliterate_recruiter(interaction):
             await interaction.response.send_message('Missing permissions: `Obliterate moderator`', ephemeral=True)
             return
+        if not interaction.message:
+            await interaction.response.send_message('Could not find interaction message.', ephemeral=True)
+            return
         # Handle accept
-        status = await self.accept_handler(interaction)
+        status: str = await self.accept_handler(interaction)
         if status != 'success':
             await interaction.response.send_message(status, ephemeral=True)
             return
         # Update message
-        embed = interaction.message.embeds[0]
+        embed: discord.Embed = interaction.message.embeds[0]
         embed.set_footer(text=f'Accepted by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/check-mark-button_2705.png')
         await interaction.message.edit(embed=embed, view=None)
         await interaction.response.send_message('Application accepted successfully.', ephemeral=True)
@@ -255,22 +267,26 @@ class ApplicationView(discord.ui.View):
         '''
         print('Running accept handler')
 
+        if not interaction.guild or not interaction.message or not interaction.message.embeds[0].footer.text:
+            return 'Could not find interaction message.'
+
         user_id = int(interaction.message.embeds[0].footer.text.replace('User ID: ', ''))
-        member = await interaction.guild.fetch_member(user_id)
+        member: discord.Member = await interaction.guild.fetch_member(user_id)
 
-        if not member:
-            return 'Error: applicant not found'
+        applicant_role: discord.Role | None = member.guild.get_role(self.bot.config['obliterate_applicant_role_id'])
+        bronze_role: discord.Role | None = member.guild.get_role(self.bot.config['obliterate_bronze_role_id'])
 
-        applicant_role = member.guild.get_role(config['obliterate_applicant_role_id'])
-        bronze_role = member.guild.get_role(config['obliterate_bronze_role_id'])
-
-        if (not applicant_role in member.roles) or (bronze_role in member.roles):
+        if (not applicant_role in member.roles) or (bronze_role in member.roles) or not bronze_role:
             return f'Error: incorrect roles for applicant: `{member.display_name}`. Either they are not an applicant, or they are already bronze.'
         
+        channel: discord.TextChannel | None = find_guild_text_channel(interaction.guild, self.bot.config['obliterate_promotions_channel_id'])
+        if not channel:
+            return 'Promotions channel not found.'
+        
         # Parse message
-        rsn = interaction.message.embeds[0].fields[0].value
-        ironman = interaction.message.embeds[0].fields[2].value
-        if not ironman.upper() in ['NO', 'YES', 'IRONMAN', 'HCIM', 'UIM', 'GIM']:
+        rsn: str | None = interaction.message.embeds[0].fields[0].value
+        ironman: str | None = interaction.message.embeds[0].fields[2].value
+        if not ironman or not ironman.upper() in ['NO', 'YES', 'IRONMAN', 'HCIM', 'UIM', 'GIM']:
             return f'Error invalid value for ironman: `{ironman}`'
         else:
             for i, opt in enumerate(['NO', 'YES', 'IRONMAN', 'HCIM', 'UIM', 'GIM']):
@@ -284,19 +300,19 @@ class ApplicationView(discord.ui.View):
                     break
 
         # Update roster
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(config['obliterate_roster_key'])
-        roster = await ss.worksheet('Roster')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
 
-        members_col = await roster.col_values(1)
-        rows = len(members_col)
+        members_col: list[str | None] = await roster.col_values(1)
+        rows: int = len(members_col)
 
-        date_str = datetime.now(UTC).strftime('%d %b %Y')
+        date_str: str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str]
-        cell_list = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        new_row: list[str | None] = [rsn, 'Bronze', ironman, 'Yes', f'{member.name}#{member.discriminator}', '', date_str]
+        cell_list: list[gspread.Cell] = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
         print(f'writing values:\n{new_row}\nto row {rows+1}')
-        await roster.update_cells(cell_list, nowait=True)
+        await roster.update_cells(cell_list, nowait=True) # type: ignore - nowait is enabled through an odd decorator
 
         # Update member nickname and roles
         roles = member.roles
@@ -305,30 +321,29 @@ class ApplicationView(discord.ui.View):
         await member.edit(nick=rsn, roles=roles)
 
         # Add to WOM
-        url = f'https://api.wiseoldman.net/v2/groups/{config["obliterate_wom_group_id"]}/members'
-        payload = {'verificationCode': config['obliterate_wom_verification_code']}
+        url: str = f'https://api.wiseoldman.net/v2/groups/{self.bot.config["obliterate_wom_group_id"]}/members'
+        payload: dict[str, Any] = {'verificationCode': self.bot.config['obliterate_wom_verification_code']}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
-        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
-                data = await r.json()
+                data: Any = await r.json()
                 return f'Error adding to WOM: {r.status}\n{data}'
             data = await r.json()
 
         # Send message in promotions channel
-        channel = interaction.guild.get_channel(config['obliterate_promotions_channel_id'])
         await channel.send(f'`{rsn}`\'s application was accepted by {interaction.user.mention}. Please invite them to the CC in-game and react to this message once done.')
         
         return 'success'
     
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
 class PersonalInfoModal(discord.ui.Modal):
-    def __init__(self, bot, data):
-        self.bot = bot
-        self.data = data
+    def __init__(self, bot: Bot, data: dict[str, Any]) -> None:
+        self.bot: Bot = bot
+        self.data: dict[str, Any] = data
         try:
             super().__init__(title='Personal information')
         except Exception as e:
@@ -340,8 +355,8 @@ class PersonalInfoModal(discord.ui.Modal):
     voice_chat = discord.ui.TextInput(label='Would you join voice chat during events?', placeholder='Yes / No', max_length=200, required=True, style=TextStyle.paragraph)
     fav_activity = discord.ui.TextInput(label='Favourite in-game activity', max_length=200, required=True, style=TextStyle.paragraph)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        self.value = self.data
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        self.value: dict[str, Any] = self.data
         self.value['Why do you want to join our clan?'] = self.motivation.value
         self.value['When are you most active?'] = self.play_time.value
         self.value['Where did you hear about our clan?'] = self.referral.value
@@ -370,23 +385,23 @@ class PersonalInfoModal(discord.ui.Modal):
         view = ApplicationView(self.bot)
         await interaction.response.send_message(embed=embed, view=view)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
 class OpenPersonalInfoView(discord.ui.View):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__(timeout=None)
-        self.bot = bot
+        self.bot: Bot = bot
         self.value = None
 
     @discord.ui.button(label='Part 2', style=discord.ButtonStyle.primary, custom_id='obliterate_app_part2_button')
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         # Get data from first modal from message embed
-        data = {}
-        for field in interaction.message.embeds[0].fields:
-            data[field.name] = field.value
+        data: dict[str, str] = {}
+        for field in [f for f in (interaction.message.embeds[0].fields if interaction.message else []) if f.name and f.value]:
+            data[field.name] = field.value # type: ignore - try harder mr type checker
         # Open second form modal
         modal = PersonalInfoModal(self.bot, data)
         await interaction.response.send_modal(modal)
@@ -397,9 +412,9 @@ class OpenPersonalInfoView(discord.ui.View):
             self.value = False
 
 class AccountInfoModal(discord.ui.Modal, title='Account information'):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__()
-        self.bot = bot
+        self.bot: Bot = bot
 
     rsn = discord.ui.TextInput(label='RuneScape username', min_length=1, max_length=12, required=True, style=TextStyle.short)
     total = discord.ui.TextInput(label='Total level', min_length=2, max_length=4, required=True, style=TextStyle.short)
@@ -407,9 +422,9 @@ class AccountInfoModal(discord.ui.Modal, title='Account information'):
     timezone = discord.ui.TextInput(label='What is your timezone?', min_length=1, max_length=20, required=True, style=TextStyle.short)
     experience = discord.ui.TextInput(label='How long have you played OSRS?', max_length=200, required=True, style=TextStyle.paragraph)
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction) -> None:
         # Validation
-        if re.match('^[A-z0-9 -]+$', self.rsn.value) is None:
+        if re.match(r'^[A-z0-9 -]+$', self.rsn.value) is None:
             await interaction.response.send_message(f'Error: invalid RSN: `{self.rsn.value}`', ephemeral=True)
             return
         if not self.ironman.value.upper() in ['NO', 'YES', 'IRONMAN', 'HCIM', 'UIM', 'GIM']:
@@ -428,7 +443,7 @@ class AccountInfoModal(discord.ui.Modal, title='Account information'):
         view = OpenPersonalInfoView(self.bot)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
@@ -445,120 +460,131 @@ class Obliterate(Cog):
         # Register persistent views
         self.bot.add_view(ApplicationView(self.bot))
         self.bot.add_view(OpenPersonalInfoView(self.bot))
-
     
     @tasks.loop(hours=24)
-    async def track_discord_levels(self):
+    async def track_discord_levels(self) -> None:
         '''
         Loop to track discord levels from Mee6 dashboard on clan roster
         '''
         try:
             print('Syncing obliterate discord levels...')
-            obliterate_guild_id = config['obliterate_guild_id']
-            r = await self.bot.aiohttp.get(f'https://mee6.xyz/api/plugins/levels/leaderboard/{obliterate_guild_id}')
+            obliterate_guild_id: int = self.bot.config['obliterate_guild_id']
+            r: ClientResponse = await self.bot.aiohttp.get(f'https://mee6.xyz/api/plugins/levels/leaderboard/{obliterate_guild_id}')
 
             async with r:
-                data = await r.json(content_type='application/json')
-                player_data = data['players']
+                data: dict = await r.json(content_type='application/json')
+                player_data: list[dict] = data['players']
 
-                agc = await self.bot.agcm.authorize()
-                ss = await agc.open_by_key(config['obliterate_roster_key'])
-                roster = await ss.worksheet('Roster')
+                agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+                ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+                roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
 
-                raw_members = await roster.get_all_values()
+                raw_members: list[list[str]] = await roster.get_all_values()
                 raw_members = raw_members[1:]
 
                 discord_col = 4 # 0-indexed
                 discord_level_col = 11 # 0-indexed
 
-                members = []
+                members: list[list[str]] = []
                 # Ensure expected row length
                 for member in raw_members:
                     if len(member) and member[0]:
                         while len(member) < discord_level_col + 1:
                             member.append('')
                         if len(member) > discord_level_col + 1:
-                            member = member[:discord_level_col+1]
+                            member: list[str] = member[:discord_level_col+1]
                         members.append(member)
 
                 for player in player_data:
-                    player_discord = f'{player["username"]}#{player["discriminator"]}'
-                    player_level = player['level']
+                    player_discord: str = f'{player["username"]}#{player["discriminator"]}'
+                    player_level: int = player['level']
                     for i, member in enumerate(members):
                         if member[discord_col].strip() == player_discord and str(member[discord_level_col]).strip() != str(player_level):
                             member[discord_level_col] = str(player_level)
                             await update_row(roster, i+2, member) # +2 for 1-indexing and header row
                             break
         except Exception as e:
-            error = f'Error encountered in obliterate discord level tracking loop:\n{type(e).__name__}: {e}'
+            error: str = f'Error encountered in obliterate discord level tracking loop:\n{type(e).__name__}: {e}'
             print(error)
             try:
-                log_channel = self.get_channel(config['testChannel'])
+                log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['testChannel'])
                 await log_channel.send(error)
             except:
                 pass
 
     @Cog.listener()
-    async def on_user_update(self, before, after):
-        if before.name != after.name or before.discriminator != after.discriminator:
-            obliterate = self.bot.get_guild(config['obliterate_guild_id'])
-            if obliterate:
-                if after.id in [member.id for member in obliterate.members]:
-                    guild = await Guild.get(obliterate.id)
-                    if guild:
-                        if guild.log_channel_id:
-                            channel = obliterate.get_channel(guild.log_channel_id)
+    async def on_user_update(self, before: discord.User, after: discord.User) -> None:
+        if before.name == after.name and before.discriminator == after.discriminator:
+            return
+        
+        obliterate: discord.Guild | None = self.bot.get_guild(self.bot.config['obliterate_guild_id'])
+        if not obliterate:
+            return
+        
+        if not after.id in [member.id for member in obliterate.members]:
+            return
+        
+        guild: Guild | None = await find_db_guild(self.bot, obliterate)
+        if not guild or not guild.log_channel_id:
+            return
+        
+        channel: discord.TextChannel = get_guild_text_channel(obliterate, guild.log_channel_id)
 
-                            member = None
-                            for m in obliterate.members:
-                                if m.id == after.id:
-                                    member = m
-                                    break
-                            
-                            if member:
-                                beforeName = f'{before.name}#{before.discriminator}'
-                                afterName = f'{after.name}#{after.discriminator}'
-                                txt = f'{member.mention} {afterName}'
-                                embed = discord.Embed(title=f'**Name Changed**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
-                                embed.add_field(name='Previously', value=beforeName, inline=False)
-                                embed.set_footer(text=f'User ID: {after.id}')
-                                embed.set_thumbnail(url=after.display_avatar.url)
-                                try:
-                                    await channel.send(embed=embed)
-                                except discord.Forbidden:
-                                    pass
+        member: discord.Member | None = None
+        for m in obliterate.members:
+            if m.id == after.id:
+                member = m
+                break
+        
+        if not member:
+            return
+        
+        beforeName: str = f'{before.name}#{before.discriminator}'
+        afterName: str = f'{after.name}#{after.discriminator}'
+        txt: str = f'{member.mention} {afterName}'
+        embed = discord.Embed(title=f'**Name Changed**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
+        embed.add_field(name='Previously', value=beforeName, inline=False)
+        embed.set_footer(text=f'User ID: {after.id}')
+        embed.set_thumbnail(url=after.display_avatar.url)
+        try:
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            pass
 
-                                agc = await self.bot.agcm.authorize()
-                                ss = await agc.open_by_key(config['obliterate_roster_key'])
-                                roster = await ss.worksheet('Roster')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
 
-                                values = await roster.get_all_values()
-                                values = values[1:]
+        values: list[list[str]] = await roster.get_all_values()
+        values = values[1:]
 
-                                discord_col = 4 # zero-indexed
+        discord_col = 4 # zero-indexed
 
-                                found = False
-                                for i, val in enumerate(values):
-                                    if val[discord_col] == beforeName:
-                                        await roster.update_cell(i+2, discord_col+1, afterName)
-                                        await channel.send(f'The roster has been updated with the new username: `{afterName}`.')
-                                        found = True
-                                        break
-                                
-                                if not found:
-                                    await channel.send(f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.')
+        found = False
+        for i, val in enumerate(values):
+            if val[discord_col] == beforeName:
+                await roster.update_cell(i+2, discord_col+1, afterName)
+                await channel.send(f'The roster has been updated with the new username: `{afterName}`.')
+                found = True
+                break
+        
+        if not found:
+            await channel.send(f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.')
 
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
-    async def apply(self, interaction: discord.Interaction):
+    async def apply(self, interaction: discord.Interaction) -> None:
         '''
         Send a modal with the application form.
         '''
-        applicant_role = interaction.guild.get_role(config['obliterate_applicant_role_id'])
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(f'This command can only be used inside a server.', ephemeral=True)
+            return
+        applicant_role: discord.Role | None = interaction.guild.get_role(self.bot.config['obliterate_applicant_role_id'])
         if not applicant_role or not applicant_role in interaction.user.roles:
             await interaction.response.send_message(f'Must be an applicant to submit an application', ephemeral=True)
             return
-        application_channel = interaction.guild.get_channel(config['obliterate_applications_channel_id'])
+        application_channel: discord.TextChannel | None = find_guild_text_channel(interaction.guild, self.bot.config['obliterate_applications_channel_id'])
         if not application_channel or not interaction.channel == application_channel:
             await interaction.response.send_message(f'Applications can only be submitted in the #applications channel', ephemeral=True)
             return
@@ -566,50 +592,61 @@ class Obliterate(Cog):
 
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
-    async def appreciate(self, interaction: discord.Interaction, member: str):
+    async def appreciate(self, interaction: discord.Interaction, member_id: str) -> None:
         '''
         Send a modal with the appreciation station form.
         '''
-        appreciation_channel = interaction.guild.get_channel(config['obliterate_appreciation_station_channel_id'])
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(f'This command can only be used inside a server.', ephemeral=True)
+            return
+        appreciation_channel: TextChannel | None = find_guild_text_channel(interaction.guild, self.bot.config['obliterate_appreciation_station_channel_id'])
         if not appreciation_channel or not interaction.channel == appreciation_channel:
             await interaction.response.send_message(f'Appreciation messages can only be sent in the #appreciation-station channel', ephemeral=True)
             return
-        if not member or not is_int(member):
-            await interaction.response.send_message(f'Invalid argument `member: "{member}"`', ephemeral=True)
+        if not member_id or not is_int(member_id):
+            await interaction.response.send_message(f'Invalid argument `member: "{member_id}"`', ephemeral=True)
             return
-        member = interaction.guild.get_member(int(member))
+        member: discord.Member | None = interaction.guild.get_member(int(member_id))
         if not member:
             await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
             return
-        if member == interaction.user and not member.id == config['owner']:
+        if member == interaction.user and not member.id == self.bot.config['owner']:
             await interaction.response.send_message(f'You cannot send an appreciation message to yourself, silly.', ephemeral=True)
             return
         if member.bot:
             await interaction.response.send_message(f'Bots are nice, but you cannot send them appreciation messages.', ephemeral=True)
             return
-        bronze_role = member.guild.get_role(config['obliterate_bronze_role_id'])
-        if member.top_role < bronze_role or interaction.user.top_role < bronze_role:
+        bronze_role: discord.Role | None = member.guild.get_role(self.bot.config['obliterate_bronze_role_id'])
+        if not bronze_role or member.top_role < bronze_role or interaction.user.top_role < bronze_role:
             await interaction.response.send_message(f'Only obliterate clan members can send/receive appreciation messages.', ephemeral=True)
             return
         await interaction.response.send_modal(AppreciationModal(self.bot, member))
 
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
-    async def namechange(self, interaction: discord.Interaction, member: str):
+    async def namechange(self, interaction: discord.Interaction, member_id: str) -> None:
         '''
         Send a modal with the name change form.
         '''
-        obliterate = self.bot.get_guild(config['obliterate_guild_id'])
-        mod_role = obliterate.get_role(config['obliterate_moderator_role_id'])
-        key_role = obliterate.get_role(config['obliterate_key_role_id'])
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(f'This command can only be used inside a server.', ephemeral=True)
+            return
+        
+        obliterate: discord.Guild | None = self.bot.get_guild(self.bot.config['obliterate_guild_id'])
+        if not obliterate:
+            await interaction.response.send_message(f'Cannot find obliterate server.', ephemeral=True)
+            return
+        
+        mod_role: discord.Role | None = obliterate.get_role(self.bot.config['obliterate_moderator_role_id'])
+        key_role: discord.Role | None = obliterate.get_role(self.bot.config['obliterate_key_role_id'])
         if not mod_role in interaction.user.roles and not key_role in interaction.user.roles:
             await interaction.response.send_message(f'Insufficient permissions: `Obliterate moderator`', ephemeral=True)
             return
 
-        if not member or not is_int(member):
-            await interaction.response.send_message(f'Invalid argument `member: "{member}"`', ephemeral=True)
+        if not member_id or not is_int(member_id):
+            await interaction.response.send_message(f'Invalid argument `member: "{member_id}"`', ephemeral=True)
             return
-        member = interaction.guild.get_member(int(member))
+        member: discord.Member | None = interaction.guild.get_member(int(member_id))
         if not member:
             await interaction.response.send_message(f'Could not find member: `{member}`', ephemeral=True)
             return
@@ -625,7 +662,7 @@ class Obliterate(Cog):
         interaction: discord.Interaction,
         current: str,
     ) -> list[app_commands.Choice[str]]:
-        members = [m for m in interaction.guild.members if current.upper() in m.display_name.upper() or current.upper() in m.name.upper()]
+        members: list[Member] = [m for m in (interaction.guild.members if interaction.guild else []) if current.upper() in m.display_name.upper() or current.upper() in m.name.upper()]
         # filter out names that cannot be displayed, all clan member names should match this pattern (valid RSNs)
         members = [m for m in members if not re.match('^[A-z0-9 -]+$', m.display_name) is None]
         members = members[:25] if len(members) > 25 else members
@@ -635,50 +672,58 @@ class Obliterate(Cog):
     @obliterate_mods()
     @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
-    async def event(self, ctx: commands.Context):
+    async def event(self, ctx: commands.Context) -> None:
         '''
         Marks event attendence (Moderator+ only)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        message = ctx.message.content.replace(ctx.invoked_with, '', 1).replace(ctx.prefix, '', 1)
+        message: str = ctx.message.content.replace(ctx.invoked_with, '', 1).replace(ctx.prefix, '', 1) if ctx.invoked_with and ctx.prefix else ctx.message.content
 
         if not message:
-            ctx.command.reset_cooldown(ctx)
-            raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
+            if ctx.command:
+                ctx.command.reset_cooldown(ctx)
+            raise commands.CommandError(message=f'Required argument missing: `Message`.')
 
         if not 'Present Members' in message:
-            ctx.command.reset_cooldown(ctx)
+            if ctx.command:
+                ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Attendance`.')
         
         if not 'Event name:' in message:
-            ctx.command.reset_cooldown(ctx)
+            if ctx.command:
+                ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Event name`.')
         
         if not 'Hosted by:' in message:
-            ctx.command.reset_cooldown(ctx)
+            if ctx.command:
+                ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Required argument missing: `Host name`.')
 
-        event_name, host, participants = '', '', []
+        event_name: str = ''
+        host: str = ''
+        participants: list[str] = []
 
         try:
             event_name = message.split('Event name:')[1].split('\n')[0].strip()
             if not event_name:
-                ctx.command.reset_cooldown(ctx)
+                if ctx.command:
+                    ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Required argument missing: `Event name`.')
 
             host = message.split('Hosted by:')[1].split('\n')[0].strip()
             if not host:
-                ctx.command.reset_cooldown(ctx)
+                if ctx.command:
+                    ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Required argument missing: `Host name`.')
 
             participants = []
 
-            attendance = message.split('Present Members')[1].strip()
+            attendance_str: str = message.split('Present Members')[1].strip()
 
             first_row = True
-            for line in attendance.split('\n'):
+            for line in attendance_str.split('\n'):
                 if line.startswith('-'*5):
                     first_row = True
                     continue
@@ -692,42 +737,45 @@ class Obliterate(Cog):
                     first_row = False
                     continue
                 else:
-                    name = line.split('|')[0].strip()
+                    name: str = line.split('|')[0].strip()
                     participants.append(name)
 
             if not participants:
-                ctx.command.reset_cooldown(ctx)
-                raise commands.CommandError(message=f'Error: Could not find any participants while parsing attendance list:\n```\n{attendance}\n```')
+                if ctx.command:
+                    ctx.command.reset_cooldown(ctx)
+                raise commands.CommandError(message=f'Error: Could not find any participants while parsing attendance list:\n```\n{attendance_str}\n```')
 
         except commands.CommandError as e:
-            ctx.command.reset_cooldown(ctx)
+            if ctx.command:
+                ctx.command.reset_cooldown(ctx)
             raise e
         except:
-            ctx.command.reset_cooldown(ctx)
+            if ctx.command:
+                ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'An error occurred while attempting to parse your message. Please ensure that you follow the correct format. Contact Chatty for help if you need it.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(config['obliterate_roster_key'])
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(config['obliterate_roster_key'])
 
-        roster = await ss.worksheet('Roster')
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
         attendance_col, host_col = 7, 8
 
-        alts_sheet = await ss.worksheet('Alts')
+        alts_sheet: AsyncioGspreadWorksheet = await ss.worksheet('Alts')
 
-        attendance = {}
+        attendance: dict[str, Any] = {}
 
-        raw_members = await roster.get_all_values()
+        raw_members: list[list[str]] = await roster.get_all_values()
         raw_members = raw_members[1:]
-        members = []
+        members: list[list[str]] = []
         # Ensure expected row length
         for member in raw_members:
             while len(member) < host_col + 1:
                 member.append('')
             if len(member) > host_col + 1:
-                member = member[:host_col+1]
+                member: list[str] = member[:host_col+1]
             members.append(member)
 
-        alts = await alts_sheet.get_all_values()
+        alts: list[list[str]] = await alts_sheet.get_all_values()
         alts = alts[1:]
 
         # Find host
@@ -856,7 +904,7 @@ class Obliterate(Cog):
             raise commands.CommandError(message=f'Error: no members found in your message.\nNo changes have been made.')
 
         agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(config['obliterate_roster_key'])
+        ss = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
 
         roster = await ss.worksheet('Roster')
         appointments = await ss.worksheet('Staff appointments')
@@ -941,7 +989,7 @@ class Obliterate(Cog):
 
         # Form request
         url = f'https://api.wiseoldman.net/v2/competitions/{competition_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Error retrieving data from: `{url}`.')
@@ -956,7 +1004,7 @@ class Obliterate(Cog):
                 raise commands.CommandError(message=f'This competition has not ended yet. It will end at `{data["endsAt"]}`.')
             
             agc = await self.bot.agcm.authorize()
-            ss = await agc.open_by_key(config['obliterate_roster_key'])
+            ss = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
 
             roster = await ss.worksheet('Roster')
             competitions = await ss.worksheet('Competitions')
@@ -1041,7 +1089,7 @@ class Obliterate(Cog):
         await ctx.channel.typing()
 
         agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(config['obliterate_roster_key'])
+        ss = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
 
         roster = await ss.worksheet('Roster')
         events_attended_col, events_hosted_col, appreciations_col = 7, 8, 9
