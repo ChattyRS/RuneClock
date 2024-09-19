@@ -779,7 +779,8 @@ class Obliterate(Cog):
         alts = alts[1:]
 
         # Find host
-        host_member, host_index = None, 0
+        host_member: list[str] | None = None
+        host_index: int = 0
         for i, member in enumerate(members):
             if member[0].lower().strip() == host.lower():
                 host_member, host_index = member, i
@@ -787,7 +788,7 @@ class Obliterate(Cog):
         if not host_member:
             for alt in alts:
                     if alt[1].lower().strip() == host.lower():
-                        member_name = alt[0]
+                        member_name: str = alt[0]
                         for i, member in enumerate(members):
                             if member[0].lower().strip() == member_name.lower():
                                 host_member, host_index = member, i
@@ -818,7 +819,7 @@ class Obliterate(Cog):
             if is_int(member[host_col]):
                 num_hosted = int(member[host_col])
             num_hosted += 1
-            member[host_col] = num_hosted
+            member[host_col] = str(num_hosted)
             attendance[host]['data'] = member
         else:
             # Update host row here if the host is not a participant
@@ -826,7 +827,7 @@ class Obliterate(Cog):
             if is_int(host_member[host_col]):
                 num_hosted = int(host_member[host_col])
             num_hosted += 1
-            host_member[host_col] = num_hosted
+            host_member[host_col] = str(num_hosted)
             await update_row(roster, host_index+2, host_member) # +2 for header row and 1-indexing
         
         for participant, value in attendance.items():
@@ -835,7 +836,7 @@ class Obliterate(Cog):
             if is_int(member[attendance_col]):
                 num_attended = int(member[attendance_col])
             num_attended += 1
-            member[attendance_col] = num_attended
+            member[attendance_col] = str(num_attended)
             attendance[participant]['data'] = member
 
         # Update participant attendance on roster
@@ -843,19 +844,19 @@ class Obliterate(Cog):
             await update_row(roster, value['index']+2, value['data']) # +2 for header row and 1-indexing
 
         # Add event to events sheet
-        events = await ss.worksheet('Event attendance')
+        events: AsyncioGspreadWorksheet = await ss.worksheet('Event attendance')
 
-        event_col = await events.col_values(1)
-        rows = len(event_col)
+        event_col: list[str | None] = await events.col_values(1)
+        rows: int = len(event_col)
 
-        date_str = datetime.now(UTC).strftime('%d %b %Y')
+        date_str: str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row = [event_name, host, date_str, ', '.join(participants)]
-        cell_list = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
-        await events.update_cells(cell_list, nowait=True)
+        new_row: list[str] = [event_name, host, date_str, ', '.join(participants)]
+        cell_list: list[gspread.Cell] = [gspread.Cell(rows+1, i+1, value=val) for i, val in enumerate(new_row)]
+        await events.update_cells(cell_list, nowait=True) # type: ignore - nowait is enabled through an odd decorator
 
         # Generate string indicating noted attendance
-        data_str = f'Host: {host}\n\nParticipants:\n'
+        data_str: str = f'Host: {host}\n\nParticipants:\n'
         data_str += '\n'.join([f'- {p}' for p in attendance])
         
         if any(p not in attendance for p in participants):
@@ -870,19 +871,24 @@ class Obliterate(Cog):
     @obliterate_mods()
     @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
-    async def appointment(self, ctx: commands.Context):
+    async def appointment(self, ctx: commands.Context) -> None:
         '''
         Adds staff appointments for a list of members.
         Members can be separated by commas or line breaks.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        message = ctx.message.content.replace(ctx.invoked_with, '', 1).replace(ctx.prefix, '', 1).strip()
-        members = [m.strip() for m in message.replace('\n', ',').split(',') if m.strip() != '']
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+        if not ctx.command:
+            raise commands.CommandError(message=f'Command not found.')
 
-        guild_members = []
-        for m in members:
+        message: str = ctx.message.content.replace(ctx.invoked_with if ctx.invoked_with else '', '', 1).replace(ctx.prefix if ctx.prefix else '', '', 1).strip()
+        msg_members: list[str] = [m.strip() for m in message.replace('\n', ',').split(',') if m.strip() != '']
+
+        guild_members: list[discord.Member] = []
+        for m in msg_members:
             found = False
             for member in ctx.guild.members:
                 if m == member.mention or m == str(member.id) or m.upper() == member.display_name.upper() or m.upper() == member.name.upper():
@@ -903,19 +909,19 @@ class Obliterate(Cog):
             ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Error: no members found in your message.\nNo changes have been made.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
 
-        roster = await ss.worksheet('Roster')
-        appointments = await ss.worksheet('Staff appointments')
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
+        appointments: AsyncioGspreadWorksheet = await ss.worksheet('Staff appointments')
         appointments_col = 10
 
-        members_col = await appointments.col_values(1)
-        appointment_rows = len(members_col)
+        members_col: list[str | None] = await appointments.col_values(1)
+        appointment_rows: int = len(members_col)
 
-        raw_members = await roster.get_all_values()
+        raw_members: list[list[str]] = await roster.get_all_values()
         raw_members = raw_members[1:]
-        members = []
+        members: list[list[str]] = []
         # Ensure expected row length
         for member in raw_members:
             while len(member) < appointments_col + 1:
@@ -924,11 +930,12 @@ class Obliterate(Cog):
                 member = member[:appointments_col+1]
             members.append(member)
 
-        rows_to_update = [] # Array of arrays of sheet, row number, row data
+        rows_to_update: list[list] = [] # Array of arrays of sheet, row number, row data
         
         for m in guild_members:
             # Find member row
-            member_row, member_index = None, 0
+            member_row: list[str] | None = None
+            member_index: int = 0
             for i, member in enumerate(members):
                 if member[4].strip() == f'{m.name}#{m.discriminator}':
                     member_row, member_index = member, i
@@ -943,9 +950,9 @@ class Obliterate(Cog):
 
             rows_to_update.append([roster, member_index+2, member_row])# +2 for header row and 1-indexing
 
-            date_str = datetime.now(UTC).strftime('%d %b %Y')
+            date_str: str = datetime.now(UTC).strftime('%d %b %Y')
             date_str = date_str if not date_str.startswith('0') else date_str[1:]
-            new_row = [m.display_name, ctx.author.display_name, date_str]
+            new_row: list[str] = [m.display_name, ctx.author.display_name, date_str]
 
             rows_to_update.append([appointments, appointment_rows+1, new_row])
             appointment_rows += 1
@@ -953,7 +960,7 @@ class Obliterate(Cog):
         for update in rows_to_update:
             await update_row(update[0], update[1], update[2])
 
-        members_str = '\n'.join([m.display_name for m in guild_members])
+        members_str: str = '\n'.join([m.display_name for m in guild_members])
 
         await ctx.send(f'**Staff appointments by** {ctx.author.mention}:\n```\n{members_str}\n```')
 
@@ -961,12 +968,15 @@ class Obliterate(Cog):
     @obliterate_mods()
     @commands.cooldown(1, 20, commands.BucketType.guild)
     @commands.command(hidden=True)
-    async def top5(self, ctx: commands.Context, competition_url):
+    async def top5(self, ctx: commands.Context, competition_url: str) -> None:
         '''
         Logs SOTW / BOTW results (Moderator+ only)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
+
+        if not ctx.command:
+            raise commands.CommandError(message=f'Command not found.')
 
         # Get and validate competition ID
         if not competition_url.startswith('https://wiseoldman.net/competitions/'):
@@ -978,7 +988,7 @@ class Obliterate(Cog):
             ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Invalid argument **competition_url**: `{competition_url}`. Url must be of the form: `https://wiseoldman.net/competitions/xxxxx`.')
 
-        competition_id = competition_url.split('/')[0]
+        competition_id: int | str = competition_url.split('/')[0]
         if not is_int(competition_id):
             ctx.command.reset_cooldown(ctx)
             raise commands.CommandError(message=f'Invalid competition ID: `{competition_id}`. Must be a positive integer.')
@@ -988,39 +998,39 @@ class Obliterate(Cog):
             raise commands.CommandError(message=f'Invalid competition ID: `{competition_id}`. Must be a positive integer.')
 
         # Form request
-        url = f'https://api.wiseoldman.net/v2/competitions/{competition_id}'
+        url: str = f'https://api.wiseoldman.net/v2/competitions/{competition_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Error retrieving data from: `{url}`.')
-            data = await r.json()
+            data: dict[str, Any] = await r.json()
 
-            metric = data['metric']
+            metric: str = data['metric']
             metric = metric[0].upper() + metric[1:]
-            participants = data['participations']
+            participants: list = data['participations']
 
             if datetime.now(UTC) < datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ'):
                 ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'This competition has not ended yet. It will end at `{data["endsAt"]}`.')
             
-            agc = await self.bot.agcm.authorize()
-            ss = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+            agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+            ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
 
-            roster = await ss.worksheet('Roster')
-            competitions = await ss.worksheet('Competitions')
+            roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
+            competitions: AsyncioGspreadWorksheet = await ss.worksheet('Competitions')
 
             top_col = 12
 
-            competition_ids_col = await competitions.col_values(1)
-            competition_rows = len(competition_ids_col)
+            competition_ids_col: list[str | None] = await competitions.col_values(1)
+            competition_rows: int = len(competition_ids_col)
 
             if str(competition_id) in competition_ids_col:
                 ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'Competition with ID `{competition_id}` has already been logged.')
 
-            raw_members = await roster.get_all_values()
+            raw_members: list[list[str]] = await roster.get_all_values()
             raw_members = raw_members[1:]
-            members = []
+            members: list[list[str]] = []
             # Ensure expected row length
             for member in raw_members:
                 while len(member) < top_col + 1:
@@ -1029,14 +1039,15 @@ class Obliterate(Cog):
                     member = member[:top_col+1]
                 members.append(member)
 
-            rows_to_update = [] # Array of arrays of sheet, row number, row data
+            rows_to_update: list[list] = [] # Array of arrays of sheet, row number, row data
             top_num = 0
-            top_indices = []
+            top_indices: list[int] = []
 
             for i, p in enumerate([participant for participant in participants if is_int(participant['progress']['gained']) and int(participant['progress']['gained']) > 0]):
-                top_num = i + 1
+                top_num: int = i + 1
                 # Find member row
-                member_row, member_index = None, 0
+                member_row: list[str] | None = None
+                member_index: int = 0
                 for j, member in enumerate(members):
                     if member[0].strip().lower().replace('-', ' ').replace('_', ' ') == p['player']['displayName'].strip().lower().replace('-', ' ').replace('_', ' '):
                         member_row, member_index = member, j
@@ -1052,8 +1063,8 @@ class Obliterate(Cog):
                     if len(rows_to_update) >= 5:
                         break
 
-            top = participants[:top_num]
-            top_names = ''
+            top: list = participants[:top_num]
+            top_names: str = ''
 
             table = 'No.  Name          Gain'
             for i, p in enumerate(top):
@@ -1064,12 +1075,12 @@ class Obliterate(Cog):
                     top_names += ', ' if top_names else ''
                     top_names += p['player']['displayName']
 
-            start = datetime.strptime(data['startsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime('%d %b %Y')
+            start: str = datetime.strptime(data['startsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime('%d %b %Y')
             start = start if not start.startswith('0') else start[1:]
-            end = datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime('%d %b %Y')
+            end: str = datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').strftime('%d %b %Y')
             end = end if not end.startswith('0') else end[1:]
 
-            new_row = [str(competition_id), data['title'], metric, start, end, top_names]
+            new_row: list[str] = [str(competition_id), data['title'], metric, start, end, top_names]
 
             rows_to_update.append([competitions, competition_rows+1, new_row])
 
@@ -1081,23 +1092,23 @@ class Obliterate(Cog):
     @obliterate_only()
     @obliterate_mods()
     @commands.command(hidden=True)
-    async def promotions(self, ctx: commands.Context):
+    async def promotions(self, ctx: commands.Context) -> None:
         '''
         Gets a list of members eligible for a promotion (Moderator+ only)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['obliterate_roster_key'])
 
-        roster = await ss.worksheet('Roster')
-        events_attended_col, events_hosted_col, appreciations_col = 7, 8, 9
-        appointments_col, discord_level_col, top3_col = 10, 11, 12
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
+        events_attended_col: int = 7
+        top3_col: int = 12
 
-        raw_members = await roster.get_all_values()
+        raw_members: list[list[str]] = await roster.get_all_values()
         raw_members = raw_members[1:]
-        members = []
+        members: list[list[str]] = []
         # Ensure expected row length
         for member in raw_members:
             if len(member) and member[0]:
@@ -1107,17 +1118,17 @@ class Obliterate(Cog):
                     member = member[:top3_col+1]
                 members.append(member)
 
-        eligible = []
+        eligible: list[list[str]] = []
         
         for m in reversed(members):
             events_attended, events_hosted, appreciations, appointments, discord_level, top3 = [int(val) if is_int(val) else 0 for val in m[events_attended_col:top3_col+1]]
-            rank = m[1] # Bronze, Iron, Steel, Mithril, Adamant, Rune, Legacy, Moderator, Key
+            rank: str = m[1] # Bronze, Iron, Steel, Mithril, Adamant, Rune, Legacy, Moderator, Key
             try:
-                join_date = datetime.strptime(m[6], '%d %b %Y')
+                join_date: datetime = datetime.strptime(m[6], '%d %b %Y')
             except:
                 join_date = datetime.now(UTC)
             if rank in reqs:
-                req = reqs[rank]
+                req: dict[str, int] = reqs[rank]
                 reqs_met = 0
                 if events_attended + events_hosted >= req['events']:
                     reqs_met += 1
@@ -1146,5 +1157,5 @@ class Obliterate(Cog):
         await ctx.send(embed=embed)
 
 
-async def setup(bot: Bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Obliterate(bot))
