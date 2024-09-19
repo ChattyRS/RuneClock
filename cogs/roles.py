@@ -1,62 +1,52 @@
+from typing import Sequence
 import discord
-from discord import app_commands
+from discord import Emoji, app_commands
 from discord.ext import commands
-from discord.ext.commands import Cog
-from bot import Bot, get_config, increment_command_counter, Guild, Role
-import sys
-sys.path.append('../')
+from discord.ext.commands import Cog, CommandError
+from sqlalchemy import select
+from bot import Bot
+from database import Guild, Role
 import random
-from utils import is_admin, is_int
-from typing import List
+from checks import is_admin
+from database_utils import get_db_guild
+from number_utils import is_int
 import re
-
-config = get_config()
-
-ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys',
-         'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',
-         'Spotlight', 'WildernessFlashEvents']
+from runescape_utils import dnd_names
 
 class Roles(Cog):
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def manageroles(self, ctx: commands.Context, channel=''):
+    async def manageroles(self, ctx: commands.Context, *, channel: discord.TextChannel | None) -> None:
         '''
         Changes server's role management channel. (Admin+)
         Arguments: channel.
         If no channel is given, roles will no longer be managed.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if ctx.message.channel_mentions:
-            channel = ctx.message.channel_mentions[0]
-        elif channel:
-            found = False
-            for c in ctx.guild.text_channels:
-                if channel.upper() in c.name.upper():
-                    channel = c
-                    found = True
-                    break
-            if not found:
-                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
-        else:
-            guild = await Guild.get(ctx.guild.id)
-            if guild.role_channel_id:
-                await guild.update(role_channel_id=None).apply()
-                await ctx.send(f'I will no longer manage roles on server **{ctx.guild.name}**.')
-                return
-            else:
-                raise commands.CommandError(message=f'Required argument missing: `channel`.')
+        if not ctx.guild:
+            raise CommandError('This command can only be used in a server.')
 
-        permissions = discord.Permissions.none()
-        colour = discord.Colour.default()
-        role_names = []
+        if not channel:
+            async with self.bot.async_session() as session:
+                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                if not guild.role_channel_id:
+                    raise commands.CommandError(message=f'Required argument missing: `channel`.')
+                guild.role_channel_id = None
+                await session.commit()
+            await ctx.send(f'I will no longer manage roles on server **{ctx.guild.name}**.')
+            return
+
+        permissions: discord.Permissions = discord.Permissions.none()
+        colour: discord.Colour = discord.Colour.default()
+        role_names: list[str] = []
         for role in ctx.guild.roles:
             role_names.append(role.name.upper())
-        for rank in ranks:
+        for rank in dnd_names:
             if not rank.upper() in role_names:
                 try:
                     await ctx.guild.create_role(name=rank, permissions=permissions, colour=colour, hoist=False, mentionable=True)
@@ -64,56 +54,55 @@ class Roles(Cog):
                     raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
 
         msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
-        notif_emojis = []
-        for r in ranks:
-            emojiID = config[f'{r.lower()}EmojiID']
-            e = self.bot.get_emoji(emojiID)
-            notif_emojis.append(e)
-            msg += str(e) + ' ' + r + '\n'
-        '''
-        if ctx.guild.id == config['portablesServer']:
-            emoji_ids = [config['fletcher_emoji'], config['crafter_emoji'], config['brazier_emoji'], config['sawmill_emoji'], config['range_emoji'], config['well_emoji']]
-            for emoji_id in emoji_ids:
-                e = self.bot.get_emoji(emoji_id)
-                msg += str(e) + ' ' + e.name + '\n'
-                notifEmojis.append(e)
-        '''
+        notif_emojis: list[Emoji] = []
+        for r in dnd_names:
+            emojiID = self.bot.config[f'{r.lower()}EmojiID']
+            e: Emoji | None = self.bot.get_emoji(emojiID)
+            if e:
+                notif_emojis.append(e)
+                msg += str(e) + ' ' + r + '\n'
         msg += "\nIf you wish to stop receiving notifications, simply remove your reaction. If your reaction isn't there anymore, then you can add a new one and remove it."
         try:
-            message = await channel.send(msg)
+            message: discord.Message = await channel.send(msg)
             for e in notif_emojis:
                 await message.add_reaction(e)
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `send_message / add_reaction`.')
-
-        guild = await Guild.get(ctx.guild.id)
-        await guild.update(role_channel_id=channel.id).apply()
+        
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild.role_channel_id = channel.id
+            await session.commit()
 
         await ctx.send(f'The role management channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
 
     @commands.command(pass_context=True)
-    async def rank(self, ctx: commands.Context, *rank):
+    async def rank(self, ctx: commands.Context, *, rank: str) -> None:
         '''
         Toggles the given rank.
         Arguments: rank
         Constraints: You can only assign yourself the ranks as shown by the `ranks` command.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            raise CommandError('This command can only be used in a server.')
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
         rank = ' '.join(rank)
         valid_rank = False
         rank = rank[0].upper() + rank[1:].lower()
-        for r in ranks:
+        for r in dnd_names:
             if rank in r:
                 valid_rank = True
                 break
         if not valid_rank:
-            db_role = await Role.query.where(Role.guild_id==ctx.guild.id).where(Role.name==rank.lower()).gino.first()
+            async with self.bot.async_session() as session:
+                db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id).where(Role.name == rank.lower()))).scalar_one_or_none()
             if not db_role:
                 raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
-            role = ctx.guild.get_role(db_role.role_id)
+            role: discord.Role | None = ctx.guild.get_role(db_role.role_id)
         else:
             role = discord.utils.find(lambda x: x.name.lower() in rank.lower(), ctx.guild.roles)
         if not role:
@@ -133,14 +122,17 @@ class Roles(Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def addrank(self, ctx: commands.Context, *rank):
+    async def addrank(self, ctx: commands.Context, *, rank: str) -> None:
         '''
         Creates a joinable rank. (Admin+)
         Arguments: rank
         If an existing role is given, the role will be made joinable.
         Otherwise, a joinable role with the given name will be created.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            raise CommandError('This command can only be used in a server.')
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
@@ -149,59 +141,67 @@ class Roles(Cog):
             raise commands.CommandError(message=f'Invalid argument: `{rank}`.')
         rank = rank[0].upper() + rank[1:].lower()
         
-        role = discord.utils.find(lambda r: r.name.lower() == rank.lower(), ctx.guild.roles)
+        role: discord.Role | None = discord.utils.find(lambda r: r.name.lower() == rank.lower(), ctx.guild.roles)
         if not role:
             try:
                 role = await ctx.guild.create_role(name=rank, mentionable=True)
             except discord.Forbidden:
                 raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
         
-        db_role = await Role.query.where(Role.guild_id==ctx.guild.id).where(Role.name==rank.lower()).gino.first()
-        if db_role:
-            raise commands.CommandError(message=f'Rank {rank.lower()} already exists.')
-        await Role.create(guild_id=ctx.guild.id, name=rank.lower(), role_id=role.id)
+        async with self.bot.async_session() as session:
+            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id).where(Role.name == rank.lower()))).scalar_one_or_none()
+            if db_role:
+                raise commands.CommandError(message=f'Rank {rank.lower()} already exists.')
+            session.add(Role(guild_id=ctx.guild.id, name=rank.lower(), role_id=role.id))
+            await session.commit()
         
         await ctx.send(f'Added rank **{rank}**.')
 
     @commands.command(pass_context=True, aliases=['removerank'])
     @is_admin()
-    async def delrank(self, ctx: commands.Context, *rank):
+    async def delrank(self, ctx: commands.Context, *, rank: str) -> None:
         '''
         Removes a joinable rank. (Admin+)
         Arguments: rank
         Note: the role will not be removed, it just won't be joinable anymore.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
         rank = ' '.join(rank)
         
-        db_role = await Role.query.where(Role.guild_id==ctx.guild.id).where(Role.name==rank.lower()).gino.first()
-        if not db_role:
-            raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
-        
-        await db_role.delete()
+        async with self.bot.async_session() as session:
+            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id).where(Role.name == rank.lower()))).scalar_one_or_none()
+            if not db_role:
+                raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
+            
+            await session.delete(db_role)
+            await session.commit()
         
         await ctx.send(f'Removed rank **{rank}**.')
 
     @commands.command(pass_context=True)
-    async def ranks(self, ctx: commands.Context):
+    async def ranks(self, ctx: commands.Context) -> None:
         '''
         Get the list of joinable ranks.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        db_roles = await Role.query.where(Role.guild_id==ctx.guild.id).gino.all()
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            raise CommandError('This command can only be used in a server.')
+
+        async with self.bot.async_session() as session:
+            db_roles: Sequence[Role] = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id))).scalars().all()
         if not db_roles:
             raise commands.CommandError(message=f'Error: This server does not have any ranks.')
 
-        guild_ranks = []
+        guild_ranks: list[discord.Role] = []
         for db_role in db_roles:
-            role = ctx.guild.get_role(db_role.role_id)
+            role: discord.Role | None = ctx.guild.get_role(db_role.role_id)
             if role:
                 guild_ranks.append(role)
-        for rank in ranks:
+        for rank in dnd_names:
             role = discord.utils.find(lambda r: r.name.lower() == rank.lower(), ctx.guild.roles)
             if role:
                 guild_ranks.append(role)
@@ -209,25 +209,25 @@ class Roles(Cog):
         if not guild_ranks:
             raise commands.CommandError(message=f'Error: This server does not have any ranks.')
 
-        msg = ''
+        msg: str = ''
 
-        chars = max([len(role.name) for role in guild_ranks])+1
-        counts = [len(role.members) for role in guild_ranks]
+        chars: int = max([len(role.name) for role in guild_ranks])+1
+        counts: list[int] = [len(role.members) for role in guild_ranks]
         
-        count_chars = max([len(str(i)) for i in counts])+1
+        count_chars: int = max([len(str(i)) for i in counts])+1
         for i, role in enumerate(guild_ranks):
-            count = counts[i]
+            count: int = counts[i]
             msg += role.name + (chars - len(role.name))*' ' + str(count) + (count_chars - len(str(count)))*' ' + 'members\n'
         msg = msg.strip()
 
         await ctx.send(f'```{msg}```')
 
     @commands.command(pass_context=True, aliases=['randomcolor'])
-    async def randomcolour(self, ctx: commands.Context):
+    async def randomcolour(self, ctx: commands.Context) -> None:
         '''
         Generates a random hex colour.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         r = lambda: random.randint(0,255)
         r1 = r()
