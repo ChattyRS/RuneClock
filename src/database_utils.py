@@ -127,7 +127,9 @@ async def find_osrs_item_by_id(bot: Bot, id: int, db_session: AsyncSession | Non
     Finds an OSRS item by id.
 
     Args:
+        bot (Bot): The bot
         id (int): The item id
+        db_session (AsyncSession | None, optional): The database session. Defaults to None.
 
     Returns:
         OSRSItem | None: The OSRS item
@@ -140,7 +142,9 @@ async def get_osrs_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None
     Gets an OSRS item by id.
 
     Args:
+        bot (Bot): The bot
         id (int): The item id
+        db_session (AsyncSession | None, optional): The database session. Defaults to None.
 
     Raises:
         CommandError: If the item is not found
@@ -158,7 +162,9 @@ async def find_rs3_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None
     Finds an RS3 item by id.
 
     Args:
+        bot (Bot): The bot
         id (int): The item id
+        db_session (AsyncSession | None, optional): The database session. Defaults to None.
 
     Returns:
         RS3Item | None: The RS3 item
@@ -171,7 +177,9 @@ async def get_rs3_item_by_id(bot: Bot, id: int, db_session: AsyncSession | None 
     Gets an RS3 item by id.
 
     Args:
+        bot (Bot): The bot
         id (int): The item id
+        db_session (AsyncSession | None, optional): The database session. Defaults to None.
 
     Raises:
         CommandError: If the item is not found
@@ -189,6 +197,7 @@ async def purge_guild(session: AsyncSession, guild: Guild) -> None:
     Purge all data relating to a specific Guild from the database
 
     Args:
+        session (AsyncSession): The database session
         guild (Guild): The guild whose data to purge
     '''
     await session.execute(delete(Role).where(Role.guild_id == guild.id))
@@ -201,3 +210,18 @@ async def purge_guild(session: AsyncSession, guild: Guild) -> None:
     await session.execute(delete(ClanBankTransaction).where(ClanBankTransaction.guild_id == guild.id))
     await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id))
     await session.delete(guild)
+
+async def get_role_reactions(bot: Bot, guild_id: int, db_session: AsyncSession | None = None) -> Sequence[CustomRoleReaction]:
+    '''
+    Gets all CustomRoleReaction for a given guild.
+
+    Args:
+        bot (Bot): The bot
+        guild_id (int): The guild id
+        db_session (AsyncSession | None, optional): The database session. Defaults to None.
+
+    Returns:
+        Sequence[CustomRoleReaction]: The custom role reactions for the guild.
+    '''
+    async with db_session if db_session else bot.async_session() as session:
+        return (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild_id))).scalars().all()
