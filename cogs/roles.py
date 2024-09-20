@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Callable, Sequence
 import discord
 from discord import Emoji, app_commands
 from discord.ext import commands
@@ -167,6 +167,9 @@ class Roles(Cog):
         '''
         self.bot.increment_command_counter()
 
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            raise CommandError('This command can only be used in a server.')
+
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
         rank = ' '.join(rank)
@@ -229,11 +232,11 @@ class Roles(Cog):
         '''
         self.bot.increment_command_counter()
 
-        r = lambda: random.randint(0,255)
-        r1 = r()
-        r2 = r()
-        r3 = r()
-        colour = '%02X%02X%02X' % (r1, r2, r3)
+        r: Callable[[], int] = lambda: random.randint(0,255)
+        r1: int = r()
+        r2: int = r()
+        r3: int = r()
+        colour: str = '%02X%02X%02X' % (r1, r2, r3)
         embed = discord.Embed(colour=discord.Colour(int(colour, 16)))
         embed.add_field(name='Hex', value=f'#{colour}', inline=False)
         embed.add_field(name='RGB', value=f'{r1}, {r2}, {r3}', inline=False)
@@ -241,12 +244,15 @@ class Roles(Cog):
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def addrole(self, ctx: commands.Context, *role_name):
+    async def addrole(self, ctx: commands.Context, *, role_name: str) -> None:
         '''
         Add a role to the server. (Admin+)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
+
+        if not ctx.guild:
+            raise CommandError('This command can only be used in a server.')
 
         if not role_name:
             raise commands.CommandError(message=f'Required argument missing: `role_name`.')
@@ -264,23 +270,16 @@ class Roles(Cog):
 
     @commands.command(pass_context=True, aliases=['removerole'])
     @is_admin()
-    async def delrole(self, ctx: commands.Context, *role_name):
+    async def delrole(self, ctx: commands.Context, *, role: discord.Role) -> None:
         '''
         Delete a role from the server. (Admin+)
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if not role_name:
-            raise commands.CommandError(message=f'Required argument missing: `role`.')
-        role_name = ' '.join(role_name)
-        
-        role = discord.utils.find(lambda r: r.name.upper() == role_name.upper(), ctx.guild.roles)
-        if not role:
-            raise commands.CommandError(message=f'Could not find role: `{role_name}`.')
         try:
             await role.delete()
-            await ctx.send(f'Deleted role **{role_name}**.')
+            await ctx.send(f'Deleted role **{role.name}**.')
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `delete_roles`.')
 
