@@ -1,7 +1,10 @@
 from bot import Bot
-from discord import Guild, Role, TextChannel, Thread
+from discord import Embed, Guild, Role, TextChannel, Thread
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ext.commands import Command, CommandError, Context
+
+max_message_length: int = 2000
+max_embed_description_length: int = 4096
 
 def find_guild_text_channel(guild: Guild, id: int | None) -> TextChannel | None:
     '''
@@ -166,8 +169,32 @@ def get_text_channel_by_name(guild: Guild, channel_name: str) -> TextChannel:
 
 async def send_code_block_over_multiple_messages(ctx: Context, message: str) -> None:
     # https://stackoverflow.com/questions/13673060/split-string-into-strings-by-length
-    chunk_size: int = 1994 # msg at most 2000 chars, and we have 6 ` chars
+    chunk_size: int = max_message_length - 6 # We have 6 "`"" chars
     characters: int = len(message) # number of chunks is initialized at the length of the message
     message_chunks: list[str] = [message[i:i+chunk_size] for i in range(0, characters, chunk_size)]
     for message_chunk in message_chunks:
         await ctx.send(f'```{message_chunk}```')
+
+async def send_lines_over_multiple_messages(ctx: Context, message: str | list[str]) -> None:
+    lines: list[str] = message.split('\n') if isinstance(message, str) else message
+
+    txt: str = ''
+    for line in lines:
+        if len(txt + line) > max_message_length:
+            await ctx.send(txt)
+            txt = ''
+        txt += line
+    if txt:
+        await ctx.send(txt)
+
+async def send_lines_over_multiple_embeds(ctx: Context, message: str | list[str], embed: Embed) -> None:
+    lines: list[str] = message.split('\n') if isinstance(message, str) else message
+
+    embed.description = ''
+    for line in lines:
+        if len(embed.description + line) > max_embed_description_length:
+            await ctx.send(embed = embed)
+            embed.description = ''
+        embed.description += line
+    if embed.description:
+        await ctx.send(embed = embed)
