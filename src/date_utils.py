@@ -1,9 +1,10 @@
 from datetime import UTC, date, datetime, timedelta
+import pytz
 from database import Uptime
 from typing import Sequence
 from discord.ext.commands import CommandError
-
 from number_utils import is_int
+from localization import countries
 
 months: list[str] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -213,3 +214,57 @@ def parse_timedelta_string(input: str) -> timedelta:
     minutes: int = unit_values['m'] if 'm' in unit_values else 0
 
     return timedelta(days=days, hours=hours, minutes=minutes)
+
+def string_to_timezone(timezone: str) -> str:
+    if timezone.upper() == 'USA':
+        timezone = 'US'
+    valid = False
+    for x in pytz.all_timezones:
+        y: list[str] | str = x.split('/')
+        y = y[len(y)-1]
+        if timezone.upper() == y.upper():
+            timezone = x
+            valid = True
+            break
+    if not valid:
+        for x in pytz.country_timezones:
+            if timezone.upper() in x.upper():
+                timezones: list[str] = pytz.country_timezones[x]
+                timezone = timezones[0]
+                valid = True
+                break
+    if not valid:
+        for country in countries:
+            name: str = country['name']
+            code: str = country['code']
+            if timezone.upper() == name.upper():
+                timezone = code
+                break
+        for x in pytz.country_timezones:
+            if timezone.upper() in x.upper():
+                timezones = pytz.country_timezones[x]
+                timezone = timezones[0]
+                valid = True
+                break
+    if not valid:
+        for x in pytz.all_timezones:
+            if timezone.upper() in x.upper():
+                timezone = x
+                valid = True
+                break
+    if not valid:
+        for country in countries:
+            name = country['name']
+            code = country['code']
+            if timezone.upper() in name.upper():
+                timezone = code
+                break
+        for x in pytz.country_timezones:
+            if timezone.upper() in x.upper():
+                timezones = pytz.country_timezones[x]
+                timezone = timezones[0]
+                valid = True
+                break
+    if not valid:
+        raise CommandError(message=f'Invalid argument: timezone `{timezone}`.')
+    return timezone
