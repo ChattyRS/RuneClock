@@ -321,7 +321,7 @@ class Mathematics(Cog):
                 raise commands.CommandError(message=f'Invalid input: `{input}`. Please give a number literal as argument.')
             num, exp = float(num), float(exp)
             try:
-                result = num * (10**exp)
+                result: float = num * (10**exp)
             except Exception as e:
                 raise commands.CommandError(message=f'Invalid input: `{input}`. Error: {e}')
             output: str = format_float(result)
@@ -333,12 +333,12 @@ class Mathematics(Cog):
             num = input if '.' in input else input + '.0'
             exp = 0
             while num.index('.') > 1:
-                decimal_index = num.index('.')
+                decimal_index: int = num.index('.')
                 num = num[:decimal_index-1] + '.' + num[decimal_index-1:].replace('.', '')
                 exp += 1
 
             # Remove non-significant digits and trailing decimal point
-            significant_digits = max([i for i, d in enumerate([n for n in num if re.match(r'[\d]', n)]) if d != '0']) + 1
+            significant_digits: int = max([i for i, d in enumerate([n for n in num if re.match(r'[\d]', n)]) if d != '0']) + 1
             digits: int = len([i for i in num if re.match(r'[\d]', i)])
             while digits > significant_digits:
                 num = num[:len(num)-1]

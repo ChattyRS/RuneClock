@@ -93,6 +93,9 @@ class Bot(commands.AutoShardedBot):
         await self.engine.dispose()
     
     async def setup_hook(self) -> None:
+        '''
+        Creates a task to initialize / setup the bot.
+        '''
         self.loop.create_task(self.initialize())
 
     def restart(self) -> None:
@@ -118,6 +121,9 @@ class Bot(commands.AutoShardedBot):
         print('Database ready!')
 
     async def initialize(self) -> None:
+        '''
+        Initializes the bot.
+        '''
         print(f'Initializing...')
         await asyncio.sleep(10) # Wait to ensure database is running on boot
 

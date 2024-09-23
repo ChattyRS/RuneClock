@@ -179,51 +179,50 @@ class Runescape(Cog):
 
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def alog(self, ctx: commands.Context, *username):
+    async def alog(self, ctx: commands.Context, *, username: str | None) -> None:
         '''
         Get the last 20 activities on a player's adventurer's log.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = ' '.join(username)
-
-        if not name:
-            user = await User.get(ctx.author.id)
+        if not username:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
             if user:
-                name = user.rsn
-            if not name:
+                username = user.rsn
+            if not username:
                 raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
 
-        if len(name) > 12:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
+        if len(username) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{username}`.')
+        if re.match('^[A-z0-9 -]+$', username) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{username}`.')
 
-        url = f'https://apps.runescape.com/runemetrics/profile/profile?user={name}&activities=20'.replace(' ', '%20')
+        url: str = f'https://apps.runescape.com/runemetrics/profile/profile?user={username}&activities=20'.replace(' ', '%20')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving data, please try again in a minute.')
-            data = await r.json()
+            data: dict = await r.json()
 
         if 'error' in data:
             if data['error'] == 'NO_PROFILE':
-                raise commands.CommandError(message=f'Could not find adventurer\'s log for: `{name}`.')
+                raise commands.CommandError(message=f'Could not find adventurer\'s log for: `{username}`.')
             elif data['error'] == 'PROFILE_PRIVATE':
-                raise commands.CommandError(message=f'Error: `{name}`\'s adventurer\'s log is set to private.')
+                raise commands.CommandError(message=f'Error: `{username}`\'s adventurer\'s log is set to private.')
 
-        activities = data['activities']
+        activities: list[dict[str, Any]] = data['activities']
 
-        txt = ''
+        txt: str = ''
         for activity in activities:
             txt += f'[{activity["date"]}] {activity["text"]}\n'
         txt = txt.strip()
         txt = f'```{txt}```'
 
-        embed = discord.Embed(title=f'{name}\'s Adventurer\'s log', description=txt, colour=0x00b2ff, timestamp=datetime.now(UTC), url=f'https://apps.runescape.com/runemetrics/app/overview/player/{name.replace(" ", "%20")}')
-        embed.set_thumbnail(url=f'https://services.runescape.com/m=avatar-rs/{name.replace(" ", "%20")}/chat.png')
+        embed = discord.Embed(title=f'{username}\'s Adventurer\'s log', description=txt, colour=0x00b2ff, timestamp=datetime.now(UTC), url=f'https://apps.runescape.com/runemetrics/app/overview/player/{username.replace(" ", "%20")}')
+        embed.set_thumbnail(url=f'https://services.runescape.com/m=avatar-rs/{username.replace(" ", "%20")}/chat.png')
 
         await ctx.send(embed=embed)
 
@@ -272,31 +271,28 @@ class Runescape(Cog):
 
     @commands.command(name='07rsw', pass_context=True, aliases=['07wiki', 'osrswiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07rsw(self, ctx: commands.Context, *query):
+    async def _07rsw(self, ctx: commands.Context, *, query: str) -> None:
         '''
         Get top 5 results for a search on OSRS Wiki.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        search = ''
-        for i in query:
-            search += i + '+'
-        search = search[:len(search)-1]
+        query = query.replace(' ', '+')
 
-        if not search:
+        if not query:
             raise commands.CommandError(message=f'Required argument missing: `query`.')
 
-        url = f'https://oldschool.runescape.wiki/api.php?action=opensearch&format=json&search={search}'
+        url: str = f'https://oldschool.runescape.wiki/api.php?action=opensearch&format=json&search={query}'
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving data, please try again in a minute.')
-            data = await r.json()
+            data: list = await r.json()
 
-        items = data[1]
-        urls = data[3]
+        items: list[str] = data[1]
+        urls: list[str] = data[3]
 
         colour = 0x00b2ff
         timestamp = datetime.now(UTC)
@@ -306,7 +302,7 @@ class Runescape(Cog):
         if len(items) > 5:
             items = items[:5]
         elif not items:
-            raise commands.CommandError(message=f'Error: no pages matching `{search}`.')
+            raise commands.CommandError(message=f'Error: no pages matching `{query}`.')
 
         for i, item in enumerate(items):
             embed.add_field(name=item, value=urls[i], inline=False)
@@ -315,41 +311,37 @@ class Runescape(Cog):
 
     @commands.command(pass_context=True, aliases=['rswiki', 'wiki', 'rs3wiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def rsw(self, ctx: commands.Context, *query):
+    async def rsw(self, ctx: commands.Context, *, query: str) -> None:
         '''
         Get top 5 results for a search on RS Wiki.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        search = ''
-        for i in query:
-            search += i + '+'
-        search = search[:len(search)-1]
+        query = query.replace(' ', '+')
 
-        if not search:
+        if not query:
             raise commands.CommandError(message=f'Required argument missing: `query`.')
 
-        url = f'https://runescape.wiki/api.php?action=opensearch&format=json&search={search}'
+        url: str = f'https://runescape.wiki/api.php?action=opensearch&format=json&search={query}'
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving data, please try again in a minute.')
-            data = await r.json()
+            data: list = await r.json()
 
-        items = data[1]
-        urls = data[3]
+        items: list[str] = data[1]
+        urls: list[str] = data[3]
 
-        colour = 0x00b2ff
-        timestamp = datetime.now(UTC)
-        embed = discord.Embed(title=f'__RuneScape Wiki__', colour=colour, timestamp=timestamp, url='https://runescape.wiki/')
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=f'__RuneScape Wiki__', colour=0x00b2ff, timestamp=timestamp, url='https://runescape.wiki/')
         embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
 
         if len(items) > 5:
             items = items[:5]
         elif not items:
-            raise commands.CommandError(message=f'Error: could not find a page matching `{search}`.')
+            raise commands.CommandError(message=f'Error: could not find a page matching `{query}`.')
 
         for i, item in enumerate(items):
             embed.add_field(name=item, value=urls[i], inline=False)
