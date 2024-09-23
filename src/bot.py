@@ -20,6 +20,7 @@ from database import get_db_engine, get_db_session_maker, create_all_database_ta
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from discord_utils import find_text_channel
 from database_utils import get_db_guild, find_or_create_db_guild
+from praw import Reddit
 
 class Bot(commands.AutoShardedBot):
     bot: commands.AutoShardedBot
@@ -31,6 +32,7 @@ class Bot(commands.AutoShardedBot):
     aiohttp: ClientSession
     agcm: gspread_asyncio.AsyncioGspreadClientManager
     github: Github
+    reddit: Reddit
 
     next_warband: datetime | None
     next_vos: datetime | None
@@ -69,6 +71,13 @@ class Bot(commands.AutoShardedBot):
         self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(get_google_sheets_credentials)
         self.github = Github(self.config['github_access_token'])
+        self.reddit = Reddit(
+            client_id = self.config['redditID'], 
+            client_secret = self.config['redditSecret'], 
+            password = self.config['redditPW'], 
+            user_agent = self.config['user_agent'], 
+            username = self.config['redditName']
+        )
         self.bot = self
 
     async def start_bot(self) -> None:

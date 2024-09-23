@@ -154,6 +154,7 @@ white: list[int] = [255, 255, 255, 255]
 red: list[int] = [255, 50, 50, 255]
 green: list[int] = [0, 255, 131, 255]
 yellow: list[int] = [255, 255, 0, 255]
+orange: list[int] = [255, 140, 0, 255]
 
 char_index: dict[str, int] = {'K': 10, 'M': 11, '-': 12}
 
