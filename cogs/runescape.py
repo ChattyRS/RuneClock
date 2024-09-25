@@ -1,9 +1,11 @@
-from typing import Any, Iterator
+from typing import Any, Iterator, Sequence
 from aiohttp import ClientResponse
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from imageio.core.util import Array
+from matplotlib.axis import Tick
+from matplotlib.text import Text
 from sqlalchemy import select
 from bot import Bot
 from database import User, NewsPost, RS3Item, OSRSItem
@@ -349,43 +351,41 @@ class Runescape(Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07news', pass_context=True, aliases=['osrsnews'])
-    async def _07news(self, ctx: commands.Context):
+    async def _07news(self, ctx: commands.Context) -> None:
         '''
         Get 5 latest OSRS news posts.
         '''
         self.bot.increment_command_counter()
 
-        news_posts = await NewsPost.query.where(NewsPost.game=='osrs').order_by(NewsPost.time.desc()).gino.all()
+        async with self.bot.async_session() as session:
+            news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost).where(NewsPost.game == 'osrs').order_by(NewsPost.time.desc()).fetch(5))).scalars().all()
 
         embed = discord.Embed(title=f'Old School RuneScape News')
 
-        for i, post in enumerate(news_posts):
-            if i >= 5:
-                break
+        for post in news_posts:
             embed.add_field(name=post.title, value=post.link + '\n' + post.description, inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['rsnews', 'rs3news'])
-    async def news(self, ctx: commands.Context):
+    async def news(self, ctx: commands.Context) -> None:
         '''
         Get 5 latest RS news posts.
         '''
         self.bot.increment_command_counter()
 
-        news_posts = await NewsPost.query.where(NewsPost.game=='rs3').order_by(NewsPost.time.desc()).gino.all()
+        async with self.bot.async_session() as session:
+            news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost).where(NewsPost.game == 'rs3').order_by(NewsPost.time.desc()).fetch(5))).scalars().all()
 
         embed = discord.Embed(title=f'RuneScape News')
 
-        for i, post in enumerate(news_posts):
-            if i >= 5:
-                break
+        for post in news_posts:
             embed.add_field(name=post.title, value=post.link + '\n' + post.description, inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(name='07price', pass_context=True, aliases=['osrsprice'])
-    async def _07price(self, ctx: commands.Context, days='30', *item_name):
+    async def _07price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
         '''
         Get the OSRS GE price for an item.
         Argument "days" is optional, default is 30.
@@ -393,56 +393,49 @@ class Runescape(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if is_int(days):
-            days = int(days)
+        if is_int(days_or_item):
+            days: int = int(days_or_item)
             if days < 1 or days > 180:
                 await ctx.send('Graph period must be between 1 and 180 days. Defaulted to 30.')
-                days =  30
+                days = 30
         else:
-            item_name = list(item_name)
-            item_name.insert(0, days)
+            item_name = days_or_item + (' ' + item_name if item_name else '')
             days = 30
 
-        name = ' '.join(item_name)
-
-        if not name:
+        if not item_name:
             raise commands.CommandError(message=f'Required argument missing: `item_name`.')
-        if len(name) < 2:
+        if len(item_name) < 2:
             raise commands.CommandError(message=f'Invalid argument: `item_name`. Length must be at least 2 characters.')
         
-        items = await OSRSItem.query.where(OSRSItem.name.ilike(f'%{name}%')).gino.all()
+        async with self.bot.async_session() as session:
+            items: Sequence[OSRSItem] = (await session.execute(select(OSRSItem).where(OSRSItem.name.ilike(f'%{item_name}%')))).scalars().all()
         if not items:
-            raise commands.CommandError(message=f'Could not find item: `{name}`.')
+            raise commands.CommandError(message=f'Could not find item: `{item_name}`.')
         items = sorted(items, key=lambda i: len(i.name))
-        item = items[0]
+        item: OSRSItem = items[0]
 
-        name = item.name
-        price = int(item.current.replace(' ', ''))
-        price = f'{price:,}'
-        icon = item.icon_url
-        link = f'http://services.runescape.com/m=itemdb_oldschool/viewitem?obj={item.id}'
-        description = item.description
-        today = int(item.today.replace(' ', ''))
-        today = f'{today:,}'
+        item_name = item.name
+        price: str = f'{int(item.current.replace(' ', '')):,}'
+        link: str = f'http://services.runescape.com/m=itemdb_oldschool/viewitem?obj={item.id}'
+        today: str = f'{int(item.today.replace(' ', '')):,}'
         if not today.startswith('-') and not today.startswith('+'):
             today = '+' + today
-        day30 = item.day30
+        day30: str = item.day30
         if not day30.startswith('-') and not day30.startswith('+'):
             day30 = '+' + day30
-        day90 = item.day90
+        day90: str = item.day90
         if not day90.startswith('-') and not day90.startswith('+'):
             day90 = '+' + day90
-        day180 = item.day180
+        day180: str = item.day180
         if not day180.startswith('-') and not day180.startswith('+'):
             day180 = '+' + day180
 
-        colour = 0x00b2ff
-        timestamp = datetime.now(UTC)
-        embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=link, description=description)
-        embed.set_thumbnail(url=icon)
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=item_name, colour=0x00b2ff, timestamp=timestamp, url=link, description=item.description)
+        embed.set_thumbnail(url=item.icon_url)
 
         embed.add_field(name='Price', value=price, inline=False)
-        change = ''
+        change: str = ''
         if today != '0':
             change = f'**Today**: {today}\n'
         change += f'**30 days**: {day30}\n'
@@ -450,21 +443,23 @@ class Runescape(Cog):
         change += f'**180 days**: {day180}'
         embed.add_field(name='Change', value=change, inline=False)
 
-        daily = item.graph_data['daily']
+        daily: dict = item.graph_data['daily']
 
-        times = []
-        prices = []
+        timestamps: list[int] = []
+        prices: list[int] = []
 
         for ms, price in daily.items():
-            times.append(int(ms)/1000)
+            timestamps.append(round(int(ms) / 1000))
             prices.append(int(price))
 
-        last = times[len(times)-1]
-        remove = []
-        for i, time in enumerate(times):
-            if time >= last - 86400*days:
-                date = timestamp - timedelta(seconds=last-time)
-                times[i] = date
+        times: list[datetime] = []
+
+        last: int = timestamps[len(timestamps)-1]
+        remove: list[int] = []
+        for i, time in enumerate(timestamps):
+            if time >= last - 86400 * days:
+                date: datetime = timestamp - timedelta(seconds=last-time)
+                times.append(date)
             else:
                 remove.append(i)
         remove.sort(reverse=True)
@@ -483,7 +478,7 @@ class Runescape(Cog):
 
         fig, ax = plt.subplots()
 
-        dates = date2num(times)
+        dates: np.ndarray = date2num(times)
         plt.plot_date(dates, prices, color='#47a0ff', linestyle='-', ydate=False, xdate=True)
 
         ax.xaxis.set_major_locator(loc)
@@ -495,14 +490,14 @@ class Runescape(Cog):
         ax.spines['right'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-        locs, _ = plt.yticks()
-        ylabels = []
-        for l in locs:
-            lab = str(int(l)).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
+        locs: tuple[list[Tick] | np.ndarray, list[Text]] = plt.yticks()
+        ylabels: list[str] = []
+        for l in locs[1]:
+            lab: str = str(l).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
             if not ('K' in lab or 'M' in lab):
                 lab = "{:,}".format(int(lab))
             ylabels.append(lab)
-        plt.yticks(locs, ylabels)
+        plt.yticks(locs[0], ylabels) # type: ignore
 
         plt.savefig('images/graph.png', transparent=True)
         plt.close(fig)
@@ -516,7 +511,7 @@ class Runescape(Cog):
         await ctx.send(file=image, embed=embed)
     
     @commands.command(pass_context=True, aliases=['rsprice', 'rs3price'])
-    async def price(self, ctx: commands.Context, days='30', *item_name):
+    async def price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
         '''
         Get the RS3 GE price for an item.
         Argument "days" is optional, default is 30.
@@ -524,56 +519,49 @@ class Runescape(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if is_int(days):
-            days = int(days)
+        if is_int(days_or_item):
+            days: int = int(days_or_item)
             if days < 1 or days > 180:
                 await ctx.send('Graph period must be between 1 and 180 days. Defaulted to 30.')
-                days =  30
+                days = 30
         else:
-            item_name = list(item_name)
-            item_name.insert(0, days)
+            item_name = days_or_item + (' ' + item_name if item_name else '')
             days = 30
 
-        name = ' '.join(item_name)
-
-        if not name:
+        if not item_name:
             raise commands.CommandError(message=f'Required argument missing: `item_name`.')
-        if len(name) < 2:
+        if len(item_name) < 2:
             raise commands.CommandError(message=f'Invalid argument: `item_name`. Length must be at least 2 characters.')
 
-        items = await RS3Item.query.where(RS3Item.name.ilike(f'%{name}%')).gino.all()
+        async with self.bot.async_session() as session:
+            items: Sequence[RS3Item] = (await session.execute(select(RS3Item).where(RS3Item.name.ilike(f'%{item_name}%')))).scalars().all()
         if not items:
-            raise commands.CommandError(message=f'Could not find item: `{name}`.')
+            raise commands.CommandError(message=f'Could not find item: `{item_name}`.')
         items = sorted(items, key=lambda i: len(i.name))
-        item = items[0]
+        item: RS3Item = items[0]
 
-        name = item.name
-        price = int(item.current.replace(' ', ''))
-        price = f'{price:,}'
-        icon = item.icon_url
-        link = f'http://services.runescape.com/m=itemdb_rs/viewitem?obj={item.id}'
-        description = item.description
-        today = int(item.today.replace(' ', ''))
-        today = f'{today:,}'
+        item_name = item.name
+        price: str = f'{int(item.current.replace(' ', '')):,}'
+        link: str = f'http://services.runescape.com/m=itemdb_rs/viewitem?obj={item.id}'
+        today: str = f'{int(item.today.replace(' ', '')):,}'
         if not today.startswith('-') and not today.startswith('+'):
             today = '+' + today
-        day30 = item.day30
+        day30: str = item.day30
         if not day30.startswith('-') and not day30.startswith('+'):
             day30 = '+' + day30
-        day90 = item.day90
+        day90: str = item.day90
         if not day90.startswith('-') and not day90.startswith('+'):
             day90 = '+' + day90
-        day180 = item.day180
+        day180: str = item.day180
         if not day180.startswith('-') and not day180.startswith('+'):
             day180 = '+' + day180
 
-        colour = 0x00b2ff
-        timestamp = datetime.now(UTC)
-        embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=link, description=description)
-        embed.set_thumbnail(url=icon)
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=item_name, colour=0x00b2ff, timestamp=timestamp, url=link, description=item.description)
+        embed.set_thumbnail(url=item.icon_url)
 
         embed.add_field(name='Price', value=price, inline=False)
-        change = ''
+        change: str = ''
         if today != '0':
             change = f'**Today**: {today}\n'
         change += f'**30 days**: {day30}\n'
@@ -581,21 +569,22 @@ class Runescape(Cog):
         change += f'**180 days**: {day180}'
         embed.add_field(name='Change', value=change, inline=False)
 
-        daily = item.graph_data['daily']
+        daily: dict = item.graph_data['daily']
 
-        times = []
-        prices = []
+        timestamps: list[int] = []
+        prices: list[int] = []
 
         for ms, price in daily.items():
-            times.append(int(ms)/1000)
+            timestamps.append(round(int(ms)/1000))
             prices.append(int(price))
 
-        last = times[len(times)-1]
-        remove = []
-        for i, time in enumerate(times):
-            if time >= last - 86400*days:
-                date = timestamp - timedelta(seconds=last-time)
-                times[i] = date
+        times: list[datetime] = []
+        last: int = timestamps[len(times)-1]
+        remove: list[int] = []
+        for i, time in enumerate(timestamps):
+            if time >= last - 86400 * days:
+                date: datetime = timestamp - timedelta(seconds=last-time)
+                times.append(date)
             else:
                 remove.append(i)
         remove.sort(reverse=True)
@@ -614,7 +603,7 @@ class Runescape(Cog):
 
         fig, ax = plt.subplots()
 
-        dates = date2num(times)
+        dates: np.ndarray = date2num(times)
         plt.plot_date(dates, prices, color='#47a0ff', linestyle='-', ydate=False, xdate=True)
 
         ax.xaxis.set_major_locator(loc)
@@ -626,14 +615,14 @@ class Runescape(Cog):
         ax.spines['right'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-        locs, _ = plt.yticks()
-        ylabels = []
-        for l in locs:
-            lab = str(int(l)).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
+        locs: tuple[list[Tick] | np.ndarray, list[Text]] = plt.yticks()
+        ylabels: list[str] = []
+        for l in locs[1]:
+            lab: str = str(l).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
             if not ('K' in lab or 'M' in lab):
                 lab = "{:,}".format(int(lab))
             ylabels.append(lab)
-        plt.yticks(locs, ylabels)
+        plt.yticks(locs[0], ylabels) # type: ignore
 
         plt.savefig('images/graph.png', transparent=True)
         plt.close(fig)
@@ -648,65 +637,63 @@ class Runescape(Cog):
     
     @commands.command(name='07stats', pass_context=True, aliases=['osrsstats'])
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def _07stats(self, ctx: commands.Context, *username):
+    async def _07stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get OSRS hiscores info by username.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.osrs_rsn
-        else:
-            name = ' '.join(username)
+        name: str | None = None
+        if isinstance(username, discord.User):
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == username.id))).scalar_one_or_none()
+            name = user.osrs_rsn if user else None
+        elif username:
+            name = username
 
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.osrs_rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
+            async with self.bot.async_session() as session:
+                user = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+            name = user.osrs_rsn if user else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if re.match('^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
+        url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         try:
             lines = lines[:len(skills_07)]
         except:
             raise commands.CommandError(message=f'Error accessing hiscores, please try again later.')
 
-        levels = []
+        levels: list[int] = []
 
-        for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
+        for i, _ in enumerate(lines):
+            levels.append(int(lines[i][1]))
 
         stats_interface: Array = imageio.imread('images/stats_interface_empty.png')
             
         draw_num(stats_interface, levels[0], 175, 257, yellow, True)
 
         for i, index in enumerate(skill_indices):
-            level = levels[1:][index]
+            level: int = levels[1:][index]
             if index == 3:
                 level = max(int(level), 10)
 
-            x = 52 + 63 * (i % 3)
-            y = 21 + 32 * (i // 3)
+            x: int = 52 + 63 * (i % 3)
+            y: int = 21 + 32 * (i // 3)
 
             draw_num(stats_interface, level, x, y, yellow, True)
 
@@ -725,13 +712,12 @@ class Runescape(Cog):
         stats_image = discord.File(stats_image, filename='07stats.png')
         osrs_icon = discord.File(osrs_icon, filename='osrs.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
-        colour = 0x00b2ff
-        timestamp = datetime.now(UTC)
-        embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=hiscore_page_url)
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=name, colour=0x00b2ff, timestamp=timestamp, url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
-       #  player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
-        # embed.set_thumbnail(url=player_image_url)
+        player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
+        embed.set_thumbnail(url=player_image_url)
 
         embed.set_image(url='attachment://07stats.png')
 
