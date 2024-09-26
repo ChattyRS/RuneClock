@@ -451,7 +451,7 @@ class ModCommands(Cog):
                 raise CommandError(message=f'Missing permissions: `manage_nicknames`.')
         if len(username) > 12:
             raise CommandError(message=f'Invalid argument: `{username}`. Character limit exceeded.')
-        if re.match('^[A-z0-9 -]+$', username) is None:
+        if re.match(r'^[A-z0-9 -]+$', username) is None:
             raise CommandError(message=f'Invalid argument: `{username}`. Forbidden character.')
         try:
             await ctx.author.edit(nick=username)

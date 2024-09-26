@@ -198,7 +198,7 @@ class Runescape(Cog):
 
         if len(username) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{username}`.')
-        if re.match('^[A-z0-9 -]+$', username) is None:
+        if re.match(r'^[A-z0-9 -]+$', username) is None:
             raise commands.CommandError(message=f'Invalid argument: `{username}`.')
 
         url: str = f'https://apps.runescape.com/runemetrics/profile/profile?user={username}&activities=20'.replace(' ', '%20')
@@ -661,7 +661,7 @@ class Runescape(Cog):
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
@@ -725,7 +725,7 @@ class Runescape(Cog):
     
     @commands.command(name='07compare')
     @commands.cooldown(1, 40, commands.BucketType.user)
-    async def _07compare(self, ctx: commands.Context, name_1="", name_2=""):
+    async def _07compare(self, ctx: commands.Context, name_1: discord.User | str = "", name_2: discord.User | str | None = "") -> None:
         '''
         Compare two players on OSRS HiScores
         If either of the user names contain spaces, make sure you surround them by quotation marks.
@@ -770,7 +770,7 @@ class Runescape(Cog):
         for name in [name_1, name_2]:
             if len(name) > 12:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-            if re.match('^[A-z0-9 -]+$', name) is None:
+            if re.match(r'^[A-z0-9 -]+$', name) is None:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         
         level_list = []
@@ -887,7 +887,7 @@ class Runescape(Cog):
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         url_day = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=day'.replace(' ', '-')
@@ -991,7 +991,7 @@ class Runescape(Cog):
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
@@ -1116,7 +1116,7 @@ class Runescape(Cog):
         for name in [name_1, name_2]:
             if len(name) > 12:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-            if re.match('^[A-z0-9 -]+$', name) is None:
+            if re.match(r'^[A-z0-9 -]+$', name) is None:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         
         level_list = []
@@ -1247,7 +1247,7 @@ class Runescape(Cog):
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         url = f'https://api.runepixels.com/players/{name}'.replace(' ', '-')
@@ -1551,7 +1551,7 @@ class Runescape(Cog):
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
@@ -1632,7 +1632,7 @@ class Runescape(Cog):
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')

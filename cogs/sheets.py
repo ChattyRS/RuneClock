@@ -622,7 +622,7 @@ class Sheets(Cog):
 
         names = bot_row[4].value
         name = names.split(',')[0].split('&')[0].split('/')[0].split('|')[0].strip()
-        pattern = re.compile('([^\s\w]|_)+')
+        pattern = re.compile(r'([^\s\w]|_)+')
         name = pattern.sub('', name).replace(' ', '%20')
         player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'
         embed.set_author(name=names, url=config['publicSheets'], icon_url=player_image_url)
@@ -676,10 +676,10 @@ class Sheets(Cog):
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = re.sub('[^A-z0-9 -]', '', name).replace('`', '').strip()
+        name = re.sub(r'[^A-z0-9 -]', '', name).replace('`', '').strip()
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if not reasons:
             raise commands.CommandError(message=f'Required argument missing: `reason`.')
@@ -733,7 +733,7 @@ class Sheets(Cog):
         timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         end_time = (datetime.now(UTC) + timedelta(days=14)).strftime("%b %#d, %Y")
         username = ctx.author.display_name
-        username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
+        username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
         values = [name, '2 weeks', timestamp, end_time, reason, username, 'Pending', '', screenshot]
 
         await sheet.insert_row(values, row)
@@ -762,7 +762,7 @@ class Sheets(Cog):
             raise commands.CommandError(message=f'Required argument missing: `name`.')
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         agc = await self.bot.agcm.authorize()
@@ -791,11 +791,11 @@ class Sheets(Cog):
 
         timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         username = ctx.author.display_name
-        username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
+        username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
 
         on_list = False
         row = 0
-        pattern = re.compile('[\W_]+')
+        pattern = re.compile(r'[\W_]+')
         for i, helper in enumerate(helpers):
             if pattern.sub('', name.upper()) == pattern.sub('', helper.upper()):
                 name = helper
@@ -860,7 +860,7 @@ class Sheets(Cog):
                 break
         timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         username = ctx.author.display_name
-        username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
+        username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
 
         row = 0
         for i, smiley in enumerate(smileys):
@@ -922,7 +922,7 @@ class Sheets(Cog):
             raise commands.CommandError(message=f'Required argument missing: `name`.')
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
         agc = await self.bot.agcm.authorize()
@@ -1354,10 +1354,10 @@ class Sheets(Cog):
 
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = re.sub('[^A-z0-9 -]', '', name).replace('`', '').strip()
+        name = re.sub(r'[^A-z0-9 -]', '', name).replace('`', '').strip()
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if not reasons:
             raise commands.CommandError(message=f'Required argument missing: `reason`.')
@@ -1386,7 +1386,7 @@ class Sheets(Cog):
                 break
         timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         username = ctx.author.display_name
-        username = re.sub('[^A-z0-9 -]', '', username).replace('`', '').strip()
+        username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
         count = 1
         for player in watchlist:
             if name.upper() == player.upper():

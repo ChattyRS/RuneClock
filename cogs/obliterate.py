@@ -134,7 +134,7 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
             await interaction.response.send_message(f'Error: could not find guild.', ephemeral=True)
             return
 
-        if not new_name or re.match('^[A-z0-9 -]+$', new_name) is None or len(new_name) > 12:
+        if not new_name or re.match(r'^[A-z0-9 -]+$', new_name) is None or len(new_name) > 12:
             await interaction.response.send_message(f'Error: invalid RSN: `{new_name}`', ephemeral=True)
             return
         if new_name == self.member_to_rename.display_name:
@@ -664,7 +664,7 @@ class Obliterate(Cog):
     ) -> list[app_commands.Choice[str]]:
         members: list[Member] = [m for m in (interaction.guild.members if interaction.guild else []) if current.upper() in m.display_name.upper() or current.upper() in m.name.upper()]
         # filter out names that cannot be displayed, all clan member names should match this pattern (valid RSNs)
-        members = [m for m in members if not re.match('^[A-z0-9 -]+$', m.display_name) is None]
+        members = [m for m in members if not re.match(r'^[A-z0-9 -]+$', m.display_name) is None]
         members = members[:25] if len(members) > 25 else members
         return [app_commands.Choice(name=m.display_name, value=str(m.id)) for m in members]
 
