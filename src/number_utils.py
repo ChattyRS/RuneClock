@@ -39,14 +39,14 @@ def is_float(num: Any) -> bool:
     except:
         return False
 
-def float_to_str(f) -> str:
+def float_to_str(f: float) -> str:
     """
     Converts the given floating point number to a string.
     """
     d: Decimal = decimal_ctx.create_decimal(repr(f))
     return format(d, 'f')
 
-def format_float(input) -> str:
+def format_float(input: float) -> str:
     '''
     Converts the given floating point number to a string and formats it with a thousands separator.
     E.g. 1000.0 -> 1,000

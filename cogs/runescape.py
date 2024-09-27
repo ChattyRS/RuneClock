@@ -716,8 +716,8 @@ class Runescape(Cog):
         timestamp: datetime = datetime.now(UTC)
         embed = discord.Embed(title=name, colour=0x00b2ff, timestamp=timestamp, url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
-        player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
-        embed.set_thumbnail(url=player_image_url)
+        # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
+        # embed.set_thumbnail(url=player_image_url)
 
         embed.set_image(url='attachment://07stats.png')
 
@@ -735,37 +735,25 @@ class Runescape(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if len(ctx.message.mentions) >= 2:
-            name_1 = ctx.message.mentions[0].display_name
-            name_2 = ctx.message.mentions[1].display_name
+        user_1: User | None = None
+        user_2: User | None = None
+        async with self.bot.async_session() as session:
+            if isinstance(name_1, discord.User):
+                user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
+            if isinstance(name_2, discord.User):
+                user_2 = (await session.execute(select(User).where(User.id == name_2.id))).scalar_one_or_none()
 
-            user_1 = await User.get(ctx.message.mentions[0].id)
-            if user_1:
-                name_1 = user_1.osrs_rsn
-            user_2 = await User.get(ctx.message.mentions[1].id)
-            if user_2:
-                name_2 = user_2.osrs_rsn
-        elif ctx.message.mentions:
-            if name_1 == ctx.message.mentions[0].mention:
-                name_1 = ctx.message.mentions[0].display_name
-                user_1 = await User.get(ctx.message.mentions[0].id)
-                if user_1:
-                    name_1 = user_1.osrs_rsn
-            else:
-                name_2 = ctx.message.mentions[0].display_name
-                user_2 = await User.get(ctx.message.mentions[0].id)
-                if user_2:
-                    name_2 = user_2.osrs_rsn
+            username_1: str = user_1.osrs_rsn if user_1 and user_1.osrs_rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
+            username_2: str | None = user_2.osrs_rsn if user_2 and user_2.osrs_rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
 
-        if not name_1:
-            raise commands.CommandError(message=f'Required argument missing: `RSN_1`. Please add a username as argument')
-        elif not name_2:
-            user = await User.get(ctx.author.id)
-            if user:
-                name_2 = name_1
-                name_1 = user.osrs_rsn
-            if not name_2:
-                raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `set07rsn` command, or add a second username as argument.')
+            if not username_2:
+                user_2 = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+                if user_2 and user_2.osrs_rsn:
+                    username_2 = username_1
+                    username_1 = user_2.osrs_rsn
+        
+        if not username_2:
+            raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `set07rsn` command, or add a second username as argument.')
         
         for name in [name_1, name_2]:
             if len(name) > 12:
@@ -773,50 +761,45 @@ class Runescape(Cog):
             if re.match(r'^[A-z0-9 -]+$', name) is None:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         
-        level_list = []
+        level_list: list[list[str]] = []
         
         for name in [name_1, name_2]:
-            url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
+            url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
 
-            r = await self.bot.aiohttp.get(url)
+            r: ClientResponse = await self.bot.aiohttp.get(url)
             async with r:
                 if r.status != 200:
                     raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-                data = await r.text()
+                data: str = await r.text()
 
-            lines = data.split('\n')
+            lines: list[str] = data.split('\n')
             lines = lines[:len(skills_07)]
 
-            levels = []
+            levels: list[str] = []
 
-            for i, line in enumerate(lines):
-                lines[i] = line.split(',')
-                levels.append(lines[i][1])
+            for line in lines:
+                levels.append(line.split(',')[1])
             
             level_list.append(levels)
         
-        stats_interface_1 = imageio.imread('images/stats_interface_empty.png')
-        stats_interface_2 = copy.deepcopy(stats_interface_1)
-        interfaces = [stats_interface_1, stats_interface_2]
+        stats_interface_1: Array = imageio.imread('images/stats_interface_empty.png')
+        stats_interface_2: Array = copy.deepcopy(stats_interface_1)
+        interfaces: tuple[Array, Array] = (stats_interface_1, stats_interface_2)
 
         for i, levels in enumerate(level_list):
-            stats_interface = interfaces[i]
-            draw_num(stats_interface, levels[0], 175, 257, yellow, True)
+            stats_interface: Array = interfaces[i]
+            draw_num(stats_interface, int(levels[0]), 175, 257, yellow, True)
 
             for i, index in enumerate(skill_indices):
-                level = levels[1:][index]
+                level = int(levels[1:][index])
                 if index == 3:
-                    level = max(int(level), 10)
+                    level: int = max(level, 10)
 
-                x = 52 + 63 * (i % 3)
-                y = 21 + 32 * (i // 3)
-
-                draw_num(stats_interface, level, x, y, yellow, True)
-
-                x += 13
-                y += 13
+                x: int = 52 + 63 * (i % 3)
+                y: int = 21 + 32 * (i // 3)
 
                 draw_num(stats_interface, level, x, y, yellow, True)
+                draw_num(stats_interface, level, x+13, y+13, yellow, True)
         
         if int(level_list[0][0]) > int(level_list[1][0]):
             draw_outline_osrs(stats_interface_1, 8+63*2, 8+32*7, green)
@@ -839,75 +822,71 @@ class Runescape(Cog):
                 draw_outline_osrs(stats_interface_1, x, y, red)
                 draw_outline_osrs(stats_interface_2, x, y, green)
         
-        compare_image = np.hstack((stats_interface_1, stats_interface_2))
+        compare_image: np.ndarray = np.hstack((stats_interface_1, stats_interface_2))
         imageio.imwrite('images/07compare.png', compare_image)
 
         with open('images/07compare.png', 'rb') as f:
-            compare_image = io.BytesIO(f.read())
+            compare_image_bytes = io.BytesIO(f.read())
         with open('images/osrs.png', 'rb') as f:
             osrs_icon = io.BytesIO(f.read())
         
-        compare_image = discord.File(compare_image, filename='07compare.png')
+        compare_image_file = discord.File(compare_image_bytes, filename='07compare.png')
         osrs_icon = discord.File(osrs_icon, filename='osrs.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name_1}'.replace(' ', '+')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name_1}'.replace(' ', '+')
         embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
-        # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
+        # player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)
 
         embed.set_image(url='attachment://07compare.png')
 
-        await ctx.send(files=[compare_image, osrs_icon], embed=embed)
+        await ctx.send(files=[compare_image_file, osrs_icon], embed=embed)
 
     @commands.command(name='07gainz', pass_context=True, aliases=['07gains', 'osrsgainz', 'osrsgains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07gainz(self, ctx: commands.Context, *username):
+    async def _07gainz(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get OSRS gains by username.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.osrs_rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.osrs_rsn if user and user.osrs_rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.osrs_rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url_day = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=day'.replace(' ', '-')
-        url_week = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=week'.replace(' ', '-')
+        url_day: str = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=day'.replace(' ', '-')
+        url_week: str = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=week'.replace(' ', '-')
 
-        r = await self.bot.aiohttp.get(url_day, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']})
+        r: ClientResponse = await self.bot.aiohttp.get(url_day, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']})
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
             daily_data = await r.json()
 
-        r = await self.bot.aiohttp.get(url_week, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']})
+        r = await self.bot.aiohttp.get(url_week, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']})
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
             weekly_data = await r.json()
 
-        skills = []
+        skills: list[dict[str, str]] = []
         for i, (skill_name, skill_data) in enumerate(daily_data['data']['skills'].items()):
-            skill = {
+            skill: dict[str, str] = {
                 'xp': format_float(skill_data['experience']['end']), 
                 'today': format_float(skill_data['experience']['gained']), 
                 'week': format_float(weekly_data['data']['skills'][skill_name]['experience']['gained'])
@@ -915,12 +894,12 @@ class Runescape(Cog):
             skills.append(skill)
 
         skill_chars = 14
-        xp_chars = max(max([len(skill['xp']) for skill in skills]), len('XP'))+1
-        today_chars = max(max([len(skill['today']) for skill in skills]), len('Today'))+1
-        week_chars = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
+        xp_chars: int = max(max([len(skill['xp']) for skill in skills]), len('XP'))+1
+        today_chars: int = max(max([len(skill['today']) for skill in skills]), len('Today'))+1
+        week_chars: int = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
 
-        msg = '.-' + '-'*skill_chars + '--' + '-'*xp_chars + '--' + '-'*today_chars + '--' + '-'*week_chars + '.'
-        width = len(msg)
+        msg: str = '.-' + '-'*skill_chars + '--' + '-'*xp_chars + '--' + '-'*today_chars + '--' + '-'*week_chars + '.'
+        width: int = len(msg)
 
         msg = '.' + '-'*(width-2) + '.\n'
 
@@ -965,7 +944,7 @@ class Runescape(Cog):
 
     @commands.command(pass_context=True, aliases=['rs3stats'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def stats(self, ctx: commands.Context, *username):
+    async def stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get RS3 hiscores info by username.
         '''
@@ -973,57 +952,53 @@ class Runescape(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
         
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `setrsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
+        url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         lines = lines[:len(skills_rs3)]
 
-        levels = []
-        xp_list = []
+        levels: list[str] = []
+        xp_list: list[str] = []
 
         for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
-            xp_list.append(lines[i][2])
+            split: list[str] = line.split(',')
+            levels.append(split[1])
+            xp_list.append(split[2])
 
-        stats_interface = imageio.imread('images/stats_interface_empty_rs3.png')
+        stats_interface: Array = imageio.imread('images/stats_interface_empty_rs3.png')
             
-        draw_num(stats_interface, levels[0], 73, 290, white, False)
+        draw_num(stats_interface, int(levels[0]), 73, 290, white, False)
         
         virtual_total_delta = 0
 
         for i, index in enumerate(skill_indices_rs3):
-            level = max(int(levels[1:][index]), 1)
+            level: int = max(int(levels[1:][index]), 1)
             if index == 3:
                 level = max(level, 10)
-            xp = xp_list[1:][index]
+            xp: int = int(xp_list[1:][index])
             if index != 26:
                 virtual_level = max(xp_to_level(xp), level)
                 if virtual_level - level > 0:
@@ -1031,19 +1006,15 @@ class Runescape(Cog):
             else:
                 virtual_level = level
 
-            x = 44 + 62 * (i % 3)
-            y = 14 + 27 * (i // 3)
+            x: int = 44 + 62 * (i % 3)
+            y: int = 14 + 27 * (i // 3)
 
             draw_num(stats_interface, virtual_level, x, y, orange, False)
-
-            x += 15
-            y += 12
-
-            draw_num(stats_interface, virtual_level, x, y, orange, False)
+            draw_num(stats_interface, virtual_level, x+15, y+12, orange, False)
         
         draw_num(stats_interface, int(levels[0]) + virtual_total_delta, 73, 302, green, False)
 
-        combat = combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24]))
+        combat = int(combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24])))
 
         draw_num(stats_interface, combat, 165, 295, white, False)
 
@@ -1057,9 +1028,9 @@ class Runescape(Cog):
         stats_image = discord.File(stats_image, filename='rs3stats.png')
         rs3_icon = discord.File(rs3_icon, filename='rs3.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
         colour = 0x00b2ff
-        timestamp = datetime.now(UTC)
+        timestamp: datetime = datetime.now(UTC)
         embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=hiscore_page_url)
         embed.set_author(name='RuneScape HiScores', url='https://secure.runescape.com/m=hiscore/ranking', icon_url='attachment://rs3.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
@@ -1071,7 +1042,7 @@ class Runescape(Cog):
     
     @commands.command()
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def compare(self, ctx: commands.Context, name_1="", name_2=""):
+    async def compare(self, ctx: commands.Context, name_1: discord.User | str = "", name_2: discord.User | str | None = "") -> None:
         '''
         Compare two players on RuneScape HiScores
         If either of the user names contain spaces, make sure you surround them by quotation marks.
@@ -1081,37 +1052,25 @@ class Runescape(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if len(ctx.message.mentions) >= 2:
-            name_1 = ctx.message.mentions[0].display_name
-            name_2 = ctx.message.mentions[1].display_name
+        user_1: User | None = None
+        user_2: User | None = None
+        async with self.bot.async_session() as session:
+            if isinstance(name_1, discord.User):
+                user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
+            if isinstance(name_2, discord.User):
+                user_2 = (await session.execute(select(User).where(User.id == name_2.id))).scalar_one_or_none()
 
-            user_1 = await User.get(ctx.message.mentions[0].id)
-            if user_1:
-                name_1 = user_1.rsn
-            user_2 = await User.get(ctx.message.mentions[1].id)
-            if user_2:
-                name_2 = user_2.rsn
-        elif ctx.message.mentions:
-            if name_1 == ctx.message.mentions[0].mention:
-                name_1 = ctx.message.mentions[0].display_name
-                user_1 = await User.get(ctx.message.mentions[0].id)
-                if user_1:
-                    name_1 = user_1.rsn
-            else:
-                name_2 = ctx.message.mentions[0].display_name
-                user_2 = await User.get(ctx.message.mentions[0].id)
-                if user_2:
-                    name_2 = user_2.rsn
+            username_1: str = user_1.rsn if user_1 and user_1.rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
+            username_2: str | None = user_2.rsn if user_2 and user_2.rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
 
-        if not name_1:
-            raise commands.CommandError(message=f'Required argument missing: `RSN_1`. Please add a username as argument')
-        elif not name_2:
-            user = await User.get(ctx.author.id)
-            if user:
-                name_2 = name_1
-                name_1 = user.rsn
-            if not name_2:
-                raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your username using the `setrsn` command, or add a second username as argument.')
+            if not username_2:
+                user_2 = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+                if user_2 and user_2.rsn:
+                    username_2 = username_1
+                    username_1 = user_2.rsn
+        
+        if not username_2:
+            raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `setrsn` command, or add a second username as argument.')
         
         for name in [name_1, name_2]:
             if len(name) > 12:
@@ -1119,69 +1078,65 @@ class Runescape(Cog):
             if re.match(r'^[A-z0-9 -]+$', name) is None:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         
-        level_list = []
+        level_list: list[list[str]] = []
         exp_list = []
         
         for name in [name_1, name_2]:
-            url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
+            url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
 
-            r = await self.bot.aiohttp.get(url)
+            r: ClientResponse = await self.bot.aiohttp.get(url)
             async with r:
                 if r.status != 200:
                     raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-                data = await r.text()
+                data: str = await r.text()
 
-            lines = data.split('\n')
+            lines: list[str] = data.split('\n')
             lines = lines[:len(skills_rs3)]
 
-            levels = []
-            xp_list = []
+            levels: list[str] = []
+            xp_list: list[str] = []
 
-            for i, line in enumerate(lines):
-                lines[i] = line.split(',')
-                levels.append(lines[i][1])
-                xp_list.append(lines[i][2])
+            for line in lines:
+                split: list[str] = line.split(',')
+                levels.append(split[1])
+                xp_list.append(split[2])
             
             level_list.append(levels)
             exp_list.append(xp_list)
         
-        stats_interface_1 = imageio.imread('images/stats_interface_empty_rs3.png')
-        stats_interface_2 = copy.deepcopy(stats_interface_1)
-        interfaces = [stats_interface_1, stats_interface_2]
+        stats_interface_1: Array = imageio.imread('images/stats_interface_empty_rs3.png')
+        stats_interface_2: Array = copy.deepcopy(stats_interface_1)
+        interfaces: tuple[Array, Array] = (stats_interface_1, stats_interface_2)
 
         for i, levels in enumerate(level_list):
             xp_list = exp_list[i]
-            stats_interface = interfaces[i]
+            stats_interface: Array = interfaces[i]
 
             draw_num(stats_interface, int(levels[0]), 73, 290, white, False)
 
             virtual_total_delta = 0
 
             for j, index in enumerate(skill_indices_rs3):
-                level = max(int(levels[1:][index]), 1)
+                level: int = max(int(levels[1:][index]), 1)
                 if index == 3:
                     level = max(level, 10)
                 xp = int(xp_list[1:][index])
                 if index != 26:
-                    virtual_level = max(xp_to_level(xp), level)
+                    virtual_level: int = max(xp_to_level(xp), level)
                     if virtual_level - level > 0:
                         virtual_total_delta += virtual_level - level
                 else:
                     virtual_level = level
 
-                x = 44 + 62 * (j % 3)
-                y = 14 + 27 * (j // 3)
+                x: int = 44 + 62 * (j % 3)
+                y: int = 14 + 27 * (j // 3)
 
                 draw_num(stats_interface, virtual_level, x, y, orange, False)
-
-                x += 15
-                y += 12
-
-                draw_num(stats_interface, virtual_level, x, y, orange, False)
+                draw_num(stats_interface, virtual_level, x+15, y+12, orange, False)
             
             draw_num(stats_interface, int(levels[0]) + virtual_total_delta, 73, 302, green, False)
 
-            combat = combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24]))
+            combat = int(combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24])))
 
             draw_num(stats_interface, combat, 165, 295, white, False)
         
@@ -1199,18 +1154,18 @@ class Runescape(Cog):
                 draw_outline_rs3(stats_interface_1, x, y, red)
                 draw_outline_rs3(stats_interface_2, x, y, green)
         
-        compare_image = np.hstack((stats_interface_1, stats_interface_2))
+        compare_image: np.ndarray = np.hstack((stats_interface_1, stats_interface_2))
         imageio.imwrite('images/compare.png', compare_image)
 
         with open('images/compare.png', 'rb') as f:
-            compare_image = io.BytesIO(f.read())
+            compare_image_bytes = io.BytesIO(f.read())
         with open('images/rs3.png', 'rb') as f:
             rs3_icon = io.BytesIO(f.read())
         
-        compare_image = discord.File(compare_image, filename='compare.png')
+        compare_image_file = discord.File(compare_image_bytes, filename='compare.png')
         rs3_icon = discord.File(rs3_icon, filename='rs3.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name_1}'.replace(' ', '+')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name_1}'.replace(' ', '+')
         embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='RuneScape HiScores', url='https://secure.runescape.com/m=hiscore/ranking', icon_url='attachment://rs3.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
@@ -1218,52 +1173,48 @@ class Runescape(Cog):
 
         embed.set_image(url='attachment://compare.png')
 
-        await ctx.send(files=[compare_image, rs3_icon], embed=embed)
+        await ctx.send(files=[compare_image_file, rs3_icon], embed=embed)
 
     @commands.command(pass_context=True, aliases=['gains', 'rs3gainz', 'rs3gains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def gainz(self, ctx: commands.Context, *username):
+    async def gainz(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get RS3 gains by username.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `rs` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'https://api.runepixels.com/players/{name}'.replace(' ', '-')
+        url: str = f'https://api.runepixels.com/players/{name}'.replace(' ', '-')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
-            data = await r.json()
+            data: dict = await r.json()
 
         yday_url = f'https://api.runepixels.com/players/{data["id"]}/xp?timeperiod=1'
         r = await self.bot.aiohttp.get(yday_url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
-            yday_data = await r.json()
+            yday_data: list[dict[str, Any]] = await r.json()
 
         week_url = f'https://api.runepixels.com/players/{data["id"]}/xp?timeperiod=2'
         r = await self.bot.aiohttp.get(week_url)
@@ -1272,19 +1223,19 @@ class Runescape(Cog):
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
             week_data = await r.json()
 
-        skills = [data['overall']] + data['skills']
+        skills: list = [data['overall']] + data['skills']
         for i, _ in enumerate(skills):
             skills[i]['xpDelta'] = format_float(skills[i]['xpDelta'])
             skills[i]['yday'] = format_float(yday_data[i]['xp'])
             skills[i]['week'] = format_float(week_data[i]['xp'])
 
         skill_chars = 14
-        today_chars = max(max([len(skill['xpDelta']) for skill in skills]), len('Today'))+1
-        yday_chars = max(max([len(skill['yday']) for skill in skills]), len('Yesterday'))+1
-        week_chars = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
+        today_chars: int = max(max([len(skill['xpDelta']) for skill in skills]), len('Today'))+1
+        yday_chars: int = max(max([len(skill['yday']) for skill in skills]), len('Yesterday'))+1
+        week_chars: int = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
 
-        msg = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
-        width = len(msg)
+        msg: str = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
+        width: int = len(msg)
 
         msg = '.' + '-'*(width-2) + '.\n'
 
