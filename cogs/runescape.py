@@ -1194,7 +1194,7 @@ class Runescape(Cog):
         if not name:
             name = username if isinstance(username, str) else None
         if not name:
-            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `rs` command.')
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
@@ -1279,29 +1279,27 @@ class Runescape(Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['gametime'])
-    async def time(self, ctx: commands.Context):
+    async def time(self, ctx: commands.Context) -> None:
         '''
         Get current RuneScape game time.
         '''
         self.bot.increment_command_counter()
 
-        time = datetime.now(UTC)
-        time = time.strftime('%H:%M')
+        time: datetime = datetime.now(UTC)
+        time_str: str = time.strftime('%H:%M')
 
-        await ctx.send(f'Current game time is: `{time}`.')
+        await ctx.send(f'Current game time is: `{time_str}`.')
     
     @commands.command(aliases=['wax', 'viswax', 'goldberg'])
-    async def vis(self, ctx: commands.Context):
+    async def vis(self, ctx: commands.Context) -> None:
         '''
         Get today's rune combination for the Rune Goldberg machine, used to make vis wax.
         '''
         self.bot.increment_command_counter()
-
-        global vis_wax_embed
-        await ctx.send(embed=vis_wax_embed)
+        await ctx.send(embed=self.vis_wax_embed)
     
     @commands.command(aliases=['lvl'])
-    async def level(self, ctx: commands.Context, lvl=0):
+    async def level(self, ctx: commands.Context, lvl: int | str = 0) -> None:
         '''
         Calculate xp required for given level.
         '''
@@ -1315,13 +1313,13 @@ class Runescape(Cog):
         if lvl < 1 or lvl > 126:
             raise commands.CommandError(message=f'Invalid argument level: `{lvl}``. Level must be between 1 and 126.')
 
-        xp = level_to_xp(lvl)
-        xp = f'{xp:,}'
+        xp: int = level_to_xp(lvl)
+        xp_str = f'{xp:,}'
 
-        await ctx.send(f'XP required for level `{lvl}`: `{xp}`')
+        await ctx.send(f'XP required for level `{lvl}`: `{xp_str}`')
     
     @commands.command(aliases=['xp', 'exp'])
-    async def experience(self, ctx: commands.Context, lvl_start_or_xp=0, lvl_end=0):
+    async def experience(self, ctx: commands.Context, lvl_start_or_xp: int | str = 0, lvl_end: int | str = 0) -> None:
         '''
         Calculate level from xp or xp difference between two levels.
         '''
@@ -1339,32 +1337,32 @@ class Runescape(Cog):
             raise commands.CommandError(message=f'Invalid arguments: Start level must be lower than end level.')
 
         if not lvl_end:
-            xp_start = lvl_start_or_xp
-            level = xp_to_level(xp_start)
-            level_xp = level_to_xp(level)
-            xp_start = f'{xp_start:,}'
-            level_xp = f'{level_xp:,}'
-            next_lvl = level+1
-            next_xp = level_to_xp(next_lvl)
-            next_xp = f'{next_xp:,}'
-            await ctx.send(f'At `{xp_start}` XP, you are level `{level}`, which requires `{level_xp}` XP.\nYou will reach level `{next_lvl}` at `{next_xp} XP.`')
+            xp_start: int = lvl_start_or_xp
+            level: int = xp_to_level(xp_start)
+            level_xp: int = level_to_xp(level)
+            xp_start_str: str = f'{xp_start:,}'
+            level_xp_str: str = f'{level_xp:,}'
+            next_lvl: int = level+1
+            next_xp: int = level_to_xp(next_lvl)
+            next_xp_str: str = f'{next_xp:,}'
+            await ctx.send(f'At `{xp_start_str}` XP, you are level `{level}`, which requires `{level_xp_str}` XP.\nYou will reach level `{next_lvl}` at `{next_xp_str} XP.`')
         
         else:
             if lvl_start_or_xp > 126:
                 xp_start = lvl_start_or_xp
             else:
                 xp_start = level_to_xp(lvl_start_or_xp)
-            xp_end = level_to_xp(lvl_end)
-            xp_dif = xp_end - xp_start
-            xp_dif = f'{xp_dif:,}'
+            xp_end: int = level_to_xp(lvl_end)
+            xp_dif: int = xp_end - xp_start
+            xp_dif_str = f'{xp_dif:,}'
             if lvl_start_or_xp > 126:
-                await ctx.send(f'To reach level `{lvl_end}` from `{lvl_start_or_xp}` XP, you will need to gain `{xp_dif}` XP.')
+                await ctx.send(f'To reach level `{lvl_end}` from `{lvl_start_or_xp}` XP, you will need to gain `{xp_dif_str}` XP.')
             else:
-                await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif}` XP.')
+                await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif_str}` XP.')
             
     
     @commands.command(aliases=['actions'])
-    async def xph(self, ctx: commands.Context, lvl_start=0, lvl_end=0, xp_rate=0.0):
+    async def xph(self, ctx: commands.Context, lvl_start: int | str = 0, lvl_end: int | str = 0, xp_rate: float | str = 0.0) -> None:
         '''
         Calculate hours/actions required to reach a level / xp at a certain xp rate.
         '''
@@ -1386,7 +1384,8 @@ class Runescape(Cog):
         if lvl_start < 1 or lvl_end < 1 or xp_rate <= 0:
             raise commands.CommandError(message=f'Invalid argument. Levels must be between 1 and 126 and XP rate must be positive.')
 
-        start_xp, end_xp = False, False
+        start_xp: bool = False
+        end_xp: bool = False
         if lvl_start > 126:
             start_xp = True
         if lvl_end > 126:
@@ -1394,22 +1393,22 @@ class Runescape(Cog):
         if (start_xp or end_xp) and (lvl_start > 200e6 or lvl_end > 200e6):
             raise commands.CommandError(message=f'Invalid argument. Start and End xp values can be at most 200M.')
 
-        xp_start = lvl_start if start_xp else level_to_xp(lvl_start)
-        xp_end = lvl_end if end_xp else level_to_xp(lvl_end)
+        xp_start: int = lvl_start if start_xp else level_to_xp(lvl_start)
+        xp_end: int = lvl_end if end_xp else level_to_xp(lvl_end)
         if xp_start >= xp_end:
             raise commands.CommandError(message=f'Invalid arguments: Start xp must be lower than end xp.')
 
-        xp_dif = xp_end - xp_start
+        xp_dif: int = xp_end - xp_start
 
-        hours_or_actions = math.ceil(xp_dif / xp_rate)
-        hours_or_actions = f'{hours_or_actions:,}'
-        xp_dif = f'{xp_dif:,}'
+        hours_or_actions: int = math.ceil(xp_dif / xp_rate)
+        hours_or_actions_str: str = f'{hours_or_actions:,}'
+        xp_dif_str: str = f'{xp_dif:,}'
         xp_rate = f'{xp_rate:,}'
 
-        await ctx.send(f'To reach {"level " if not end_xp else ""}`{lvl_end}`{" XP" if end_xp else ""} from {"level " if not start_xp else ""}`{lvl_start}`{" XP" if start_xp else ""}, you will need to gain `{xp_dif}` XP. This will take `{hours_or_actions}` hours/actions at an XP rate of `{xp_rate}` per hour/action.')
+        await ctx.send(f'To reach {"level " if not end_xp else ""}`{lvl_end}`{" XP" if end_xp else ""} from {"level " if not start_xp else ""}`{lvl_start}`{" XP" if start_xp else ""}, you will need to gain `{xp_dif_str}` XP. This will take `{hours_or_actions_str}` hours/actions at an XP rate of `{xp_rate}` per hour/action.')
 
     @commands.command()
-    async def pvm(self, ctx: commands.Context):
+    async def pvm(self, ctx: commands.Context) -> None:
         '''
         Calculate rotations for Araxxor, Vorago, and Barrows: Rise Of The Six.
         '''
@@ -1424,7 +1423,7 @@ class Runescape(Cog):
         embed.add_field(name='Vorago', value=f'Current rotation: **{vorago_rotation}**\nThe next rotation will start in `{next_vorago}`.', inline=False)
         embed.add_field(name='Barrows: Rise Of The Six', value=f'Current rotation:\nWest: **{", ".join(rots_rotation[0])}**\nEast: **{", ".join(rots_rotation[1])}**\nThe next rotation will start in `{next_rots}`.', inline=False)
 
-        images = ['images/Araxxor.png', 'images/Vorago.png', 'images/Ahrim.png']
+        images: list[str] = ['images/Araxxor.png', 'images/Vorago.png', 'images/Ahrim.png']
 
         with open(random.choice(images), 'rb') as f:
                 file = io.BytesIO(f.read())
@@ -1436,7 +1435,7 @@ class Runescape(Cog):
         await ctx.send(file=image, embed=embed)
     
     @commands.command()
-    async def dry(self, ctx: commands.Context, droprate='', attempts=''):
+    async def dry(self, ctx: commands.Context, droprate: float | int | str, attempts: int | str) -> None:
         '''
         Calculates the probability of going dry.
         Arguments: droprate, attempts
@@ -1457,8 +1456,8 @@ class Runescape(Cog):
         attempts = int(attempts)
         if attempts <= 0:
             raise commands.CommandError(message=f'Invalid argument: `{attempts}`. Must be greater than 0.')
-        if '1/' in droprate:
-            droprate = droprate.replace('1/', '')
+        if '1/' in str(droprate):
+            droprate = str(droprate).replace('1/', '')
         if is_int(droprate):
             droprate = int(droprate)
             if droprate <= 0:
@@ -1471,69 +1470,71 @@ class Runescape(Cog):
         else:
             raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be int, float, or string of the form `1/x` where x is a positive integer.')
 
-        result = (1-droprate)**attempts
+        result: float = (1-droprate)**attempts
         result *= 100
 
         await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
     @commands.command(aliases=['cb', 'rs3cb', 'rs3combat'])
-    async def combat(self, ctx: commands.Context, *username):
+    async def combat(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Calculate the combat level of a RS3 player.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
+        url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         lines = lines[:len(skills_rs3)]
 
-        levels = []
-        xp_list = []
+        levels: list[str] = []
+        xp_list: list[str] = []
 
-        for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
-            xp_list.append(lines[i][2])
+        for line in lines:
+            levels.append(line.split(',')[1])
+            xp_list.append(line.split(',')[2])
 
-        attack, strength, defence, constitution, magic, ranged, prayer, summoning = int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24])
-        combat = combat_level(attack, strength, defence, constitution, magic, ranged, prayer, summoning)
+        attack = int(levels[1])
+        strength = int(levels[3])
+        defence = int(levels[2])
+        constitution = max(int(levels[4]), 10)
+        magic = int(levels[7])
+        ranged = int(levels[5])
+        prayer = int(levels[6])
+        summoning = int(levels[24])
+        combat: float = combat_level(attack, strength, defence, constitution, magic, ranged, prayer, summoning)
 
-        cb_skills = [attack, strength, defence, constitution, magic, ranged, prayer, summoning]
-        original_cb_skills = copy.deepcopy(cb_skills)
-        cb_skill_names = ['Attack', 'Strength', 'Defence', 'Constitution', 'Magic', 'Ranged', 'Prayer', 'Summoning']
-        levels_required = [0, 0, 0, 0, 0, 0, 0, 0]
+        cb_skills: list[int] = [attack, strength, defence, constitution, magic, ranged, prayer, summoning]
+        original_cb_skills: list[int] = copy.deepcopy(cb_skills)
+        cb_skill_names: list[str] = ['Attack', 'Strength', 'Defence', 'Constitution', 'Magic', 'Ranged', 'Prayer', 'Summoning']
+        levels_required: list[int] = [0, 0, 0, 0, 0, 0, 0, 0]
 
-        description = f'**{name}**\'s combat level is: `{combat}`'
+        description: str = f'**{name}**\'s combat level is: `{combat}`'
 
         if combat < 138:
             for i, cb_skill in enumerate(original_cb_skills):
@@ -1558,64 +1559,66 @@ class Runescape(Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07combat', aliases=['07cb', 'osrscb', 'osrscombat'])
-    async def _07combat(self, ctx: commands.Context, *username):
+    async def _07combat(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Calculate the combat level of a OSRS player.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.osrs_rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.osrs_rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
+        url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         try:
             lines = lines[:len(skills_07)]
         except:
             raise commands.CommandError(message=f'Error accessing hiscores, please try again later.')
 
-        levels = []
+        levels: list[str] = []
 
-        for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
+        for line in lines:
+            levels.append(line.split(',')[1])
 
-        attack, strength, defence, hitpoints, magic, ranged, prayer = int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6])
-        combat = osrs_combat_level(attack, strength, defence, hitpoints, magic, ranged, prayer)
+        attack = int(levels[1])
+        strength = int(levels[3])
+        defence = int(levels[2])
+        hitpoints = max(int(levels[4]), 10)
+        magic = int(levels[7])
+        ranged = int(levels[5])
+        prayer = int(levels[6])
+        
+        combat: int = osrs_combat_level(attack, strength, defence, hitpoints, magic, ranged, prayer)
 
-        cb_skills = [attack, strength, defence, hitpoints, magic, ranged, prayer]
-        original_cb_skills = copy.deepcopy(cb_skills)
-        cb_skill_names = ['Attack', 'Strength', 'Defence', 'Hitpoints', 'Magic', 'Ranged', 'Prayer']
-        levels_required = [0, 0, 0, 0, 0, 0, 0]
+        cb_skills: list[int] = [attack, strength, defence, hitpoints, magic, ranged, prayer]
+        original_cb_skills: list[int] = copy.deepcopy(cb_skills)
+        cb_skill_names: list[str] = ['Attack', 'Strength', 'Defence', 'Hitpoints', 'Magic', 'Ranged', 'Prayer']
+        levels_required: list[int] = [0, 0, 0, 0, 0, 0, 0]
 
-        description = f'**{name}**\'s combat level is: `{combat}`'
+        description: str = f'**{name}**\'s combat level is: `{combat}`'
 
         if combat < 126:
             for i, cb_skill in enumerate(original_cb_skills):
@@ -1639,5 +1642,5 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-async def setup(bot: Bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Runescape(bot))
