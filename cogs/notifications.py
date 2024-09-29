@@ -279,6 +279,7 @@ class Notifications(Cog):
 
         # Handle input time
         time = parse_datetime_string(time) if isinstance(time, str) else time
+        time = time.replace(tzinfo=UTC)
         if time < datetime.now(UTC):
             raise commands.CommandError(f'Invalid argument: `{time}`. Time cannot be in the past.')
 
@@ -408,7 +409,7 @@ class Notifications(Cog):
                 if not isinstance(value, datetime) and not isinstance(value, str):
                     raise commands.CommandError(message=f'Could not parse time: `{value}`')
                 time: datetime = parse_datetime_string(value) if isinstance(value, str) else value
-                
+                time = time.replace(tzinfo=UTC)
                 if time < datetime.now(UTC):
                     raise commands.CommandError(message=f'Invalid argument: `{time}`. Time cannot be in the past.')
 
