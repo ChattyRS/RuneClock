@@ -154,7 +154,7 @@ class BackgroundTasks(Cog):
         channels: list[discord.TextChannel] = [channel for channel in [find_text_channel(self.bot, guild.notification_channel_id) for guild in guilds] if channel]
 
         for c in channels:
-            for role_name, text_to_replace in (role_dict if role_dict else []):
+            for role_name, text_to_replace in (role_dict.items() if role_dict else []):
                 roles: list[discord.Role] = [r for r in c.guild.roles if role_name.upper() in r.name.upper()]
                 role_mention: str = roles[0].mention if roles else ''
                 msg: str = message.replace(text_to_replace, role_mention)

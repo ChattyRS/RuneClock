@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession, async_sessionmaker, AsyncAttrs
 from sqlalchemy import PrimaryKeyConstraint, ForeignKey
-from sqlalchemy import BigInteger, Integer, String, Boolean, DateTime, ARRAY, JSON
+from sqlalchemy import BigInteger, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
 from typing import Any, Optional
 from datetime import datetime
 

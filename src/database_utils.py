@@ -97,8 +97,13 @@ async def find_custom_db_command(async_session: async_sessionmaker[AsyncSession]
     guild_id: int = guild_or_id.id if isinstance(guild_or_id, DiscordGuild) else guild_or_id
 
     async with db_session if db_session else async_session() as session:
-        custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == guild_id).where(or_(Command.name == command_name_or_alias, Command.aliases.contains(command_name_or_alias))))).scalar_one_or_none()
-        return custom_db_command
+        custom_db_commands: Sequence[Command] = (await session.execute(select(Command).where(Command.guild_id == guild_id))).scalars().all()
+        for custom_db_command in custom_db_commands:
+            if custom_db_command.name == command_name_or_alias:
+                return custom_db_command
+        for custom_db_command in custom_db_commands:
+            if custom_db_command.aliases and command_name_or_alias in custom_db_command.aliases:
+                return custom_db_command
     
 async def get_custom_db_commands(async_session: async_sessionmaker[AsyncSession], guild_or_id: DiscordGuild | int | None) -> Sequence[Command]:
     '''
