@@ -120,7 +120,7 @@ class DNDCommands(Cog):
                     vos: list[str] = []
                     current: list[str] = []
                     for i, data_point in enumerate(vos_data[:2]):
-                        vos_time = datetime.strptime(data_point['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=None)
+                        vos_time: datetime = datetime.strptime(data_point['timestamp'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=UTC)
                         if i == 0:
                             self.bot.next_vos = vos_time + timedelta(hours=1)
                             current.append(data_point['district1'])
