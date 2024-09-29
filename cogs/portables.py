@@ -12,29 +12,7 @@ import gspread
 from checks import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 import logging
 from runescape_utils import get_rsn
-
-dxp_active = True
-locations = ["LM", "LC", "BA", "SP", "BU", "CW", "PRIF", "MG", "IMP", "GE", "MEI", "ITH", "POF", "BDR", "WG", "BE", "FF"]
-portables_names = ['Fletcher', 'Crafter', 'Brazier', 'Sawmill', 'Range', 'Well', 'Workbench']
-portables_names_upper = ['FLETCHERS', 'CRAFTERS', 'BRAZIERS', 'SAWMILLS', 'RANGES', 'WELLS', 'WORKBENCHES']
-busyLocs = [[84, "LM"], [99, "LM"], [100, "SP"]]
-forbidden_locs = [[2, "BU"]]
-highest_world = 259
-forbidden_worlds = [13, 47, 55, 75, 90, 93, 94, 95, 101, 102, 107, 109, 110, 111, 112, 113, 118, 121, 122, 125, 126, 127, 128, 129, 130, 131, 132, 133]
-f2p_worlds = [3, 7, 8, 11, 17, 19, 20, 29, 33, 34, 38, 41, 43, 57, 61, 80, 81, 108, 120, 135, 136, 141, 210, 215, 225, 236, 239, 245, 249, 250, 255, 256]
-total_worlds = [[86, " (1500+)"], [114, " (1500+)"], [30, " (2000+)"], [48, " (2600+)"], [52, " (VIP)"]]
-
-portable_aliases = [['fletcher', 'fletchers', 'fletch', 'fl', 'f'],
-                   ['crafter', 'crafters', 'craft', 'cr', 'c'],
-                   ['brazier', 'braziers', 'braz', 'br', 'b'],
-                   ['sawmill', 'sawmills', 'saw', 'sa', 's', 'mill', 'mi', 'm'],
-                   ['range', 'ranges', 'ra', 'r'],
-                   ['well', 'wells', 'we'],
-                   ['workbench', 'workbenches', 'benches', 'bench', 'wb', 'wo']]
-
-rank_titles = ['Sergeants', 'Corporals', 'Recruits', 'New']
-
-
+from portables_utils import locations, portables_names, portables_names_upper, busy_locs, forbidden_locs, highest_world, forbidden_worlds, f2p_worlds, total_worlds, portable_aliases, rank_titles
 
 def get_ports(input):
     '''
@@ -187,7 +165,7 @@ def format(ports):
                     txt += ' | '
                 txt += str(w) # add the world number
                 # if this (world, location) pair corresponds to a busy location, add a star
-                for busyLoc in busyLocs:
+                for busyLoc in busy_locs:
                     if w == busyLoc[0] and loc == busyLoc[1]:
                         txt += '*'
                         break
@@ -217,7 +195,7 @@ def format(ports):
                 elif i > 0:
                     txt += ' | '
                 txt += str(w)
-                for busyLoc in busyLocs:
+                for busyLoc in busy_locs:
                     if w == busyLoc[0] and loc == busyLoc[1]:
                         txt += '*'
                         break
@@ -297,19 +275,6 @@ def check_ports(new_ports, ports):
                         port_names.append(portables_names[i-1])
                         count += 1
                         break
-            '''
-            if count >= 3 and not dxp_active:
-                msg_ports = ""
-                i = 0
-                for p in port_names:
-                    i += 1
-                    msg_ports += '**' + p + '**'
-                    if i < len(port_names):
-                        msg_ports += ", "
-                        if i == len(port_names) - 1:
-                            msg_ports += "and "
-                return f'Sorry, there cannot be more than 3 portables at the same location.\nThe location **{str(world)} {loc}** already has a {msg_ports}.'
-            '''
     return ''
     
 last_ports = None
@@ -549,8 +514,6 @@ class Portables(Cog):
         Only available during DXP.
         '''
         increment_command_counter()
-        if not dxp_active:
-            raise commands.CommandError(message='This command is only enabled during DXP.')
         
         last_ports = get_last_ports()
         boxes = last_ports[17].value
