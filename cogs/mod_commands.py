@@ -75,17 +75,19 @@ class ModCommands(Cog):
             embed.set_author(name=f'{message.author.display_name} ({message.author.name})', icon_url=message.author.display_avatar.url)
             embed.set_footer(text=f'ID: {message.id}')
 
-            await message.delete()
-
             private: discord.TextChannel = get_guild_text_channel(message.guild, guild.modmail_private)
 
             if message.attachments:
-                attachment: discord.Attachment = message.attachments[0]
-                file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description)
+                files: list[discord.File] = []
+                for attachment in message.attachments:
+                    file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
+                    files.append(file)
                 embed.set_image(url=f'attachment://{attachment.filename}')
-                await private.send(embed=embed, file=file)
+                await private.send(embed=embed, files=files)
             else:
                 await private.send(embed=embed)
+
+            await message.delete()
 
     @commands.command()
     @is_admin()

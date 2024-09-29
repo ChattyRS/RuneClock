@@ -408,9 +408,10 @@ class BackgroundTasks(Cog):
                         if any(txt in enclosure.type for txt in ['image', 'jpeg', 'jpg', 'png']):
                             image_url = enclosure.href
                     async with self.bot.async_session() as session:
-                        session.add(NewsPost(link=post.link, game='rs3', title=post.title, description=post.description, time=time, category=category, image_url=image_url))
+                        news_post = NewsPost(link=post.link, game='rs3', title=post.title, description=post.description, time=time, category=category, image_url=image_url)
+                        session.add(news_post)
                         await session.commit()
-                    to_send.append(post)
+                    to_send.append(news_post)
         
             for post in reversed(osrs_feed.entries):
                 if not any(post.link == news_post.link for news_post in news_posts):
@@ -427,9 +428,10 @@ class BackgroundTasks(Cog):
                             image_url = enclosure.href
 
                     async with self.bot.async_session() as session:
-                        session.add(NewsPost(link=post.link, game='osrs', title=post.title, description=post.description, time=time, category=category, image_url=image_url))
+                        news_post = NewsPost(link=post.link, game='osrs', title=post.title, description=post.description, time=time, category=category, image_url=image_url)
+                        session.add(news_post)
                         await session.commit()
-                    to_send.append(post)
+                    to_send.append(news_post)
 
             for news_post in to_send:
                 await self.send_news(news_post, news_post.game == 'osrs')
