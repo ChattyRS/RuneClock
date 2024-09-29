@@ -31,6 +31,7 @@ wom_skills: list[str] = [
 wom_bosses: list[str] = [
     'abyssal_sire',
     'alchemical_hydra',
+    'amoxliatl',
     'araxxor',
     'artio',
     'barrows_chests',
@@ -75,6 +76,7 @@ wom_bosses: list[str] = [
     'tempoross',
     'the_gauntlet',
     'the_corrupted_gauntlet',
+    'the_hueycoatl',
     'the_leviathan',
     'the_whisperer',
     'theatre_of_blood',
