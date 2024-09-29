@@ -1009,7 +1009,7 @@ class Obliterate(Cog):
             metric = metric[0].upper() + metric[1:]
             participants: list = data['participations']
 
-            if datetime.now(UTC) < datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ'):
+            if datetime.now(UTC) < datetime.strptime(data['endsAt'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=UTC):
                 ctx.command.reset_cooldown(ctx)
                 raise commands.CommandError(message=f'This competition has not ended yet. It will end at `{data["endsAt"]}`.')
             
@@ -1124,7 +1124,7 @@ class Obliterate(Cog):
             events_attended, events_hosted, appreciations, appointments, discord_level, top3 = [int(val) if is_int(val) else 0 for val in m[events_attended_col:top3_col+1]]
             rank: str = m[1] # Bronze, Iron, Steel, Mithril, Adamant, Rune, Legacy, Moderator, Key
             try:
-                join_date: datetime = datetime.strptime(m[6], '%d %b %Y')
+                join_date: datetime = datetime.strptime(m[6], '%d %b %Y').replace(tzinfo=UTC)
             except:
                 join_date = datetime.now(UTC)
             if rank in reqs:
