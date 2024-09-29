@@ -12,50 +12,12 @@ from operator import attrgetter
 from src.number_utils import is_int
 import validators
 from src.date_utils import months
-from src.discord_utils import get_guild_text_channel
-
-rps: list[str] = ['Rock', 'Paper', 'Scissors']
-rps_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
-
-num_emoji: list[str] = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
-
-def perm_string(p) -> str:
-    '''
-    Translates permissions to a string of important permissions.
-    '''
-    s = ''
-
-    if p.administrator:
-        s += 'Administrator, '
-    if p.manage_guild:
-        s += 'Manage Server, '
-    if p.ban_members:
-        s += 'Ban Members, '
-    if p.kick_members:
-        s += 'Kick Members, '
-    if p.manage_channels:
-        s += 'Manage Channels, '
-    if p.manage_messages:
-        s += 'Manage Messages, '
-    if p.mention_everyone:
-        s += 'Mention Everyone, '
-    if p.manage_nicknames:
-        s += 'Manage Nicknames, '
-    if p.manage_roles:
-        s += 'Manage Roles, '
-    if p.manage_emojis:
-        s += 'Manage Emojis, '
-    if p.manage_webhooks:
-        s += 'Manage Webhooks, '
-    if p.view_audit_log:
-        s += 'View Audit Logs, '
-
-    if s:
-        s: str = s[:len(s)-2]
-
-    return s
+from src.discord_utils import get_guild_text_channel, perm_string, num_emoji
 
 class General(Cog):
+    rps_items: list[str] = ['Rock', 'Paper', 'Scissors']
+    rps_items_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
+
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
@@ -109,14 +71,14 @@ class General(Cog):
         '''
         self.bot.increment_command_counter()
         
-        if not choice.upper() in rps_upper:
+        if not choice.upper() in self.rps_items_upper:
             raise commands.CommandError(message=f'Invalid argument: `{choice}`.')
         
-        for x in rps:
+        for x in self.rps_items:
             if choice.upper() == x.upper():
                 choice = x
         i: int = random.randint(0,2)
-        myChoice: str = rps[i]
+        myChoice: str = self.rps_items[i]
         result: str = f'You chose **{choice}**. I choose **{myChoice}**.\n'
         choices: list[str] = [myChoice, choice]
         if choice == myChoice:

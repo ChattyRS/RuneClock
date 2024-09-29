@@ -1,9 +1,10 @@
-from discord import Embed, Guild, Role, TextChannel, Thread
+from discord import Embed, Guild, Permissions, Role, TextChannel, Thread
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ext.commands import Command, CommandError, Context, AutoShardedBot as Bot
 
 max_message_length: int = 2000
 max_embed_description_length: int = 4096
+num_emoji: list[str] = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
 
 def find_guild_text_channel(guild: Guild, id: int | None) -> TextChannel | None:
     '''
@@ -197,3 +198,45 @@ async def send_lines_over_multiple_embeds(ctx: Context, message: str | list[str]
         embed.description += line
     if embed.description:
         await ctx.send(embed = embed)
+
+def perm_string(p: Permissions) -> str:
+    '''
+    Translates permissions to a string of important permissions.
+
+    Args:
+        p (_type_): Permissions
+
+    Returns:
+        str: String listing various important permissions.
+    '''
+    s: str = ''
+
+    if p.administrator:
+        s += 'Administrator, '
+    if p.manage_guild:
+        s += 'Manage Server, '
+    if p.ban_members:
+        s += 'Ban Members, '
+    if p.kick_members:
+        s += 'Kick Members, '
+    if p.manage_channels:
+        s += 'Manage Channels, '
+    if p.manage_messages:
+        s += 'Manage Messages, '
+    if p.mention_everyone:
+        s += 'Mention Everyone, '
+    if p.manage_nicknames:
+        s += 'Manage Nicknames, '
+    if p.manage_roles:
+        s += 'Manage Roles, '
+    if p.manage_emojis:
+        s += 'Manage Emojis, '
+    if p.manage_webhooks:
+        s += 'Manage Webhooks, '
+    if p.view_audit_log:
+        s += 'View Audit Logs, '
+
+    if s:
+        s: str = s[:len(s)-2]
+
+    return s
