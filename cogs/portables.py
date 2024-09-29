@@ -7,302 +7,17 @@ from bot import Bot
 from datetime import datetime, timedelta, UTC
 import re
 import validators
-import copy
 import gspread
 from checks import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 import logging
+from discord_utils import get_guild_text_channel, get_text_channel
 from runescape_utils import get_rsn
-from portables_utils import locations, portables_names, portables_names_upper, busy_locs, forbidden_locs, highest_world, forbidden_worlds, f2p_worlds, total_worlds, portable_aliases, rank_titles
-
-def get_ports(input):
-    '''
-    Gets portable locations from a string, and returns them in the following format:
-    [[[world1, world2, ...], location1], [[world3, world4, ...], location2], ...]
-    '''
-    input = input.upper().replace('F2P', '~')
-    input = input.replace('~RIF', 'F2PRIF')
-    input = input.replace('~OF', 'F2POF')
-    input = input.replace('~', '').strip()
-    for world in total_worlds:
-        total = world[1]
-        input = input.replace(total, '')
-
-    # Get indices of all occurrences of locations
-    indices = []
-    for loc in locations:
-        i = [m.start() for m in re.finditer(loc, input)] # https://stackoverflow.com/questions/4664850/find-all-occurrences-of-a-substring-in-python
-        if i:
-            for index in i:
-                indices.append([loc, index])
-    indices.sort(key=lambda x: x[1]) # https://stackoverflow.com/questions/17555218/python-how-to-sort-a-list-of-lists-by-the-fourth-element-in-each-list
-
-    # Fill array ports with [worlds, location] for every location
-    ports = []
-    i = -1
-    for index in indices:
-        i += 1
-        beginIndex = 0
-        if i:
-            beginIndex = indices[i-1][1]
-        endIndex = index[1]
-        substring = input[beginIndex:endIndex]
-        worlds = [int(s) for s in re.findall(r'\d+', substring)] # https://stackoverflow.com/questions/4289331/python-extract-numbers-from-a-string
-        ports.append([worlds, indices[i][0]])
-
-    ports_copy = copy.deepcopy(ports)
-    duplicates = []
-    # Add worlds from duplicate locations to the first occurrence of the location
-    for i, port1 in enumerate(ports_copy):
-        loc1 = port1[1]
-        for j, port2 in enumerate(ports_copy):
-            if j <= i:
-                continue
-            loc2 = port2[1]
-            if loc1 == loc2:
-                for world in ports_copy[j][0]:
-                    ports_copy[i][0].append(world)
-                if not j in duplicates:
-                    duplicates.append(j)
-
-    # Delete duplicate locations
-    duplicates.sort(reverse=True)
-    for i in duplicates:
-        del ports_copy[i]
-
-    # Remove duplicates from arrays of worlds and sort worlds
-    for i, port in enumerate(ports_copy):
-        ports_copy[i][0] = sorted(list(set(port[0])))
-
-    return ports_copy
-
-
-def only_f2p(ports):
-    for item in ports:
-        worlds, loc = item[0], item[1]
-        for world in worlds:
-            if not world in f2p_worlds:
-                return False
-    return True
-
-
-def add_port(world, loc, ports):
-    '''
-    Adds a specific pair (world, location) to a set of portable locations, and returns the result.
-    '''
-    new_ports = copy.deepcopy(ports)
-    for i, port in enumerate(new_ports):
-        if port[1] == loc:
-            if world in new_ports[i][0]:
-                return new_ports
-            new_ports[i][0].append(world)
-            new_ports[i][0].sort()
-            return new_ports
-    new_ports.append([[world], loc])
-    return new_ports
-
-def add_ports(current, new):
-    '''
-    Adds a set of new portable locations to a set of current portable locations, and returns the resulting set.
-    Uses addPort() for every location.
-    '''
-    ports = copy.deepcopy(current)
-    for port in new:
-        loc = port[1]
-        for world in port[0]:
-            ports = add_port(world, loc, ports)
-    return ports
-
-def remove_port(world, loc, ports):
-    '''
-    Removes a specific pair (world, location) from a set of portable locations, and returns the result.
-    Similar to addPort()
-    '''
-    new_ports = copy.deepcopy(ports)
-    for i, port in enumerate(new_ports):
-        if port[1] == loc:
-            if world in new_ports[i][0]:
-                new_ports[i][0].remove(world)
-                if not new_ports[i][0]:
-                    del new_ports[i]
-                return new_ports
-    return new_ports
-
-def remove_ports(current, old):
-    '''
-    Removes a set of new portable locations from a set of current portable locations, and returns the resulting set.
-    Uses removePort() for every location.
-    Similar to addPorts()
-    '''
-    ports = copy.deepcopy(current)
-    for port in old:
-        loc = port[1]
-        for world in port[0]:
-            ports = remove_port(world, loc, ports)
-    return ports
-
-def format(ports):
-    '''
-    Returns a string that represents a set of portable locations.
-    '''
-    txt = "" # initialize empty string to be returned
-    f2p_ports = [] # initialize empty set for f2p locations, these will be added at the end of the string
-
-    # for every location in the set of portables
-    for i, port in enumerate(ports):
-        worlds = port[0] # get the set of worlds corresponding to this location
-        loc = port[1] # get the location
-        count = 0 # initialize count of worlds
-        f2p_locs = [] # initialize set of f2p worlds
-        # for every world corresponding to the current location
-        for w in worlds:
-            if w in f2p_worlds: # if this is an f2p world, add it to the set of f2p worlds
-                f2p_locs.append(w)
-            else: # if it is a members world, increment counter, and generate text for the world
-                count += 1
-                if count > 1: # for all but the first world, add a comma
-                    txt += ', '
-                elif txt: # if this is the first world, and there is already text in the string, add a separating character
-                    txt += ' | '
-                txt += str(w) # add the world number
-                # if this (world, location) pair corresponds to a busy location, add a star
-                for busyLoc in busy_locs:
-                    if w == busyLoc[0] and loc == busyLoc[1]:
-                        txt += '*'
-                        break
-                # if this world is a total level world, add the total level required to join
-                if loc != "MG": # total level is irrelevant if location is max guild
-                    for totalWorld in total_worlds:
-                        if w == totalWorld[0]:
-                            txt += totalWorld[1]
-                            break
-        if count: # if there were worlds for this location, add the location
-            txt += ' ' + loc
-        if f2p_locs: # if there were f2p worlds for this location, add them to the set of f2p locations
-            f2p_ports.append([f2p_locs, loc])
-
-    if f2p_ports: # if there are f2p locations, add them to the string, similar to above
-        if txt:
-            txt += ' | '
-        txt += 'F2P '
-        for i, port in enumerate(f2p_ports):
-            worlds = port[0]
-            loc = port[1]
-            count = 0
-            for w in worlds:
-                count += 1
-                if count > 1:
-                    txt += ', '
-                elif i > 0:
-                    txt += ' | '
-                txt += str(w)
-                for busyLoc in busy_locs:
-                    if w == busyLoc[0] and loc == busyLoc[1]:
-                        txt += '*'
-                        break
-                for totalWorld in total_worlds:
-                    if w == totalWorld[0]:
-                        txt += totalWorld[1]
-                        break
-            if count:
-                txt += ' ' + loc
-
-    if not txt: # if there were no locations at all, return 'N/A'
-        return 'N/A'
-
-    # replace some locations for nicer formatting
-    txt = txt.replace('PRIF', 'Prif').replace('MEI', 'Meilyr').replace('ITH', 'Ithell')
-
-    return txt # return the final result
-
-async def write_error(agcm, name, date, msg):
-    '''
-    Write an error message to the error tab on the admin sheets.
-    '''
-    agc = await agcm.authorize()
-    ss = await agc.open(self.bot.config['adminSheetName'])
-    sheet = await ss.worksheet('Errors')
-
-    values = [name, str(date), msg]
-
-    errors = await sheet.col_values(1)
-    for i, e in enumerate(errors):
-        if e == "":
-            row = i+1
-            cell_list = [gspread.Cell(row, col, value=values[col-1]) for col in range(1,4)]
-            await sheet.update_cells(cell_list, nowait=True)
-            return
-        elif i == len(errors)-1:
-            await sheet.insert_row(values, i+2)
-
-
-async def get_port_row(agcm):
-    '''
-    Returns the current row of portable locations on the sheets.
-    '''
-    agc = await agcm.authorize()
-    ss = await agc.open(self.bot.config['sheetName'])
-    sheet = await ss.worksheet('Home')
-    ports = await sheet.row_values(21)
-    ports = ports[:7]
-    return ports
-
-def check_ports(new_ports, ports):
-    '''
-    Checks the validity of a given set of new portable locations, given a set of current locations.
-    Returns a string with an error message, empty string if no error.
-    '''
-    for port in new_ports:
-        loc = port[1]
-        for world in port[0]:
-            if world < 1 or world > highest_world:
-                return f'Sorry, **{str(world)}** is not a valid world. Please enter a number between 1 and 141.'
-            if world in forbidden_worlds:
-                return f'Sorry, world **{str(world)}** is not called because it is either a pking world or a bounty hunter world, or it is not on the world list.'
-            for forbiddenLoc in forbidden_locs:
-                if world == forbiddenLoc[0] and loc == forbiddenLoc[1]:
-                    return f'Sorry, **{str(world)} {loc}** is a forbidden location.'
-            if loc == 'GE' and world not in f2p_worlds:
-                return 'Sorry, we only call the location **GE** in F2P worlds.'
-            port_names = []
-            count = 0
-            i = 0
-            for p in ports:
-                i += 1
-                for entry in p:
-                    if loc != entry[1]:
-                        continue
-                    if world in entry[0]:
-                        port_names.append(portables_names[i-1])
-                        count += 1
-                        break
-    return ''
-    
-last_ports = None
-
-def get_last_ports():
-    return last_ports
-
-def set_last_ports(ports):
-    global last_ports
-    last_ports = ports
-
-def get_editors(credit):
-    '''
-    Get list of editor names from credit cell string
-    '''
-    separators = [',', '/', '&', '|', '+', ' - ']
-    names = split(credit, separators)
-    return names
-
-def split(txt, seps):
-    # https://stackoverflow.com/questions/4697006/python-split-string-by-list-of-separators/4697047
-    default_sep = seps[0]
-    # we skip seps[0] because that's the default seperator
-    for sep in seps[1:]:
-        txt = txt.replace(sep, default_sep)
-    return [i.strip() for i in txt.split(default_sep)]
+from portables_utils import portables_names, portables_names_upper, portable_aliases, rank_titles, get_ports, only_f2p, add_ports, remove_ports, format, check_ports
+from discord.abc import MessageableChannel
 
 class Portables(Cog):
+    last_ports: list[gspread.Cell] | None = None
+
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
@@ -332,7 +47,44 @@ class Portables(Cog):
     def cog_unload(self) -> None:
         self.track_location_updates.cancel()
 
-    def get_port_type(self, input: str, channel: discord.TextChannel | None = None) -> tuple[str, int]:
+    def get_last_ports(self) -> list[gspread.Cell] | None:
+        return self.last_ports
+
+    def set_last_ports(self, ports: list[gspread.Cell]) -> None:
+        self.last_ports = ports
+
+    async def get_port_row(self) -> list[str | None]:
+        '''
+        Returns the current row of portable locations on the sheets.
+        '''
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Home')
+        ports: list[str | None] = await sheet.row_values(21)
+        ports = ports[:7]
+        return ports
+
+    async def write_error(self, name: str, date: datetime, msg: str) -> None:
+        '''
+        Write an error message to the error tab on the admin sheets.
+        '''
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['adminSheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Errors')
+
+        values: list[str] = [name, str(date), msg]
+
+        errors: list[str | None] = await sheet.col_values(1)
+        for i, e in enumerate(errors):
+            if e == "":
+                row = i+1
+                cell_list = [gspread.Cell(row, col, value=values[col-1]) for col in range(1,4)]
+                await sheet.update_cells(cell_list, nowait=True) # type: ignore : nowait is valid
+                return
+            elif i == len(errors)-1:
+                await sheet.insert_row(values, i+2)
+
+    def get_port_type(self, input: str, channel: MessageableChannel | None = None) -> tuple[str, int]:
         '''
         Get the portable type from the input string.
 
@@ -361,7 +113,7 @@ class Portables(Cog):
             return (portables_names[self.portables_channel_ids.index(channel.id)].lower(), self.portables_channel_ids.index(channel.id) + 1)
         return ('', -1)
     
-    async def update_sheet(self, col: int, new_val: Any, timestamp: datetime, name: str, is_rank: bool) -> None:
+    async def update_sheet(self, col: int, new_val: Any, timestamp: str, name: str, is_rank: bool) -> None:
         '''
         Update a given column of the location row (i.e. a cell) on the sheets with:
         new_val, new value for the cell (string)
@@ -381,7 +133,7 @@ class Portables(Cog):
             await sheet.update_cell(22, 5, name, nowait=True) # type: ignore update editor name
             await sheet.update_cell(39, 2, name, nowait=True) # type: ignore update mobile editor name
 
-    async def update_sheet_row(self, ports_row: list, timestamp: datetime, name: str, is_rank: bool) -> None:
+    async def update_sheet_row(self, ports_row: list, timestamp: str, name: str, is_rank: bool) -> None:
         '''
         Update the entire row of locations on the sheets, where:
         ports_row: list of length 6 with strings denoting the value for each cell.
@@ -413,7 +165,7 @@ class Portables(Cog):
         sheet_month_cell: gspread.Cell = await sheet.cell(3, 1)
         sheet_month: str | None = sheet_month_cell.value
         if not sheet_month or sheet_month.upper() != date.strftime("%B").upper():
-            await write_error(self.bot.agcm, name, date, f"Could not track {'fc' if not sheet_activity else 'sheet'} activity: month out of sync")
+            await self.write_error(name, date, f"Could not track {'fc' if not sheet_activity else 'sheet'} activity: month out of sync")
             return
         
         day = str(date.day)
@@ -444,7 +196,7 @@ class Portables(Cog):
                             await sheet.update_cell(row, col, day, nowait=True) # type: ignore
                             return
             elif i == len(ranks) - 1:
-                await write_error(self.bot.agcm, name, date, f"Could not track {'fc' if not sheet_activity else 'sheet'} activity: name not found")
+                await self.write_error(name, date, f"Could not track {'fc' if not sheet_activity else 'sheet'} activity: name not found")
                 return
     
     @tasks.loop(seconds=10)
@@ -457,10 +209,10 @@ class Portables(Cog):
             ss = await agc.open(self.bot.config['sheetName'])
             home = await ss.worksheet('Home')
 
-            last_ports = get_last_ports()
+            last_ports = self.get_last_ports()
             if last_ports is None:
                 last_ports = await home.range('A20:I22')
-                set_last_ports(last_ports)
+                self.set_last_ports(last_ports)
                 return
 
             ports = await home.range('A20:I22')
@@ -468,7 +220,7 @@ class Portables(Cog):
             if not any(ports[i].value != l_p.value for i, l_p in enumerate(last_ports)):
                 return
             else:
-                set_last_ports(ports)
+                self.set_last_ports(ports)
 
                 top_row_old, mid_row_old, bot_row_old = last_ports[:9], last_ports[9:18], last_ports[18:]
                 top_row, mid_row, bot_row = ports[:9], ports[9:18], ports[18:]
@@ -483,40 +235,40 @@ class Portables(Cog):
 
                     for i, cell in enumerate(mid_row[:7]):
                         old_cell = mid_row_old[i]
-                        val = cell.value
-                        old_val = old_cell.value
-                        current_locs = get_ports(val)
-                        old_locs = get_ports(old_val)
+                        val: str | None = cell.value
+                        old_val: str | None = old_cell.value
+                        current_locs = get_ports(val) if val else []
+                        old_locs = get_ports(old_val) if old_val else []
                         
                         if only_f2p(old_locs):
                             if not only_f2p(current_locs):
                                 role = roles[i]
                                 if role:
-                                    channel_id = portables_channel_ids[i]
-                                    loc_channel = port_server.get_channel(channel_id)
+                                    channel_id: int = self.portables_channel_ids[i]
+                                    loc_channel: discord.TextChannel = get_guild_text_channel(port_server, channel_id)
                                     if loc_channel:
                                         await loc_channel.send(f'{role.mention} active at **{format(current_locs)}**')
         except Exception as e:
-            error = f'Error encountered portable locations tracking: {e}'
+            error: str = f'Error encountered portable locations tracking: {e}'
             print(error)
             logging.critical(error)
 
             try:
-                channel = self.get_channel(self.bot.config['testChannel'])
+                channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['testChannel'])
                 await channel.send(error)
             except:
                 pass
 
     @commands.command(aliases=['box'])
-    async def boxes(self, ctx: commands.Context):
+    async def boxes(self, ctx: commands.Context) -> None:
         '''
         Get portable bank deposit box locations.
         Only available during DXP.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         
-        last_ports = get_last_ports()
-        boxes = last_ports[17].value
+        last_ports: list[gspread.Cell] | None = self.get_last_ports()
+        boxes: str | None = last_ports[17].value if last_ports else None
 
         embed = discord.Embed(title='__Deposit boxes__', description=boxes, colour=0xff0000, url=self.bot.config['publicSheets'], timestamp=datetime.now(UTC))
         embed.set_thumbnail(url='https://i.imgur.com/Hccdnts.png')
@@ -524,23 +276,24 @@ class Portables(Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['p', 'portable'] + [item for sublist in portable_aliases for item in sublist])
-    async def portables(self, ctx: commands.Context, portable='', *input):
+    async def portables(self, ctx: commands.Context, portable: str = '', *input: str) -> None:
         '''
         Get portable locations.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if ctx.invoked_with in [item for sublist in portable_aliases for item in sublist]:
             input = (portable,) + input
             portable = ctx.invoked_with
         
         if any(thing for thing in input):
-            edit_command = commands.Bot.get_command(self.bot, 'edit')
+            edit_command: commands.Command | None = self.bot.get_command('edit')
             try:
-                for check in edit_command.checks:
-                    if not await check(ctx):
+                for check in (edit_command.checks if edit_command else []):
+                    if not await check(ctx): # type: ignore : MaybeCoro can be awaited
                         raise commands.CommandError(message=f'Insufficient permissions: `Portables helper`.')
-                await edit_command.callback(self, ctx, portable, *input)
+                if edit_command:
+                    await edit_command.callback(self, ctx, portable, *input) # type: ignore : Portables (self) is valid as first argument for the callback
                 return
             except commands.CommandError as e:
                 raise e
@@ -548,23 +301,25 @@ class Portables(Cog):
         admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
         if admin_commands_channel:
             if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in portables_channel_ids and not ctx.author.id == self.bot.config['owner']:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
+                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids and not ctx.author.id == self.bot.config['owner']:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
-        last_ports = get_last_ports()
+        last_ports = self.get_last_ports()
         if last_ports is None:
             return
         top_row, mid_row, bot_row = last_ports[:9], last_ports[9:18], last_ports[18:]
 
         now = datetime.now(UTC)
-        time_val = str(now.year) + " " + bot_row[2].value + ":" + str(now.second)
+        time_val = str(now.year) + (" " + bot_row[2].value if bot_row[2].value else '') + ":" + str(now.second)
         time = datetime.strptime(time_val, '%Y %d %b, %H:%M:%S')
 
         embed = discord.Embed(title='__Portables FC Locations__', colour=0xff0000, url=self.bot.config['publicSheets'], timestamp=time)
 
         if (not portable or not any(portable.upper() in port_name for port_name in portables_names_upper)) and not portable.upper() == 'WB':
             for i in range(len(top_row)-2):
-                embed.add_field(name=top_row[i].value, value=mid_row[i].value.replace('*', '\*'), inline=True)
+                mid_row_value: str | None = mid_row[i].value
+                mid_row_value = mid_row_value.replace('*', '\\*') if mid_row_value else ''
+                embed.add_field(name=top_row[i].value, value=mid_row_value, inline=True)
 
             notes = mid_row[7].value
             embed.add_field(name='Notes', value=notes, inline=False)
@@ -584,17 +339,19 @@ class Portables(Cog):
                             break
             # Check for correct portable channel
             if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and admin_commands_channel:
-                if ctx.channel.id in portables_channel_ids:
-                    port_channel_index = portables_channel_ids.index(ctx.channel.id)
+                if ctx.channel.id in self.portables_channel_ids:
+                    port_channel_index = self.portables_channel_ids.index(ctx.channel.id)
                     if index != port_channel_index:
-                        correct_channel = ctx.guild.get_channel(portables_channel_ids[index])
+                        correct_channel: discord.TextChannel | None = get_guild_text_channel(ctx.guild, self.portables_channel_ids[index]) if ctx.guild else None
                         if correct_channel:
                             raise commands.CommandError(message=f'Error: `Incorrect channel for {portables_names_upper[index].lower()}`. Please use {correct_channel.mention}.')
-            embed.add_field(name=top_row[index].value, value=mid_row[index].value.replace('*', '\*'))
+            mid_row_value: str | None = mid_row[index].value
+            mid_row_value = mid_row_value.replace('*', '\\*') if mid_row_value else ''
+            embed.add_field(name=top_row[index].value, value=mid_row_value)
 
         embed.set_thumbnail(url='https://i.imgur.com/Hccdnts.png')
 
-        names = bot_row[4].value
+        names: str = bot_row[4].value if bot_row[4].value else ''
         name = names.split(',')[0].split('&')[0].split('/')[0].split('|')[0].strip()
         pattern = re.compile(r'([^\s\w]|_)+')
         name = pattern.sub('', name).replace(' ', '%20')
@@ -609,7 +366,7 @@ class Portables(Cog):
         '''
         Updates the time on the Portables sheet.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
@@ -622,8 +379,8 @@ class Portables(Cog):
         adminCommandsChannel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
         if adminCommandsChannel:
             if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in self.portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
         name = '' # initialize empty name of user
         is_rank = False # boolean value representing whether or not the user is a rank
@@ -632,7 +389,7 @@ class Portables(Cog):
             is_rank = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
 
-        await update_sheet(self.bot.agcm, 0, "", timestamp, name, is_rank) # update the sheet
+        await self.update_sheet(0, "", timestamp, name, is_rank) # update the sheet
 
         await ctx.send(f'The time has been updated to `{timestamp}`.')
 
@@ -645,7 +402,7 @@ class Portables(Cog):
         Surround names containing spaces with quotation marks, e.g.: "name with spaces".
         Constraints: name must be a valid RSN.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not name:
@@ -693,15 +450,15 @@ class Portables(Cog):
                 perma_bans = banlist[perma_ban_index:i]
                 ex_bans = banlist[i+1:]
                 break
-        for player in temp_bans:
+        for player in [temp_ban for temp_ban in temp_bans if temp_ban]:
             if name.upper() == player.upper():
                 raise commands.CommandError(message=f'Error: `{name}` is already on the banlist.')
-        for player in perma_bans:
+        for player in [perm_ban for perm_ban in perma_bans if perm_ban]:
             if name.upper() == player.upper():
                 raise commands.CommandError(message=f'Error: `{name}` is already on the banlist.')
         row = header_rows + len(temp_bans) + 1
         count = 1
-        for player in ex_bans:
+        for player in [ex_ban for ex_ban in ex_bans if ex_ban]:
             if name.upper() == player.upper():
                 count += 1
         timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
@@ -713,7 +470,7 @@ class Portables(Cog):
         await sheet.insert_row(values, row)
 
         await ctx.send(f'**{name}** has been added to the banlist ({str(count)}).')
-        admin_channel = self.bot.get_channel(self.bot.config['adminChannel'])
+        admin_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['adminChannel'])
         await admin_channel.send(f'**{name}** has been added to the banlist with status **Pending**.')
 
     @commands.command(hidden=True)
@@ -723,7 +480,7 @@ class Portables(Cog):
         Adds a helper, or notes activity for an existing helper (Rank+) (Portables only).
         Arguments: name
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not name_parts:
@@ -752,7 +509,7 @@ class Portables(Cog):
                 smileys = smileys[:i]
                 break
         
-        if any(smiley.lower().strip() == name.lower() for smiley in smileys):
+        if any(smiley.lower().strip() == name.lower() for smiley in smileys if smiley):
             raise commands.CommandError(message=f'Error: `{name}` is on the Smileys list. Please note their activity instead using the `smileyactivity` command.')
 
         header_rows = 3
@@ -771,6 +528,8 @@ class Portables(Cog):
         row = 0
         pattern = re.compile(r'[\W_]+')
         for i, helper in enumerate(helpers):
+            if not helper:
+                continue
             if pattern.sub('', name.upper()) == pattern.sub('', helper.upper()):
                 name = helper
                 row = i + header_rows + 1
@@ -809,7 +568,7 @@ class Portables(Cog):
         Notes activity for a smiley on sheets (Rank+) (Portables only).
         Arguments: name
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not name_parts:
@@ -838,12 +597,16 @@ class Portables(Cog):
 
         row = 0
         for i, smiley in enumerate(smileys):
+            if not smiley:
+                continue
             if name.upper() == smiley.upper():
                 row = i + header_rows + 1
                 name = smiley
                 break
         if not row:
             for i, smiley in enumerate(smileys):
+                if not smiley:
+                    continue
                 if name.upper() in smiley.upper():
                     row = i + header_rows + 1
                     name = smiley
@@ -881,10 +644,10 @@ class Portables(Cog):
         Arguments: name.
         Constraints: name must be a valid RSN.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        leader_role = discord.utils.get(ctx.guild.roles, id=self.bot.config['leaderRole'])
+        leader_role = discord.utils.get((ctx.guild.roles if ctx.guild else []), id=self.bot.config['leaderRole'])
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
@@ -901,7 +664,7 @@ class Portables(Cog):
 
         agc = await self.bot.agcm.authorize()
         ss = await agc.open(self.bot.config['sheetName'])
-        sheet = await ss.worksheet('Smileys')
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Smileys')
 
         header_rows = 4
         smileys = await sheet.col_values(1)
@@ -912,24 +675,26 @@ class Portables(Cog):
             if smiley is None or not smiley:
                 current_smileys = smileys[:i]
                 break
-        for smiley in current_smileys:
+        for smiley in [current_smiley for current_smiley in current_smileys if current_smiley]:
             if name.upper() == smiley.upper():
                 raise commands.CommandError(message=f'Error: `{name}` is already on the smiley list.')
         row = 0
         for i, smiley in enumerate(smileys):
+            if not smiley:
+                continue
             if name.upper() == smiley.upper():
                 row = i + header_rows + 1
                 break
         if row:
-            await sheet.delete_row(row)
+            await sheet.delete_rows(row)
         row = header_rows + len(current_smileys) + 1
         timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
         end_time = (datetime.now(UTC) + timedelta(days=30)).strftime("%b %#d, %Y")
         values = [name, 'No', 'Applied', '', '', '', '', '', '', '', '', '', '', 'Pending', timestamp, end_time]
         await sheet.insert_row(values, row)
         await ctx.send(f'**{name}** has been added to the smileys sheet.')
-        if ctx.author.top_role <= leader_role:
-            admin_channel = self.bot.get_channel(self.bot.config['adminChannel'])
+        if isinstance(ctx.author, discord.Member) and ctx.author.top_role <= leader_role:
+            admin_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['adminChannel'])
             await admin_channel.send(f'**{name}** has been added to the smileys sheet with status **Pending**.')
 
     @commands.command(pass_context=True, hidden=True)
@@ -940,7 +705,7 @@ class Portables(Cog):
         Arguments: name.
         Surround names containing spaces with quotation marks, e.g.: "name with spaces".
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not name_parts:
@@ -966,12 +731,16 @@ class Portables(Cog):
                 break
         row = 0
         for i, smiley in enumerate(smileys):
+            if not smiley:
+                continue
             if name.upper() == smiley.upper():
                 row = i + header_rows + 1
                 name = smiley
                 break
         if not row:
             for i, smiley in enumerate(smileys):
+                if not smiley:
+                    continue
                 if name.upper() in smiley.upper():
                     row = i + header_rows + 1
                     name = smiley
@@ -995,7 +764,7 @@ class Portables(Cog):
         Arguments: portable, worlds, location, worlds, location, etc...
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(self.bot.config['portablesServer'])
@@ -1006,15 +775,20 @@ class Portables(Cog):
         adminCommandsChannel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
         if adminCommandsChannel:
             if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != adminCommandsChannel and not ctx.channel.id in portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
+                if ctx.channel != adminCommandsChannel and not ctx.channel.id in self.portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
-        input = ctx.message.content.upper().replace(ctx.prefix.upper(), '', 1).replace(ctx.invoked_with.upper(), '', 1).strip() # get the input corresponding to this message
+        # get the input corresponding to this message
+        input = ctx.message.content.upper()
+        if ctx.prefix:
+            input = input.replace(ctx.prefix.upper(), '', 1)
+        if ctx.invoked_with:
+            input = input.replace(ctx.invoked_with.upper(), '', 1).strip()
         if not input: # if there was no input, return
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
         # get the portable type corresponding to the input
-        portable, col = get_port_type(input, ctx.channel)
+        portable, col = self.get_port_type(input, ctx.channel)
         if col == -1: # if no portable type was given, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
 
@@ -1026,19 +800,19 @@ class Portables(Cog):
         if not new_ports: # if there were no locations, return
             raise commands.CommandError(message=f'Invalid argument: `location`.')
 
-        ports = await get_port_row(self.bot.agcm) # get the current portable locations from the sheet
+        ports_row: list[str | None] = await self.get_port_row() # get the current portable locations from the sheet
 
-        val = ports[col-1] # get the string corresponding to our portable type
-        ports[col-1] = "" # set value for our portable type to empty
-        for i, p in enumerate(ports): # for each portable, get the set of portable locations
-            ports[i] = get_ports(p)
+        val = ports_row[col-1] # get the string corresponding to our portable type
+        ports: list[list[tuple[list[int], str]]] = []
+        for i, p in enumerate(ports_row): # for each portable, get the set of portable locations
+            ports[i] = get_ports(p) if p else []
 
         error = check_ports(new_ports, ports) # check for errors in the set of portables
         if error: # if there was an error, send the error message and return
             raise commands.CommandError(message=error)
 
         new_ports_text = format(new_ports).replace('*', '\*') # string representing portables to be added
-        current_ports = get_ports(val) # current portables on sheets
+        current_ports = get_ports(val) if val else [] # current portables on sheets
         sum_ports = add_ports(current_ports, new_ports) # set of portables after adding given portables
         new_val = format(sum_ports) # string representing the new set of portable locations
 
@@ -1065,7 +839,7 @@ class Portables(Cog):
             is_helper = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
 
-        await update_sheet(self.bot.agcm, col, new_val, timestamp, name, is_helper) # update the sheet
+        await self.update_sheet(col, new_val, timestamp, name, is_helper) # update the sheet
 
         # send confirmation message
         if multiple:
@@ -1081,7 +855,7 @@ class Portables(Cog):
         Arguments: portable, worlds, location, worlds, location, etc...
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
-        increment_command_counter() # increment global commands counter
+        self.bot.increment_command_counter() # increment global commands counter
         await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(self.bot.config['portablesServer'])
@@ -1092,17 +866,20 @@ class Portables(Cog):
         admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
         if admin_commands_channel:
             if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
+                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
         # get the input corresponding to this message
-        input = ctx.message.content.upper().replace(ctx.prefix.upper(), '', 1).replace(ctx.invoked_with.upper(), '', 1).strip() # get the input corresponding to this message
-
+        input = ctx.message.content.upper()
+        if ctx.prefix:
+            input = input.replace(ctx.prefix.upper(), '', 1)
+        if ctx.invoked_with:
+            input = input.replace(ctx.invoked_with.upper(), '', 1).strip()
         if not input: # if there was no input, return
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
         # get the portable type corresponding to the input
-        portable, col = get_port_type(input, ctx.channel)
+        portable, col = self.get_port_type(input, ctx.channel)
         if col == -1: # if no portable type was given, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
 
@@ -1127,7 +904,7 @@ class Portables(Cog):
         val = val.value
 
         old_ports_text = format(old_ports).replace('*', '\*') # string representing portables to be removed
-        current_ports = get_ports(val) # current portables on sheets
+        current_ports = get_ports(val) if val else [] # current portables on sheets
         dif_ports = remove_ports(current_ports, old_ports) # set of portables after removing given portables
         new_val = format(dif_ports) # string representing the new set of portable locations
 
@@ -1154,7 +931,7 @@ class Portables(Cog):
             is_helper = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
 
-        await update_sheet(self.bot.agcm, col, new_val, timestamp, name, is_helper) # update the sheet
+        await self.update_sheet(col, new_val, timestamp, name, is_helper) # update the sheet
 
         # send confirmation message
         if multiple:
@@ -1171,43 +948,41 @@ class Portables(Cog):
         Constraints: If calling the command with a portable, you can only do one portable at a time.
         Example: `-removeall range` / `-removeall 84 ca`
         '''
-        increment_command_counter() # increment global commands counter
+        self.bot.increment_command_counter() # increment global commands counter
         await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(self.bot.config['portablesServer'])
-        member = await portables.fetch_member(ctx.author.id)
+        member = await portables.fetch_member(ctx.author.id) if portables else None
 
         admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
         if admin_commands_channel:
             if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
+                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
-        if input:
-            input = ' '.join(input).upper().strip()
-        if not input:
+        input_str: str | None = ' '.join(input).upper().strip() if input else None
+        if not input_str:
             raise commands.CommandError(message=f'Required argument missing: `portable/location`.')
 
-        to_remove = get_ports(input)
+        to_remove = get_ports(input_str)
         if format(to_remove) == 'N/A':
             to_remove = []
         if not to_remove:
             port = ''
             index = 0
             for i, aliases in enumerate(portable_aliases):
-                if input.lower() in aliases:
+                if input_str.lower() in aliases:
                     port = aliases[0]
                     index = i
                     break
             if not port:
-                if ctx.channel.id in portables_channel_ids:
-                    port = portables_names[portables_channel_ids.index(ctx.channel.id)].lower()
+                if ctx.channel.id in self.portables_channel_ids:
+                    port = portables_names[self.portables_channel_ids.index(ctx.channel.id)].lower()
             if not port:
-                raise commands.CommandError(message=f'Invalid argument: `{input}`.')
+                raise commands.CommandError(message=f'Invalid argument: `{input_str}`.')
 
-
-        current_values = await get_port_row(self.bot.agcm)
-        current = [get_ports(i) for i in current_values]
+        current_values = await self.get_port_row()
+        current = [get_ports(i) if i else [] for i in current_values]
 
         if to_remove:
             new_values = [format(remove_ports(cur, to_remove)) for cur in current]
@@ -1226,18 +1001,17 @@ class Portables(Cog):
 
         name = '' # initialize empty name of user
         is_rank = False # boolean value representing whether or not the user is a rank
-        rank_role = discord.utils.get(portables.roles, id=self.bot.config['rankRole'])
-        if rank_role in member.roles: # if the rank role is in the set of roles corresponding to the user
+        rank_role = discord.utils.get(portables.roles, id=self.bot.config['rankRole']) if portables else None
+        if rank_role in (member.roles if member else []): # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
-            name = get_rsn(member) # and get the name of the user
+            name = get_rsn(member) if member else '' # and get the name of the user
 
-        await update_sheet_row(self.bot.agcm, new_values, timestamp, name, is_rank)
+        await self.update_sheet_row(new_values, timestamp, name, is_rank)
 
         if to_remove:
             await ctx.send(f'All instances of the location(s) `{format(to_remove)}` have been removed.')
         else:
             await ctx.send(f'All locations for the portable `{port}` have been removed.')
-
 
 
     @commands.command(pass_context=True, ignore_extra=True)
@@ -1249,24 +1023,24 @@ class Portables(Cog):
         Alternatively, you can directly use -portable [arguments], e.g.: -fletch 100 ca
         Constraints: This command can only be used in the locations channel. Only approved locations and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         '''
-        increment_command_counter() # increment global commands counter
+        self.bot.increment_command_counter() # increment global commands counter
         await ctx.channel.typing() # send 'typing...' status
 
         portables = self.bot.get_guild(self.bot.config['portablesServer'])
-        member = await portables.fetch_member(ctx.author.id)
+        member = await portables.fetch_member(ctx.author.id) if portables else None
 
         admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
         if admin_commands_channel:
             if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {portables_channel_mention_string}.')
+                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids:
+                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
         if not portable: # if there was no portable type in the input, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
 
-        for i, ports in enumerate(portable_aliases):
-            if portable in ports:
-                portable = ports[0]
+        for i, port_aliases in enumerate(portable_aliases):
+            if portable in port_aliases:
+                portable = port_aliases[0]
                 col = i + 1
                 break
 
@@ -1277,15 +1051,15 @@ class Portables(Cog):
 
         name = '' # initialize empty name of user
         is_rank = False # boolean value representing whether or not the user is a rank
-        rank_role = discord.utils.get(portables.roles, id=self.bot.config['rankRole'])
-        if rank_role in member.roles: # if the rank role is in the set of roles corresponding to the user
+        rank_role = discord.utils.get(portables.roles, id=self.bot.config['rankRole']) if portables else None
+        if rank_role in (member.roles if member else []): # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
-            name = get_rsn(member) # and get the name of the user
+            name = get_rsn(member) if member else '' # and get the name of the user
 
         timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         if input.replace('/', '').replace(' ', '') in ['NA', 'NO', 'NONE', '0', 'ZERO']: # if input was 'N/A' or a variation, remove all locations and return
-            await update_sheet(self.bot.agcm, col, 'N/A', timestamp, name, is_rank)
+            await self.update_sheet(col, 'N/A', timestamp, name, is_rank)
             await ctx.send(f'The **{portable}** locations have been edited to: **N/A**.')
             return
 
@@ -1293,24 +1067,24 @@ class Portables(Cog):
         if not new_ports: # if there were no portables, return
             raise commands.CommandError(message=f'Invalid argument: `location`.')
 
-        ports = await get_port_row(self.bot.agcm) # get the row of portable locations from sheets
-        old_val = ports[col-1]
-        ports[col-1] = "" # set value for our portable type to empty
-        for i, p in enumerate(ports): # for each portable, get the set of portable locations
-            ports[i] = get_ports(p)
+        ports_row = await self.get_port_row() # get the row of portable locations from sheets
+        old_val = ports_row[col-1]
+        ports: list[list[tuple[list[int], str]]] = []
+        for i, p in enumerate(ports_row): # for each portable, get the set of portable locations
+            ports[i] = get_ports(p) if p else []
 
         error = check_ports(new_ports, ports) # check for errors in the set of portables
         if error: # if there was an error, send the error message and return
             raise commands.CommandError(message=error)
 
         new_val = format(new_ports) # create a string corresponding
-        new_ports_text = new_val.replace('*', '\*') # in the text for the discord message, escape the stars for formatting issues
+        new_ports_text = new_val.replace('*', '\\*') # in the text for the discord message, escape the stars for formatting issues
 
         # if no change, raise an error
         if new_val == old_val:
             raise commands.CommandError(message=f'The `{portable}` locations were already set to `{new_val}`.')
 
-        await update_sheet(self.bot.agcm, col, new_val, timestamp, name, is_rank) # update the sheet
+        await self.update_sheet(col, new_val, timestamp, name, is_rank) # update the sheet
 
         await ctx.send(f'The **{portable}** locations have been edited to: **{new_ports_text}**.') # send confirmation message
 
@@ -1323,7 +1097,7 @@ class Portables(Cog):
         Surround names containing spaces with quotation marks, e.g.: "name with spaces".
         Constraints: name must be a valid RSN.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         if not name:
@@ -1362,7 +1136,7 @@ class Portables(Cog):
         username = ctx.author.display_name
         username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
         count = 1
-        for player in watchlist:
+        for player in [watched for watched in watchlist if watched]:
             if name.upper() == player.upper():
                 count += 1
         row = header_rows + len(watchlist) + 1
@@ -1379,7 +1153,7 @@ class Portables(Cog):
         Notes rank activity on admin sheets (Admin+) (Portables only).
         Arguments: name
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         user = ctx.author
@@ -1404,7 +1178,7 @@ class Portables(Cog):
         month = datetime.now(UTC).strftime("%B")
         sheet_month_cell = await sheet.cell(3, 1)
         sheet_month = sheet_month_cell.value
-        if month.upper().strip() != sheet_month.upper().strip():
+        if sheet_month and month.upper().strip() != sheet_month.upper().strip():
             raise commands.CommandError(message=f'Error: `admin_sheet_month`. Please wait for a Leader to perform this month\'s rank changes.')
         ranks = await sheet.col_values(1)
         ranks = ranks[header_rows:]
@@ -1415,7 +1189,7 @@ class Portables(Cog):
         timestamp = datetime.now(UTC).strftime("%#d")
         row = 0
         for i, rank in enumerate(ranks):
-            if rank in rank_titles:
+            if not rank or rank in rank_titles:
                 continue
             if name.upper() == rank.upper():
                 row = i + header_rows + 1
@@ -1423,7 +1197,7 @@ class Portables(Cog):
                 break
         if not row:
             for i, rank in enumerate(ranks):
-                if rank in rank_titles:
+                if not rank or rank in rank_titles:
                     continue
                 if name.upper() in rank.upper():
                     row = i + header_rows + 1
@@ -1447,7 +1221,7 @@ class Portables(Cog):
         Notes rank sheet activity on admin sheets (Admin+) (Portables only).
         Arguments: name
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
         user = ctx.author
@@ -1483,7 +1257,7 @@ class Portables(Cog):
         timestamp = datetime.now(UTC).strftime("%#d")
         row = 0
         for i, rank in enumerate(ranks):
-            if rank in rank_titles:
+            if not rank or rank in rank_titles:
                 continue
             if name.upper() == rank.upper():
                 row = i + header_rows + 1
@@ -1491,7 +1265,7 @@ class Portables(Cog):
                 break
         if not row:
             for i, rank in enumerate(ranks):
-                if rank in rank_titles:
+                if not rank or rank in rank_titles:
                     continue
                 if name.upper() in rank.upper():
                     row = i + header_rows + 1
@@ -1513,5 +1287,5 @@ class Portables(Cog):
         await ctx.send(f'**{name}** has been noted as active on sheets for **{timestamp}** **{datetime.now(UTC).strftime("%b")}**.')
 
 
-async def setup(bot: Bot):
-    await bot.add_cog(Sheets(bot))
+async def setup(bot: Bot) -> None:
+    await bot.add_cog(Portables(bot))
