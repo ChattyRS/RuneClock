@@ -1,7 +1,7 @@
 import discord
 from discord.ext import tasks
 from discord.ext.commands import Cog
-from bot import Bot
+from src.bot import Bot
 import asyncio
 from datetime import datetime, timedelta, UTC
 import logging
@@ -10,15 +10,15 @@ from sqlalchemy import select
 from aiohttp import ClientResponse
 import feedparser
 import io
-from message_queue import QueueMessage
-from database import Guild, Mute, Repository, Notification, Poll, NewsPost, RS3Item, OSRSItem, Uptime
+from src.message_queue import QueueMessage
+from src.database import Guild, Mute, Repository, Notification, Poll, NewsPost, RS3Item, OSRSItem, Uptime
 from github.Commit import Commit
 from github.Repository import Repository as GitRepository
 from github.AuthenticatedUser import AuthenticatedUser
 from github.NamedUser import NamedUser
 from github.PaginatedList import PaginatedList
-from runescape_utils import prif_districts
-from discord_utils import get_text_channel, find_text_channel, find_guild_text_channel, get_guild_text_channel
+from src.runescape_utils import prif_districts
+from src.discord_utils import get_text_channel, find_text_channel, find_guild_text_channel, get_guild_text_channel
 
 class BackgroundTasks(Cog):
     notification_state_initialized: bool = False
@@ -572,11 +572,11 @@ class BackgroundTasks(Cog):
                         for price in graph_data['daily'].values():
                             prices.append(price)
                         
-                        current: str = prices[len(prices) - 1]
-                        yesterday: str = prices[len(prices) - 2]
-                        month_ago: str = prices[len(prices) - 31]
-                        three_months_ago: str = prices[len(prices) - 91]
-                        half_year_ago: str = prices[0]
+                        current: str = str(prices[len(prices) - 1])
+                        yesterday: str = str(prices[len(prices) - 2])
+                        month_ago: str = str(prices[len(prices) - 31])
+                        three_months_ago: str = str(prices[len(prices) - 91])
+                        half_year_ago: str = str(prices[0])
 
                         today = str(int(current) - int(yesterday))
                         day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
@@ -647,11 +647,11 @@ class BackgroundTasks(Cog):
                         for price in graph_data['daily'].values():
                             prices.append(price)
                         
-                        current: str = prices[len(prices) - 1]
-                        yesterday: str = prices[len(prices) - 2]
-                        month_ago: str = prices[len(prices) - 31]
-                        three_months_ago: str = prices[len(prices) - 91]
-                        half_year_ago: str = prices[0]
+                        current: str = str(prices[len(prices) - 1])
+                        yesterday: str = str(prices[len(prices) - 2])
+                        month_ago: str = str(prices[len(prices) - 31])
+                        three_months_ago: str = str(prices[len(prices) - 91])
+                        half_year_ago: str = str(prices[0])
 
                         today = str(int(current) - int(yesterday))
                         day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'

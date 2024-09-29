@@ -3,14 +3,14 @@ import discord
 from discord import SelectOption, app_commands, TextStyle
 from discord.ext.commands import Cog
 from sqlalchemy import select
-from bot import Bot
-from database import ClanBankTransaction, Guild
+from src.bot import Bot
+from src.database import ClanBankTransaction, Guild
 from datetime import datetime, UTC
-from runescape_utils import max_cash
-from graphics import get_coins_image
+from src.runescape_utils import max_cash
+from src.graphics import get_coins_image
 import traceback
-from database_utils import get_db_guild
-from number_utils import is_int
+from src.database_utils import get_db_guild
+from src.number_utils import is_int
 
 class Dropdown(discord.ui.Select):
     def __init__(self, bot: Bot, options: list[SelectOption]) -> None:
@@ -34,7 +34,7 @@ class Dropdown(discord.ui.Select):
             return
         
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, interaction.guild.id, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild.id, session)
             guild.bank_role_id = role.id
             await session.commit()
             
@@ -230,7 +230,7 @@ class ClanBank(Cog):
             await interaction.response.send_message(f'This command can only be used in a server', ephemeral=True)
             return
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            guild: Guild = await get_db_guild(self.bot, interaction.guild)
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
             bank_role = None
             if guild.bank_role_id:
                 bank_role: discord.Role | None = interaction.guild.get_role(guild.bank_role_id)

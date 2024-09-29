@@ -4,15 +4,15 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import select
-from bot import Bot
-from database import Poll
+from src.bot import Bot
+from src.database import Poll
 import random
 from datetime import datetime, timedelta, UTC
 from operator import attrgetter
-from number_utils import is_int
+from src.number_utils import is_int
 import validators
-from date_utils import months
-from discord_utils import get_guild_text_channel
+from src.date_utils import months
+from src.discord_utils import get_guild_text_channel
 
 rps: list[str] = ['Rock', 'Paper', 'Scissors']
 rps_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']

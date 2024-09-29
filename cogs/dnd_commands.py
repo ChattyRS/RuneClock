@@ -4,11 +4,10 @@ import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 import copy
-from bot import Bot
+from src.bot import Bot
 from datetime import datetime, timedelta, UTC
-from configuration import item_emojis
-from runescape_utils import prif_districts, wilderness_flash_events
-from date_utils import timedelta_to_string
+from src.runescape_utils import prif_districts, wilderness_flash_events, item_emojis
+from src.date_utils import timedelta_to_string
 import praw
 import math
 from bs4 import BeautifulSoup, NavigableString, Tag

@@ -2,9 +2,9 @@ import logging
 from typing import Sequence
 import discord
 from discord.ext.commands import Cog
-from database_utils import purge_guild
-from bot import Bot
-from database import Guild, BannedGuild
+from src.database_utils import purge_guild
+from src.bot import Bot
+from src.database import Guild, BannedGuild
 from sqlalchemy import select
 
 class Servers(Cog):

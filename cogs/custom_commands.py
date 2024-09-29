@@ -3,13 +3,13 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, CommandError, Context
 from sqlalchemy import select
-from bot import Bot
-from database import Command
+from src.bot import Bot
+from src.database import Command
 import re
-from checks import is_admin
-from number_utils import is_int
-from discord_utils import get_custom_command
-from database_utils import get_custom_db_commands, find_custom_db_command
+from src.checks import is_admin
+from src.number_utils import is_int
+from src.discord_utils import get_custom_command
+from src.database_utils import get_custom_db_commands, find_custom_db_command
 
 class CustomCommands(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -116,7 +116,7 @@ class CustomCommands(Cog):
         if not ctx.invoked_with or not ctx.guild or not isinstance(ctx.channel, discord.TextChannel) or not isinstance(ctx.author, discord.Member):
             raise CommandError(message=f'Could not find the guild, channel, or alias that was used to invoke the command. This is unexpected.')
         alias: str = ctx.invoked_with.lower()
-        custom_db_command: Command | None = await find_custom_db_command(self.bot, ctx.guild, alias)
+        custom_db_command: Command | None = await find_custom_db_command(self.bot.async_session, ctx.guild, alias)
         if not custom_db_command:
             return
         
@@ -287,7 +287,7 @@ class CustomCommands(Cog):
         self.bot.increment_command_counter()
 
         embed = discord.Embed(title='Commands')
-        custom_commands: Sequence[Command] = await get_custom_db_commands(self.bot, ctx.guild)
+        custom_commands: Sequence[Command] = await get_custom_db_commands(self.bot.async_session, ctx.guild)
 
         if not custom_commands:
             raise CommandError(message=f'This server does not have any custom commands.')
@@ -339,7 +339,7 @@ class CustomCommands(Cog):
         description_str: str = ' '.join(description)
 
         async with self.bot.async_session() as session:
-            custom_command: Command | None = await find_custom_db_command(self.bot, ctx.guild, command, session)
+            custom_command: Command | None = await find_custom_db_command(self.bot.async_session, ctx.guild, command, session)
             if not custom_command:
                 raise CommandError(message=f'Error: no such command: `{command}`.')
 
@@ -366,7 +366,7 @@ class CustomCommands(Cog):
         
         msg: str = ''
         async with self.bot.async_session() as session:
-            custom_db_command: Command | None = await find_custom_db_command(self.bot, ctx.guild, command, session)
+            custom_db_command: Command | None = await find_custom_db_command(self.bot.async_session, ctx.guild, command, session)
             if not custom_db_command:
                 raise CommandError(message=f'Error: no such command: `{command}`.')
 

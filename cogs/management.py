@@ -12,8 +12,8 @@ from github.Commit import Commit
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet
 from numpy import ndarray
 from sqlalchemy import select, func
-from bot import Bot
-from database import Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
+from src.bot import Bot
+from src.database import Guild, Uptime, Command, Repository, RS3Item, OSRSItem, BannedGuild
 from datetime import datetime, timedelta, UTC
 import psutil
 from pathlib import Path
@@ -23,19 +23,18 @@ import inspect
 from contextlib import redirect_stdout
 import io
 import itertools
-from checks import is_owner, is_admin
-from message_queue import QueueMessage
-from number_utils import is_int
+from src.checks import is_owner, is_admin
+from src.message_queue import QueueMessage
+from src.number_utils import is_int
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
-from date_utils import timedelta_to_string, uptime_fraction
-from string_utils import remove_code_blocks
-from exception_utils import format_syntax_error
-from discord_utils import find_guild_text_channel, find_text_channel_by_name, get_custom_command, get_guild_text_channel, get_text_channel_by_name
-from database_utils import find_custom_db_command, get_db_guild, find_osrs_item_by_id, get_osrs_item_by_id
-from database_utils import find_rs3_item_by_id, get_rs3_item_by_id
+from src.date_utils import timedelta_to_string, uptime_fraction
+from src.string_utils import remove_code_blocks
+from src.exception_utils import format_syntax_error
+from src.discord_utils import find_guild_text_channel, find_text_channel_by_name, get_custom_command, get_guild_text_channel, get_text_channel_by_name
+from src.database_utils import find_custom_db_command, get_db_guild, find_osrs_item_by_id, get_osrs_item_by_id, find_rs3_item_by_id, get_rs3_item_by_id
 
 class Management(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -50,7 +49,7 @@ class Management(Cog):
         '''
         Function to send welcome messages
         '''
-        guild: Guild = await get_db_guild(self.bot, member.guild)
+        guild: Guild = await get_db_guild(self.bot.async_session, member.guild)
 
         if not guild.welcome_message or not guild.welcome_channel_id:
             return
@@ -71,7 +70,7 @@ class Management(Cog):
         Give a command or command category as argument for more specific help.
         '''
         self.bot.increment_command_counter()
-        guild: Guild = await get_db_guild(self.bot, ctx.guild)
+        guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild)
 
         extension: str
 
@@ -84,7 +83,7 @@ class Management(Cog):
                 else:
                     extension = command
             elif cmd == custom_command:
-                db_cmd: Command | None = await find_custom_db_command(self.bot, ctx.guild, command)
+                db_cmd: Command | None = await find_custom_db_command(self.bot.async_session, ctx.guild, command)
                 if not db_cmd:
                     raise commands.CommandError(message=f'Invalid argument: `{command}`.')
                 alias_str: str = ' | '.join(db_cmd.aliases) if db_cmd.aliases else ''
@@ -205,7 +204,7 @@ class Management(Cog):
             channel = get_text_channel_by_name(ctx.guild, channel_name)
         else:
             async with self.bot.async_session() as session:
-                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
                 if not guild.welcome_channel_id and not guild.welcome_message:
                     await ctx.send(f'Please mention the channel in which you would like to receive welcome messages.')
                     return
@@ -216,7 +215,7 @@ class Management(Cog):
                 return
 
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
             guild.welcome_channel_id = channel.id
             guild.welcome_message = msg
             await session.commit()
@@ -251,7 +250,7 @@ class Management(Cog):
             channel = get_text_channel_by_name(ctx.guild, channel_name)
         else:
             async with self.bot.async_session() as session:
-                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
                 if not guild.log_channel_id:
                     await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
                     return
@@ -261,7 +260,7 @@ class Management(Cog):
                 return
         
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
             guild.log_channel_id = channel.id
             await session.commit()
 
@@ -276,7 +275,7 @@ class Management(Cog):
         self.bot.increment_command_counter()
 
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
             guild.log_bots = False if guild.log_bots else True
             await session.commit()
             await ctx.send(f'Bot message deletion and edit logging {"enabled" if guild.log_bots else "disabled"}.')
@@ -297,7 +296,7 @@ class Management(Cog):
             raise commands.CommandError(message=f'Invalid argument: `{cmd}`.')
         
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
 
             if guild.disabled_commands is None:
                 guild.disabled_commands = [cmd]
@@ -325,7 +324,7 @@ class Management(Cog):
             raise commands.CommandError(message=f'This command can only be used from a server.')
 
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
             guild.prefix = prefix
             await session.commit()
         
@@ -879,7 +878,7 @@ class Management(Cog):
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        item: OSRSItem | None = await find_osrs_item_by_id(self.bot, id)
+        item: OSRSItem | None = await find_osrs_item_by_id(self.bot.async_session, id)
         if item:
             raise commands.CommandError(message=f'Item {item.name} with ID {item.id} is already in the database.')
 
@@ -954,7 +953,7 @@ class Management(Cog):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
         async with self.bot.async_session() as session:
-            item: OSRSItem = await get_osrs_item_by_id(self.bot, id, session)
+            item: OSRSItem = await get_osrs_item_by_id(self.bot.async_session, id, session)
             await session.delete(item)
             await session.commit()
 
@@ -972,7 +971,7 @@ class Management(Cog):
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        item: RS3Item | None = await find_rs3_item_by_id(self.bot, id)
+        item: RS3Item | None = await find_rs3_item_by_id(self.bot.async_session, id)
         if item:
             raise commands.CommandError(message=f'Item {item.name} with ID {item.id} is already in the database.')
 
@@ -1047,7 +1046,7 @@ class Management(Cog):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
         async with self.bot.async_session() as session:
-            item: RS3Item = await get_rs3_item_by_id(self.bot, id, session)
+            item: RS3Item = await get_rs3_item_by_id(self.bot.async_session, id, session)
             await session.delete(item)
             await session.commit()
 

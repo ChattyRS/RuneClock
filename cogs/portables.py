@@ -3,17 +3,17 @@ import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
-from bot import Bot
+from src.bot import Bot
 from datetime import datetime, timedelta, UTC
 import re
 import validators
 import gspread
-from checks import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
+from src.checks import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 import logging
-from discord_utils import find_text_channel, get_guild_text_channel, get_text_channel
-from runescape_utils import get_rsn
-from portables_utils import portables_names, portables_names_upper, portable_aliases, rank_titles, get_ports, only_f2p, add_ports, remove_ports, format, check_ports
-from discord.abc import MessageableChannel
+from src.discord_utils import find_text_channel, get_guild_text_channel, get_text_channel
+from src.runescape_utils import get_rsn
+from src.portables_utils import portables_names, portables_names_upper, portable_aliases, rank_titles, get_ports, only_f2p, add_ports, remove_ports, format, check_ports
+from discord.abc import GuildChannel
 
 class Portables(Cog):
     last_ports: list[gspread.Cell] | None = None
@@ -84,7 +84,7 @@ class Portables(Cog):
             elif i == len(errors)-1:
                 await sheet.insert_row(values, i+2)
 
-    def get_port_type(self, input: str, channel: MessageableChannel | None = None) -> tuple[str, int]:
+    def get_port_type(self, input: str, channel: GuildChannel | None = None) -> tuple[str, int]:
         '''
         Get the portable type from the input string.
 
@@ -768,6 +768,10 @@ class Portables(Cog):
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
         self.bot.increment_command_counter()
+
+        if not isinstance(ctx.channel, GuildChannel):
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+
         await ctx.channel.typing() # send 'typing...' status
 
         portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
@@ -858,6 +862,10 @@ class Portables(Cog):
         Constraints: This command can only be used in the locations channel. Only approved locations, and worlds are allowed. Additionally, worlds must be a valid world. No more than 3 portables per location.
         """
         self.bot.increment_command_counter() # increment global commands counter
+
+        if not isinstance(ctx.channel, GuildChannel):
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+        
         await ctx.channel.typing() # send 'typing...' status
 
         portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])

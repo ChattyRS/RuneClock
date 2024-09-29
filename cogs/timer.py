@@ -2,14 +2,13 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
 import asyncio
-
 from sqlalchemy import select
-from bot import Bot
-from database import User
+from src.bot import Bot
+from src.database import User
 from datetime import datetime, timedelta, UTC
-from date_utils import timedelta_to_string, string_to_timezone
+from src.date_utils import timedelta_to_string, string_to_timezone
 import pytz
-from number_utils import is_int
+from src.number_utils import is_int
 from pytz.tzinfo import StaticTzInfo, DstTzInfo
 
 class Timer(Cog):

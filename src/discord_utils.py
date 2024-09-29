@@ -1,7 +1,6 @@
-from bot import Bot
 from discord import Embed, Guild, Role, TextChannel, Thread
 from discord.abc import GuildChannel, PrivateChannel
-from discord.ext.commands import Command, CommandError, Context
+from discord.ext.commands import Command, CommandError, Context, AutoShardedBot as Bot
 
 max_message_length: int = 2000
 max_embed_description_length: int = 4096

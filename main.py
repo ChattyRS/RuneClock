@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from bot import Bot
+from src.bot import Bot
 
 async def run() -> None:
     bot: Bot = Bot()

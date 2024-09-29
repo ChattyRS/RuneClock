@@ -6,17 +6,17 @@ from discord import Member, TextChannel, app_commands, TextStyle
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
-from bot import Bot
-from database import Guild
+from src.bot import Bot
+from src.database import Guild
 from datetime import datetime, timedelta, UTC
 import re
 import gspread
 import traceback
-from database_utils import find_db_guild
-from discord_utils import find_guild_text_channel, get_guild_text_channel, get_text_channel
-from number_utils import is_int
-from checks import obliterate_only, obliterate_mods
-from configuration import config
+from src.database_utils import find_db_guild
+from src.discord_utils import find_guild_text_channel, get_guild_text_channel, get_text_channel
+from src.number_utils import is_int
+from src.checks import obliterate_only, obliterate_mods
+from src.configuration import config
 
 ranks: list[str] = ['Bronze', 'Iron', 'Steel', 'Mithril', 'Adamant', 'Rune']
 
@@ -524,7 +524,7 @@ class Obliterate(Cog):
         if not after.id in [member.id for member in obliterate.members]:
             return
         
-        guild: Guild | None = await find_db_guild(self.bot, obliterate)
+        guild: Guild | None = await find_db_guild(self.bot.async_session, obliterate)
         if not guild or not guild.log_channel_id:
             return
         
@@ -655,8 +655,8 @@ class Obliterate(Cog):
             return
         await interaction.response.send_modal(NameChangeModal(self.bot, member))
 
-    @appreciate.autocomplete('member')
-    @namechange.autocomplete('member')
+    @appreciate.autocomplete('member_id')
+    @namechange.autocomplete('member_id')
     async def member_autocomplete(
         self,
         interaction: discord.Interaction,

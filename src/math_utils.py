@@ -5,8 +5,7 @@ import re
 from typing import Any
 import numpy as np
 import sympy
-from math_constants import numeric, pi, alpha, delta, theta, tau, phi, gamma, lambda_var, psi, rho, e, i, inf # unused constants may be accessed through the use of 'eval'
-from math_utils import numeric, pattern_math, legal_math, pattern_graph, legal_graph, pattern_solve, legal_solve
+from src.math_constants import numeric, pi, alpha, delta, theta, tau, phi, gamma, lambda_var, psi, rho, e, i, inf # unused constants may be accessed through the use of 'eval'
 
 pattern_math: str = r'(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)(?<!cos)(?<!tan)(?<!round)(?<!abs)(?<!inf)(?<!x)(?<!sum)(?<!product)(?<!wrap_fn)\('
 legal_math: list[str] = ['log', 'sqrt', 'floor', 'ceil', 'sin', 'cos', 'tan', 'round', 'abs', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'i', 'inf', 'mod', 'x', 'sum', 'product']
@@ -14,8 +13,6 @@ pattern_graph: str = r'(?<=[0-9a-z])(?<!log)(?<!sqrt)(?<!floor)(?<!ceil)(?<!sin)
 legal_graph: list[str] = ['log', 'sqrt', 'floor', 'ceil', 'sin', 'cos', 'tan', 'round', 'abs', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'mod', 'x']
 pattern_solve: str = r'(?<=[0-9a-zA-Z])(?<!log)(?<!sqrt)(?<!sin)(?<!cos)(?<!tan)(?<!x)\('
 legal_solve: list[str] = ['log', 'sqrt', 'sin', 'cos', 'tan', 'pi', 'alpha', 'delta', 'theta', 'tau', 'phi', 'gamma', 'lambda', 'psi', 'rho', 'e', 'x', 'i']
-
-
 
 def calcsum(start: int, end: int, f: str | Any) -> numeric:
     '''

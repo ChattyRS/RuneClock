@@ -4,17 +4,17 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import select
-from bot import Bot
-from database import Guild, Notification, OnlineNotification
+from src.bot import Bot
+from src.database import Guild, Notification, OnlineNotification
 from datetime import datetime, timedelta, UTC
-from database_utils import get_db_guild
-from discord_utils import find_text_channel, get_guild_text_channel, get_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
-from message_queue import QueueMessage
-from number_utils import is_int
-from checks import is_admin
-from runescape_utils import dnd_names
+from src.database_utils import get_db_guild
+from src.discord_utils import find_text_channel, get_guild_text_channel, get_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
+from src.message_queue import QueueMessage
+from src.number_utils import is_int
+from src.checks import is_admin
+from src.runescape_utils import dnd_names
 from discord.abc import GuildChannel
-from date_utils import parse_datetime_string, parse_timedelta_string
+from src.date_utils import parse_datetime_string, parse_timedelta_string
 
 class Notifications(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -95,7 +95,7 @@ class Notifications(Cog):
         if user.bot:
             return
 
-        guild: Guild = await get_db_guild(self.bot, channel.guild)
+        guild: Guild = await get_db_guild(self.bot.async_session, channel.guild)
         if guild.role_channel_id != channel.id:
             return
         
@@ -125,7 +125,7 @@ class Notifications(Cog):
         if user.bot:
             return
         
-        guild: Guild = await get_db_guild(self.bot, channel.guild)
+        guild: Guild = await get_db_guild(self.bot.async_session, channel.guild)
         if guild.role_channel_id != channel.id:
             return
 
@@ -156,7 +156,7 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'This command can only be used in a server.')
         
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
 
             if not channel and not guild.rs3_news_channel_id:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')
@@ -186,7 +186,7 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'This command can only be used in a server.')
         
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
 
             if not channel and not guild.osrs_news_channel_id:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')
@@ -225,7 +225,7 @@ class Notifications(Cog):
                     raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
         
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
 
             if not channel and not guild.notification_channel_id:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')

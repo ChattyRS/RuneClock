@@ -7,19 +7,19 @@ import sys
 from typing import Any
 import discord
 from discord.ext import commands
-from configuration import get_config
-from auth_utils import get_google_sheets_credentials
+from src.configuration import get_config
+from src.auth_utils import get_google_sheets_credentials
 import string
 from aiohttp import ClientSession, ClientTimeout
 import gspread_asyncio
 import traceback
 from github import Github
-from message_queue import QueueMessage, MessageQueue
-from database import Guild, Uptime
-from database import get_db_engine, get_db_session_maker, create_all_database_tables
+from src.message_queue import QueueMessage, MessageQueue
+from src.database import Guild, Uptime
+from src.database import get_db_engine, get_db_session_maker, create_all_database_tables
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-from discord_utils import find_text_channel
-from database_utils import get_db_guild, find_or_create_db_guild
+from src.discord_utils import find_text_channel
+from src.database_utils import get_db_guild, find_or_create_db_guild
 from praw import Reddit
 
 class Bot(commands.AutoShardedBot):
@@ -94,9 +94,10 @@ class Bot(commands.AutoShardedBot):
     
     async def setup_hook(self) -> None:
         '''
-        Creates a task to initialize / setup the bot.
+       Initializes the bot.
         '''
         self.loop.create_task(self.initialize())
+        self.loop.create_task(self.message_queue.send_queued_messages())
 
     def restart(self) -> None:
         '''
@@ -114,9 +115,15 @@ class Bot(commands.AutoShardedBot):
 
         print('Setting up database connection...')
 
-        self.engine = get_db_engine(self.config)
-        self.async_session = get_db_session_maker(self.engine)
-        await create_all_database_tables(self.engine)
+        try:
+            self.engine = get_db_engine(self.config)
+            self.async_session = get_db_session_maker(self.engine)
+            await create_all_database_tables(self.engine)
+        except Exception as e:
+            error: str = f'Error encountered while setting up database: \n{type(e).__name__}: {e}'
+            logging.critical(error)
+            print(error)
+            raise e
 
         print('Database ready!')
 
@@ -125,49 +132,31 @@ class Bot(commands.AutoShardedBot):
         Initializes the bot.
         '''
         print(f'Initializing...')
-        await asyncio.sleep(10) # Wait to ensure database is running on boot
 
         await self.setup_database()
-
-        await asyncio.sleep(5) # Ensure database is up before we continue
 
         async with self.async_session() as session:
             session.add(Uptime(time=self.start_time, status='started'))
             await session.commit()
-
-        self.loop.create_task(self.load_all_extensions())
 
         print(f'Loading Discord...')
 
         await self.wait_until_ready()
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='@RuneClock help'))
 
+        await self.load_all_extensions()
+
         channel: discord.TextChannel | None = find_text_channel(self, self.config['testChannel'])
         self.app_info = await self.application_info()
-        msg = (f'Logged in to Discord as: {self.user.name if self.user else "???"}\n'
+        msg: str = (f'Logged in to Discord as: {self.user.name if self.user else "???"}\n'
             f'Using Discord.py version: {discord.__version__}\n'
             f'Owner: {self.app_info.owner}\n'
             f'Time: {str(self.start_time)} UTC')
         print(msg)
         print('-' * 10)
         logging.critical(msg)
-
-        if self.start_time:
-            # If there is already a start time, we may just be reconnecting instead of starting.
-            # In such cases, we want to avoid starting duplicate instances of the background tasks
-            # Hence, we only start background tasks if the start time was in the past 5 minutes.
-            if self.start_time > datetime.now(UTC) - timedelta(minutes=5):
-                if channel:
-                    self.queue_message(QueueMessage(channel, msg))
-                self.start_background_tasks()
-        else:
-            self.start_background_tasks()
-
-    def start_background_tasks(self) -> None:
-        '''
-        Starts the background tasks.
-        '''
-        self.loop.create_task(self.message_queue.send_queued_messages())
+        if channel:
+            self.queue_message(QueueMessage(channel, msg))
 
     def queue_message(self, message: QueueMessage) -> None:
         '''
@@ -203,7 +192,7 @@ class Bot(commands.AutoShardedBot):
         Returns:
             List[str]: list of prefixes
         '''
-        guild: Guild = await get_db_guild(self, message.guild)
+        guild: Guild = await get_db_guild(self.async_session, message.guild)
         prefix: str = guild.prefix if guild.prefix else '-'
         return commands.when_mentioned_or(prefix)(bot, message)
 
@@ -250,7 +239,7 @@ class Bot(commands.AutoShardedBot):
         if message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
         
-        guild: Guild = await find_or_create_db_guild(self, message.guild)
+        guild: Guild = await find_or_create_db_guild(self.async_session, message.guild)
 
         if guild.delete_channel_ids and message.channel.id in guild.delete_channel_ids and not message.author.id == message.guild.me.id:
             await message.delete()

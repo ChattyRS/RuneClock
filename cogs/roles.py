@@ -4,15 +4,15 @@ from discord import Emoji, app_commands
 from discord.ext import commands
 from discord.ext.commands import Cog, CommandError
 from sqlalchemy import select
-from bot import Bot
-from database import Guild, Role
+from src.bot import Bot
+from src.database import Guild, Role
 import random
-from checks import is_admin
-from database_utils import get_db_guild
-from discord_utils import send_lines_over_multiple_embeds
-from number_utils import is_int
+from src.checks import is_admin
+from src.database_utils import get_db_guild
+from src.discord_utils import send_lines_over_multiple_embeds
+from src.number_utils import is_int
 import re
-from runescape_utils import dnd_names
+from src.runescape_utils import dnd_names
 
 class Roles(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -34,7 +34,7 @@ class Roles(Cog):
 
         if not channel:
             async with self.bot.async_session() as session:
-                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
                 if not guild.role_channel_id:
                     raise commands.CommandError(message=f'Required argument missing: `channel`.')
                 guild.role_channel_id = None
@@ -71,7 +71,7 @@ class Roles(Cog):
             raise commands.CommandError(message=f'Missing permissions: `send_message / add_reaction`.')
         
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
             guild.role_channel_id = channel.id
             await session.commit()
 

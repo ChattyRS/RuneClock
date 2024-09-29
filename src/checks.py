@@ -1,7 +1,7 @@
 from discord.ext.commands import Context, check, CommandError
 from discord.ext.commands._types import Check
 from discord import Member, Guild, Role
-from bot import Bot
+from src.bot import Bot
 
 def is_owner() -> Check[Context[Bot]]:
     async def predicate(ctx: Context[Bot]) -> bool:

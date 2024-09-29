@@ -1,10 +1,10 @@
 from datetime import UTC, date, datetime, timedelta
 import pytz
-from database import Uptime
+from src.database import Uptime
 from typing import Sequence
 from discord.ext.commands import CommandError
-from number_utils import is_int
-from localization import countries
+from src.number_utils import is_int
+from src.localization import countries
 
 months: list[str] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 

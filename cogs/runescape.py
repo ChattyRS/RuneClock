@@ -7,8 +7,8 @@ from imageio.core.util import Array
 from matplotlib.axis import Tick
 from matplotlib.text import Text
 from sqlalchemy import select
-from bot import Bot
-from database import User, NewsPost, RS3Item, OSRSItem
+from src.bot import Bot
+from src.database import User, NewsPost, RS3Item, OSRSItem
 import re
 from datetime import datetime, timedelta, UTC
 import matplotlib.pyplot as plt
@@ -17,19 +17,19 @@ import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 import math
 from bs4 import BeautifulSoup, NavigableString, Tag
-from number_utils import is_int, is_float, format_float
-from runescape_utils import xp_to_level, level_to_xp, combat_level, osrs_combat_level
-from runescape_utils import skills_07, osrs_skill_emojis, skills_rs3, rs3_skill_emojis
-from runescape_utils import skill_indices, skill_indices_rs3, cb_indices_rs3, cb_indices_osrs
-from runescape_utils import araxxor, vorago, rots
-from graphics import draw_num, draw_outline_osrs, draw_outline_rs3
+from src.number_utils import is_int, is_float, format_float
+from src.runescape_utils import xp_to_level, level_to_xp, combat_level, osrs_combat_level
+from src.runescape_utils import skills_07, osrs_skill_emojis, skills_rs3, rs3_skill_emojis
+from src.runescape_utils import skill_indices, skill_indices_rs3, cb_indices_rs3, cb_indices_osrs
+from src.runescape_utils import araxxor, vorago, rots
+from src.graphics import draw_num, draw_outline_osrs, draw_outline_rs3
 import io
 import imageio
 import copy
 import numpy as np
 import random
 from praw.reddit import Subreddit, Submission
-from graphics import yellow, orange, white, green, red
+from src.graphics import yellow, orange, white, green, red
 
 class Runescape(Cog):
     vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.now(UTC), description='Today\'s vis wax combo has not been released yet.')

@@ -4,14 +4,14 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
 from sqlalchemy import select
-from bot import Bot
-from database import Mute, Guild
+from src.bot import Bot
+from src.database import Mute, Guild
 from datetime import datetime, timedelta, UTC
-from converters import RoleConverter
-from database_utils import get_db_guild
-from discord_utils import get_guild_text_channel
-from number_utils import is_int
-from checks import is_admin
+from src.converters import RoleConverter
+from src.database_utils import get_db_guild
+from src.discord_utils import get_guild_text_channel
+from src.number_utils import is_int
+from src.checks import is_admin
 from discord.abc import GuildChannel
 
 class ModCommands(Cog):
@@ -36,7 +36,7 @@ class ModCommands(Cog):
 
         if not public and not private:
             async with self.bot.async_session() as session:
-                guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+                guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
                 guild.modmail_public = None
                 guild.modmail_private = None
                 await session.commit()
@@ -49,7 +49,7 @@ class ModCommands(Cog):
         public, private = ctx.message.channel_mentions[0], ctx.message.channel_mentions[1]
 
         async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot, ctx.guild, session)
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
             guild.modmail_public = public.id
             guild.modmail_private = private.id
             await session.commit()
@@ -67,7 +67,7 @@ class ModCommands(Cog):
         if message.author.bot or message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
         try:
-            guild: Guild = await get_db_guild(self.bot, message.guild)
+            guild: Guild = await get_db_guild(self.bot.async_session, message.guild)
         except:
             return
         if guild and guild.modmail_public and guild.modmail_private and message.channel.id == guild.modmail_public:

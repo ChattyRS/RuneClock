@@ -3,17 +3,17 @@ from typing import Any
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from bot import Bot
+from src.bot import Bot
 import sys
 import re
 import matplotlib.pyplot as plt
 import numpy as np
-from number_utils import is_int, is_float, format_float
-from unit_conversion_utils import units, unit_aliases, get_alias
+from src.number_utils import is_int, is_float, format_float
+from src.unit_conversion_utils import units, unit_aliases, get_alias
 import io
 import multiprocessing
-from math_constants import numeric
-from math_utils import calculate, format_input, format_output, prettify_input, solve_for_x, plot_func
+from src.math_constants import numeric
+from src.math_utils import calculate, format_input, format_output, prettify_input, solve_for_x, plot_func
 
 np.seterr(all='raise')
 

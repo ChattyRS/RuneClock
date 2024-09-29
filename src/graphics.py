@@ -2,7 +2,7 @@ from io import BytesIO
 from imageio import imread as read_image, imwrite as write_image
 from imageio.core.util import Array
 from discord import File
-from number_utils import is_int
+from src.number_utils import is_int
 
 zero_digit: list[list[int]] =  [
     [0, 1, 1, 1, 0],

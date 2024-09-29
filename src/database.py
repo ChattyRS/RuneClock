@@ -47,7 +47,7 @@ class Role(Base):
     __table_args__ = (
         PrimaryKeyConstraint('guild_id', 'name', name='role_pkey'),
     )
-    guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    guild_id: Mapped[int] = mapped_column(BigInteger)
     name: Mapped[str] = mapped_column(String)
     role_id: Mapped[int] = mapped_column(BigInteger)
 
@@ -58,7 +58,7 @@ class Mute(Base):
     )
     guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
     user_id: Mapped[int] = mapped_column(BigInteger)
-    expiration: Mapped[datetime] = mapped_column(DateTime)
+    expiration: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     reason: Mapped[str] = mapped_column(String)
 
 class Command(Base):
@@ -91,7 +91,7 @@ class Notification(Base):
     guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
     notification_id: Mapped[int] = mapped_column(Integer)
     channel_id: Mapped[int] = mapped_column(BigInteger)
-    time: Mapped[datetime] = mapped_column(DateTime)
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     interval: Mapped[int] = mapped_column(Integer)
     message: Mapped[str] = mapped_column(String)
 
@@ -115,7 +115,7 @@ class Poll(Base):
     author_id: Mapped[int] = mapped_column(BigInteger)
     channel_id: Mapped[int] = mapped_column(BigInteger)
     message_id: Mapped[int] = mapped_column(BigInteger)
-    end_time: Mapped[datetime] = mapped_column(DateTime)  
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))  
 
 class NewsPost(Base):
     __tablename__: str = 'news_posts'
@@ -123,13 +123,13 @@ class NewsPost(Base):
     game: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(String)
-    time: Mapped[datetime] = mapped_column(DateTime)
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     category: Mapped[str] = mapped_column(String)
     image_url: Mapped[str] = mapped_column(String)
 
 class Uptime(Base):
     __tablename__: str = 'uptime'
-    time: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     status: Mapped[str] = mapped_column(String)
 
 class RS3Item(Base):
@@ -167,7 +167,7 @@ class ClanBankTransaction(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
     member_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
 

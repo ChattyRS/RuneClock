@@ -2,7 +2,7 @@ import asyncio
 import discord
 from collections import deque
 import logging
-from async_utils import chunk_coroutines
+from src.async_utils import chunk_coroutines
 
 class QueueMessage:
     channel: discord.TextChannel
