@@ -91,7 +91,6 @@ class Roles(Cog):
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
-        rank = ' '.join(rank)
         valid_rank = False
         rank = rank[0].upper() + rank[1:].lower()
         for r in dnd_names:
@@ -137,7 +136,6 @@ class Roles(Cog):
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
-        rank = ' '.join(rank)
         if len(rank) <= 1:
             raise commands.CommandError(message=f'Invalid argument: `{rank}`.')
         rank = rank[0].upper() + rank[1:].lower()
@@ -173,7 +171,6 @@ class Roles(Cog):
 
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
-        rank = ' '.join(rank)
         
         async with self.bot.async_session() as session:
             db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id).where(Role.name == rank.lower()))).scalar_one_or_none()

@@ -195,7 +195,7 @@ async def send_lines_over_multiple_embeds(ctx: Context, message: str | list[str]
         if len(embed.description + line) > max_embed_description_length:
             await ctx.send(embed = embed)
             embed.description = ''
-        embed.description += line
+        embed.description += '\n' + line if embed.description else line
     if embed.description:
         await ctx.send(embed = embed)
 
