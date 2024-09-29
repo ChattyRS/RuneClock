@@ -813,7 +813,7 @@ class Portables(Cog):
         if error: # if there was an error, send the error message and return
             raise commands.CommandError(message=error)
 
-        new_ports_text: str = format(new_ports).replace('*', '\*') # string representing portables to be added
+        new_ports_text: str = format(new_ports).replace('*', '\\*') # string representing portables to be added
         current_ports: list[tuple[list[int], str]] = get_ports(val) if val else [] # current portables on sheets
         sum_ports: list[tuple[list[int], str]] = add_ports(current_ports, new_ports) # set of portables after adding given portables
         new_val: str = format(sum_ports) # string representing the new set of portable locations
@@ -903,7 +903,7 @@ class Portables(Cog):
         sheet: AsyncioGspreadWorksheet = await ss.worksheet('Home')
         val: str | None = (await sheet.cell(21, col)).value
 
-        old_ports_text: str = format(old_ports).replace('*', '\*') # string representing portables to be removed
+        old_ports_text: str = format(old_ports).replace('*', '\\*') # string representing portables to be removed
         current_ports: list[tuple[list[int], str]] = get_ports(val) if val else [] # current portables on sheets
         dif_ports: list[tuple[list[int], str]] = remove_ports(current_ports, old_ports) # set of portables after removing given portables
         new_val: str = format(dif_ports) # string representing the new set of portable locations
