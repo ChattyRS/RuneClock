@@ -1117,12 +1117,12 @@ class Management(Cog):
         if await cmd.can_run(ctx):
             num_params: int = len(cmd.clean_params)
             if num_params >= len(args):
-                await cmd.callback(ctx, *args)
+                await cmd.callback(self, ctx, *args) # type: ignore
             elif num_params == 0:
-                await cmd.callback(ctx)  # type: ignore
+                await cmd.callback(ctx) # type: ignore
             else:
                 args = args[:num_params]
-                await cmd.callback(ctx, *args)
+                await cmd.callback(self, ctx, *args) # type: ignore
     
     @commands.command(hidden=True)
     @is_owner()
