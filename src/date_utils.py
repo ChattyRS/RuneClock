@@ -85,15 +85,15 @@ def uptime_fraction(events: Sequence[Uptime], year: int | None = None, month: in
         for i, event in enumerate(events):
             if event.time.year == year and event.time.month == month and event.time.day == day:
                 if event.status == 'started':
-                    start_time = event.time
+                    start_time = event.time.replace(tzinfo=UTC)
                 elif event.status == 'running':
-                    up += event.time - start_time
-            elif event.time > start_time:
+                    up += event.time.replace(tzinfo=UTC) - start_time
+            elif event.time.replace(tzinfo=UTC) > start_time:
                 last_event: Uptime = events[i-1]
-                elapsed: timedelta = last_event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+                elapsed: timedelta = last_event.time.replace(tzinfo=UTC) - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
                 break
             if i == len(events) - 1:
-                elapsed = event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+                elapsed = event.time.replace(tzinfo=UTC) - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
         return up.total_seconds() / elapsed.total_seconds()
     elif year and month:
         start: datetime | None = None
@@ -101,8 +101,8 @@ def uptime_fraction(events: Sequence[Uptime], year: int | None = None, month: in
         for i, event in enumerate(events):
             if event.time.year == year and event.time.month == month:
                 if not start:
-                    start = event.time
-                end = event.time
+                    start = event.time.replace(tzinfo=UTC)
+                end = event.time.replace(tzinfo=UTC)
             elif start and end:
                 break
         percentages: list[float] = []
