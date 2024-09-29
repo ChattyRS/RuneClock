@@ -54,9 +54,18 @@ class DNDCommands(Cog):
         now: datetime = datetime.now(UTC)
         now = now.replace(microsecond=0)
 
-        next_times: list[datetime | None] = [self.bot.next_warband, self.bot.next_vos, self.bot.next_cache, self.bot.next_yews48, self.bot.next_yews140, 
-                      self.bot.next_goebies, self.bot.next_sinkhole, self.bot.next_merchant, self.bot.next_spotlight,
-                      self.bot.next_wilderness_flash_event]
+        next_times: list[datetime | None] = [
+            self.bot.next_warband, 
+            self.bot.next_vos, 
+            self.bot.next_cache, 
+            self.bot.next_yews48, 
+            self.bot.next_yews140, 
+            self.bot.next_goebies, 
+            self.bot.next_sinkhole, 
+            self.bot.next_merchant, 
+            self.bot.next_spotlight,
+            self.bot.next_wilderness_flash_event
+        ]
         
         if all(t is None for t in next_times) and self.bot.vos is None and self.bot.merchant is None and self.bot.spotlight is None:
             # If all of the time values are None, return a timedelta of 0, indicating that the times must be updated
@@ -211,7 +220,7 @@ class DNDCommands(Cog):
             print(f'Error getting minigame spotlight data: {type(e).__name__} : {e}')
 
         # Update upcoming wilderness flash event
-        t_0 = datetime(2022, 10, 19, 14, 0, 0, tzinfo=None)
+        t_0 = datetime(2022, 10, 19, 14, 0, 0, tzinfo=UTC)
         elapsed: timedelta | float | int = now - t_0
         elapsed /= timedelta(hours=1)
         elapsed = math.floor(elapsed)
@@ -248,18 +257,18 @@ class DNDCommands(Cog):
         now: datetime = datetime.now(UTC)
         now = now.replace(microsecond=0)
 
-        msg = (
+        msg: str = (
             f'Future:\n'
-            f'{self.bot.config["warbandsEmoji"]} **Wilderness warbands** will begin in {timedelta_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["vosEmoji"]} **Voice of Seren** will change in {timedelta_to_string((self.bot.next_vos if self.bot.next_vos else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["cacheEmoji"]} **Guthixian caches** will begin in {timedelta_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {timedelta_to_string((self.bot.next_yews48 if self.bot.next_yews48 else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {timedelta_to_string((self.bot.next_yews140 if self.bot.next_yews140 else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["goebiesEmoji"]} **Goebies supply run** will begin in {timedelta_to_string((self.bot.next_goebies if self.bot.next_goebies else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["sinkholeEmoji"]} **Sinkhole** will spawn in {timedelta_to_string((self.bot.next_sinkhole if self.bot.next_sinkhole else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["merchantEmoji"]} **Travelling merchant** stock will refresh in {timedelta_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["spotlightEmoji"]} **Minigame spotlight** will change in {timedelta_to_string((self.bot.next_spotlight if self.bot.next_spotlight else datetime.now(UTC)) - now)}.\n'
-            f'{self.bot.config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {timedelta_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now)}.\n'
+            f'{self.bot.config["warbandsEmoji"]} **Wilderness warbands** will begin in {timedelta_to_string(self.bot.next_warband - now) if self.bot.next_warband else 'N/A'}.\n'
+            f'{self.bot.config["vosEmoji"]} **Voice of Seren** will change in {timedelta_to_string(self.bot.next_vos - now) if self.bot.next_vos else 'N/A'}.\n'
+            f'{self.bot.config["cacheEmoji"]} **Guthixian caches** will begin in {timedelta_to_string(self.bot.next_cache - now) if self.bot.next_cache else 'N/A'}.\n'
+            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {timedelta_to_string(self.bot.next_yews48 - now) if self.bot.next_yews48 else 'N/A'}.\n'
+            f'{self.bot.config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {timedelta_to_string(self.bot.next_yews140 - now) if self.bot.next_yews140 else 'N/A'}.\n'
+            f'{self.bot.config["goebiesEmoji"]} **Goebies supply run** will begin in {timedelta_to_string(self.bot.next_goebies - now) if self.bot.next_goebies else 'N/A'}.\n'
+            f'{self.bot.config["sinkholeEmoji"]} **Sinkhole** will spawn in {timedelta_to_string(self.bot.next_sinkhole - now) if self.bot.next_sinkhole else 'N/A'}.\n'
+            f'{self.bot.config["merchantEmoji"]} **Travelling merchant** stock will refresh in {timedelta_to_string(self.bot.next_merchant - now) if self.bot.next_merchant else 'N/A'}.\n'
+            f'{self.bot.config["spotlightEmoji"]} **Minigame spotlight** will change in {timedelta_to_string(self.bot.next_spotlight - now) if self.bot.next_spotlight else 'N/A'}.\n'
+            f'{self.bot.config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {timedelta_to_string(self.bot.next_wilderness_flash_event - now) if self.bot.next_wilderness_flash_event else 'N/A'}.\n'
         )
         
         await ctx.send(msg)
