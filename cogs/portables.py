@@ -316,7 +316,7 @@ class Portables(Cog):
 
         now: datetime = datetime.now(UTC)
         time_val: str = str(now.year) + (" " + bot_row[2].value if bot_row[2].value else '') + ":" + str(now.second)
-        time: datetime = datetime.strptime(time_val, '%Y %d %b, %H:%M:%S')
+        time: datetime = datetime.strptime(time_val, '%Y %d %b, %H:%M:%S').replace(tzinfo=UTC)
 
         embed = discord.Embed(title='__Portables FC Locations__', colour=0xff0000, url=self.bot.config['publicSheets'], timestamp=time)
 
