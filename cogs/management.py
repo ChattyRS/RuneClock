@@ -72,7 +72,7 @@ class Management(Cog):
         self.bot.increment_command_counter()
         guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild)
 
-        extension: str
+        extension: str | None = None
 
         if command:
             cmd: commands.Command | None = self.bot.get_command(command)
@@ -147,7 +147,7 @@ class Management(Cog):
         command_list = sorted(command_list, key=lambda c: c.cog_name) # type: ignore
 
         for category, cmds in itertools.groupby(command_list, key=lambda x: x.cog_name):
-            if isinstance(category, str) and category.upper() == extension.upper() or not extension:
+            if not extension or isinstance(category, str) and category.upper() == extension.upper():
                 cmds = list(cmds)
                 if len(cmds) > 0:
                     val: str = ''
@@ -390,8 +390,8 @@ class Management(Cog):
         
         try:
             user: NamedUser | AuthenticatedUser = self.bot.github.get_user(user_name)
-        except:
-            raise commands.CommandError(message=f'Could not find user: `{user_name}`.')
+        except Exception as e:
+            raise commands.CommandError(message=f'Could not find user: `{user_name}` {e}.')
         
         try:
             repo: GitRepository | None = next((r for r in user.get_repos() if r.name.upper() == repo_name.upper()), None)
