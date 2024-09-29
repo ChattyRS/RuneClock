@@ -10,7 +10,7 @@ import validators
 import gspread
 from checks import portables_leader, portables_admin, is_mod, is_rank, is_helper, portables_only
 import logging
-from discord_utils import get_guild_text_channel, get_text_channel
+from discord_utils import find_text_channel, get_guild_text_channel, get_text_channel
 from runescape_utils import get_rsn
 from portables_utils import portables_names, portables_names_upper, portable_aliases, rank_titles, get_ports, only_f2p, add_ports, remove_ports, format, check_ports
 from discord.abc import MessageableChannel
@@ -77,8 +77,8 @@ class Portables(Cog):
         errors: list[str | None] = await sheet.col_values(1)
         for i, e in enumerate(errors):
             if e == "":
-                row = i+1
-                cell_list = [gspread.Cell(row, col, value=values[col-1]) for col in range(1,4)]
+                row: int = i+1
+                cell_list: list[gspread.Cell] = [gspread.Cell(row, col, value=values[col-1]) for col in range(1,4)]
                 await sheet.update_cells(cell_list, nowait=True) # type: ignore : nowait is valid
                 return
             elif i == len(errors)-1:
@@ -200,45 +200,49 @@ class Portables(Cog):
                 return
     
     @tasks.loop(seconds=10)
-    async def track_location_updates(self):
+    async def track_location_updates(self) -> None:
         '''
         Loop to track location update activity
         '''
         try:
-            agc = await self.bot.agcm.authorize()
-            ss = await agc.open(self.bot.config['sheetName'])
-            home = await ss.worksheet('Home')
+            agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+            ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+            home: AsyncioGspreadWorksheet = await ss.worksheet('Home')
 
-            last_ports = self.get_last_ports()
+            last_ports: list[gspread.Cell] | None = self.get_last_ports()
             if last_ports is None:
                 last_ports = await home.range('A20:I22')
                 self.set_last_ports(last_ports)
                 return
 
-            ports = await home.range('A20:I22')
+            ports: list[gspread.Cell] = await home.range('A20:I22')
             
             if not any(ports[i].value != l_p.value for i, l_p in enumerate(last_ports)):
                 return
             else:
                 self.set_last_ports(ports)
 
-                top_row_old, mid_row_old, bot_row_old = last_ports[:9], last_ports[9:18], last_ports[18:]
-                top_row, mid_row, bot_row = ports[:9], ports[9:18], ports[18:]
+                # top_row_old: list[gspread.Cell] = last_ports[:9]
+                mid_row_old: list[gspread.Cell] = last_ports[9:18]
+                # bot_row_old: list[gspread.Cell] = last_ports[18:]
+                # top_row: list[gspread.Cell] = ports[:9]
+                mid_row: list[gspread.Cell] = ports[9:18]
+                # bot_row: list[gspread.Cell] = ports[18:]
 
-                role_ids = [self.bot.config['fletcher_role'], self.bot.config['crafter_role'], self.bot.config['brazier_role'], self.bot.config['sawmill_role'], self.bot.config['range_role'], self.bot.config['well_role'], self.bot.config['workbench_role']]
-                port_server = self.bot.get_guild(self.bot.config['portablesServer'])
+                role_ids: list[int] = [self.bot.config['fletcher_role'], self.bot.config['crafter_role'], self.bot.config['brazier_role'], self.bot.config['sawmill_role'], self.bot.config['range_role'], self.bot.config['well_role'], self.bot.config['workbench_role']]
+                port_server: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
                 if port_server:
-                    roles = []
+                    roles: list[discord.Role | None] = []
                     for role_id in role_ids:
-                        role = port_server.get_role(role_id)
+                        role: discord.Role | None = port_server.get_role(role_id)
                         roles.append(role)
 
                     for i, cell in enumerate(mid_row[:7]):
-                        old_cell = mid_row_old[i]
+                        old_cell: gspread.Cell = mid_row_old[i]
                         val: str | None = cell.value
                         old_val: str | None = old_cell.value
-                        current_locs = get_ports(val) if val else []
-                        old_locs = get_ports(old_val) if old_val else []
+                        current_locs: list[tuple[list[int], str]] = get_ports(val) if val else []
+                        old_locs: list[tuple[list[int], str]] = get_ports(old_val) if old_val else []
                         
                         if only_f2p(old_locs):
                             if not only_f2p(current_locs):
@@ -298,20 +302,21 @@ class Portables(Cog):
             except commands.CommandError as e:
                 raise e
 
-        admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
-        if admin_commands_channel:
-            if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids and not ctx.author.id == self.bot.config['owner']:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
+        admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
+        if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
+            ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids and not ctx.author.id == self.bot.config['owner']):
+            raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
-        last_ports = self.get_last_ports()
+        last_ports: list[gspread.Cell] | None = self.get_last_ports()
         if last_ports is None:
             return
-        top_row, mid_row, bot_row = last_ports[:9], last_ports[9:18], last_ports[18:]
+        top_row: list[gspread.Cell] = last_ports[:9]
+        mid_row: list[gspread.Cell] = last_ports[9:18]
+        bot_row: list[gspread.Cell] = last_ports[18:]
 
-        now = datetime.now(UTC)
-        time_val = str(now.year) + (" " + bot_row[2].value if bot_row[2].value else '') + ":" + str(now.second)
-        time = datetime.strptime(time_val, '%Y %d %b, %H:%M:%S')
+        now: datetime = datetime.now(UTC)
+        time_val: str = str(now.year) + (" " + bot_row[2].value if bot_row[2].value else '') + ":" + str(now.second)
+        time: datetime = datetime.strptime(time_val, '%Y %d %b, %H:%M:%S')
 
         embed = discord.Embed(title='__Portables FC Locations__', colour=0xff0000, url=self.bot.config['publicSheets'], timestamp=time)
 
@@ -321,7 +326,7 @@ class Portables(Cog):
                 mid_row_value = mid_row_value.replace('*', '\\*') if mid_row_value else ''
                 embed.add_field(name=top_row[i].value, value=mid_row_value, inline=True)
 
-            notes = mid_row[7].value
+            notes: str | None = mid_row[7].value
             embed.add_field(name='Notes', value=notes, inline=False)
         else:
             index = 0
@@ -330,7 +335,7 @@ class Portables(Cog):
             else:
                 for i, port_name in enumerate(portables_names_upper):
                     if port_name.startswith(portable.upper()):
-                        index = i
+                        index: int = i
                         break
                 if not index:
                     for i, port_name in enumerate(portables_names_upper):
@@ -352,39 +357,38 @@ class Portables(Cog):
         embed.set_thumbnail(url='https://i.imgur.com/Hccdnts.png')
 
         names: str = bot_row[4].value if bot_row[4].value else ''
-        name = names.split(',')[0].split('&')[0].split('/')[0].split('|')[0].strip()
-        pattern = re.compile(r'([^\s\w]|_)+')
+        name: str = names.split(',')[0].split('&')[0].split('/')[0].split('|')[0].strip()
+        pattern: re.Pattern[str] = re.compile(r'([^\s\w]|_)+')
         name = pattern.sub('', name).replace(' ', '%20')
-        player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'
+        player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'
         embed.set_author(name=names, url=self.bot.config['publicSheets'], icon_url=player_image_url)
 
         await ctx.send(embed=embed)
     
     @commands.command()
     @is_helper()
-    async def update_time(self, ctx: commands.Context):
+    async def update_time(self, ctx: commands.Context) -> None:
         '''
         Updates the time on the Portables sheet.
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp: str = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
-        portables = self.bot.get_guild(self.bot.config['portablesServer'])
+        portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
         if not portables:
             raise commands.CommandError(message=f'Error: could not find Portables server.')
-        member = await portables.fetch_member(ctx.author.id)
+        member: discord.Member = await portables.fetch_member(ctx.author.id)
 
-        adminCommandsChannel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
-        if adminCommandsChannel:
-            if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != adminCommandsChannel and not ctx.channel.id in self.portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
+        admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
+        if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
+            ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids):
+            raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
-        name = '' # initialize empty name of user
+        name: str = '' # initialize empty name of user
         is_rank = False # boolean value representing whether or not the user is a rank
-        rank_role = discord.utils.get(portables.roles, id=self.bot.config['rankRole'])
+        rank_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['rankRole'])
         if rank_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
@@ -395,7 +399,7 @@ class Portables(Cog):
 
     @commands.command(aliases=['banlist'], hidden=True)
     @is_mod()
-    async def addban(self, ctx: commands.Context, name="", *reasons):
+    async def addban(self, ctx: commands.Context, name="", *reasons) -> None:
         '''
         Adds a player to the banlist (Mod+) (Portables only).
         Arguments: name, reason, screenshot (optional).
@@ -419,26 +423,26 @@ class Portables(Cog):
         if validators.url(reasons[len(reasons)-1]):
             screenshot = reasons[len(reasons)-1]
             del reasons[len(reasons)-1]
-        reason = ""
+        reason: str = ""
         for i, r in enumerate(reasons):
             reason += r
             if i < len(reasons) - 1:
                 reason += ' '
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['sheetName'])
-        sheet = await ss.worksheet('Bans')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Bans')
 
         header_rows = 5
-        banlist = await sheet.col_values(1)
+        banlist: list[str | None] = await sheet.col_values(1)
         banlist = banlist[header_rows:]
-        durations = await sheet.col_values(2)
+        durations: list[str | None] = await sheet.col_values(2)
         durations = durations[header_rows:]
 
-        perma_ban_index = durations.index('Permanent') + 1
-        temp_bans = []
-        perma_bans = []
-        ex_bans = []
+        perma_ban_index: int = durations.index('Permanent') + 1
+        temp_bans: list[str | None] = []
+        perma_bans: list[str | None] = []
+        ex_bans: list[str | None] = []
         for i, player in enumerate(banlist):
             if not player:
                 temp_bans = banlist[:i]
@@ -456,16 +460,16 @@ class Portables(Cog):
         for player in [perm_ban for perm_ban in perma_bans if perm_ban]:
             if name.upper() == player.upper():
                 raise commands.CommandError(message=f'Error: `{name}` is already on the banlist.')
-        row = header_rows + len(temp_bans) + 1
+        row: int = header_rows + len(temp_bans) + 1
         count = 1
         for player in [ex_ban for ex_ban in ex_bans if ex_ban]:
             if name.upper() == player.upper():
                 count += 1
-        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
-        end_time = (datetime.now(UTC) + timedelta(days=14)).strftime("%b %#d, %Y")
-        username = ctx.author.display_name
+        timestamp: str = datetime.now(UTC).strftime("%b %#d, %Y")
+        end_time: str = (datetime.now(UTC) + timedelta(days=14)).strftime("%b %#d, %Y")
+        username: str = ctx.author.display_name
         username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
-        values = [name, '2 weeks', timestamp, end_time, reason, username, 'Pending', '', screenshot]
+        values: list[str] = [name, '2 weeks', timestamp, end_time, reason, username, 'Pending', '', screenshot]
 
         await sheet.insert_row(values, row)
 
@@ -475,7 +479,7 @@ class Portables(Cog):
 
     @commands.command(hidden=True)
     @is_rank()
-    async def helper(self, ctx: commands.Context, *name_parts):
+    async def helper(self, ctx: commands.Context, *name_parts) -> None:
         '''
         Adds a helper, or notes activity for an existing helper (Rank+) (Portables only).
         Arguments: name
@@ -485,7 +489,7 @@ class Portables(Cog):
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ''
+        name: str = ''
         for part in name_parts:
             name += part + ' '
         name = name.strip()
@@ -496,13 +500,13 @@ class Portables(Cog):
         if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['sheetName'])
-        sheet = await ss.worksheet('Helpers')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Helpers')
 
-        smileys_sheet = await ss.worksheet('Smileys')
+        smileys_sheet: AsyncioGspreadWorksheet = await ss.worksheet('Smileys')
 
-        smileys = await smileys_sheet.col_values(1)
+        smileys: list[str | None] = await smileys_sheet.col_values(1)
         smileys = smileys[4:]
         for i, smiley in enumerate(smileys):
             if smiley is None or not smiley:
@@ -513,36 +517,36 @@ class Portables(Cog):
             raise commands.CommandError(message=f'Error: `{name}` is on the Smileys list. Please note their activity instead using the `smileyactivity` command.')
 
         header_rows = 3
-        helpers = await sheet.col_values(1)
+        helpers: list[str | None] = await sheet.col_values(1)
         helpers = helpers[header_rows:]
         for i, helper in enumerate(helpers):
             if not helper:
                 helpers = helpers[:i]
                 break
 
-        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
-        username = ctx.author.display_name
+        timestamp: str = datetime.now(UTC).strftime("%b %#d, %Y")
+        username: str = ctx.author.display_name
         username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
 
         on_list = False
         row = 0
-        pattern = re.compile(r'[\W_]+')
+        pattern: re.Pattern[str] = re.compile(r'[\W_]+')
         for i, helper in enumerate(helpers):
             if not helper:
                 continue
             if pattern.sub('', name.upper()) == pattern.sub('', helper.upper()):
                 name = helper
-                row = i + header_rows + 1
+                row: int = i + header_rows + 1
                 on_list = True
                 break
         if not on_list:
             row = header_rows + len(helpers) + 1
-            values = [name, 'Helper', timestamp, username]
+            values: list[str] = [name, 'Helper', timestamp, username]
             await sheet.insert_row(values, row)
             await ctx.send(f'**{name}** has been added to the helper sheet.')
             return
         else:
-            activity = await sheet.row_values(row)
+            activity: list[str | None] = await sheet.row_values(row)
             activity = activity[2:8]
             for i in [5, 3, 1]:
                 if len(activity) - 1 >= i:
@@ -555,15 +559,15 @@ class Portables(Cog):
                 raise commands.CommandError(message=f'`{name}` has already been noted as active for today.')
             if len(activity) >= 3:
                 raise commands.CommandError(message=f'Error: `{name}` already has a full activity row.')
-            time_col = 3 + len(activity) * 2
-            credit_col = time_col + 1
+            time_col: int = 3 + len(activity) * 2
+            credit_col: int = time_col + 1
             await sheet.update_cell(row, time_col, timestamp)
             await sheet.update_cell(row, credit_col, username)
             await ctx.send(f'**{name}** has been noted as active for **{timestamp}**.')
 
     @commands.command(hidden=True)
     @is_rank()
-    async def smileyactivity(self, ctx: commands.Context, *name_parts):
+    async def smileyactivity(self, ctx: commands.Context, *name_parts) -> None:
         '''
         Notes activity for a smiley on sheets (Rank+) (Portables only).
         Arguments: name
@@ -573,26 +577,26 @@ class Portables(Cog):
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ''
+        name: str = ''
         for part in name_parts:
             name += part + ' '
         name = name.strip()
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['sheetName'])
-        sheet = await ss.worksheet('Smileys')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Smileys')
 
         header_rows = 4
-        smileys = await sheet.col_values(1)
+        smileys: list[str | None] = await sheet.col_values(1)
         smileys = smileys[header_rows:]
         for i, smiley in enumerate(smileys):
             if smiley is None or not smiley:
                 smileys = smileys[:i]
                 break
-        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
-        username = ctx.author.display_name
+        timestamp: str = datetime.now(UTC).strftime("%b %#d, %Y")
+        username: str = ctx.author.display_name
         username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
 
         row = 0
@@ -614,10 +618,10 @@ class Portables(Cog):
         if not row:
             raise commands.CommandError(message=f'Could not find smiley: `{name}`.')
 
-        activity = await sheet.row_values(row)
-        status = activity[1]
+        activity: list[str | None] = await sheet.row_values(row)
+        status: str | None = activity[1]
         activity = activity[4:12]
-        if 'alt' in status:
+        if status and 'alt' in status:
             raise commands.CommandError(message=f'`{name}` is an alt account, you do not need to track its activity.')
         for i in [7, 5, 3, 1]:
             if len(activity) - 1 >= i:
@@ -630,15 +634,15 @@ class Portables(Cog):
             raise commands.CommandError(message=f'`{name}` has already been noted as active for today.')
         if len(activity) >= 4:
             raise commands.CommandError(message=f'Error: `{name}` already has a full activity row.')
-        time_col = 5 + len(activity) * 2
-        credit_col = time_col + 1
+        time_col: int = 5 + len(activity) * 2
+        credit_col: int = time_col + 1
         await sheet.update_cell(row, time_col, timestamp)
         await sheet.update_cell(row, credit_col, username)
         await ctx.send(f'**{name}** has been noted as active for **{timestamp}**.')
 
     @commands.command(pass_context=True, hidden=True)
     @portables_admin()
-    async def addsmiley(self, ctx: commands.Context, *name_parts):
+    async def addsmiley(self, ctx: commands.Context, *name_parts) -> None:
         '''
         Adds a smiley to the sheets (Admin+) (Portables only).
         Arguments: name.
@@ -647,11 +651,11 @@ class Portables(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        leader_role = discord.utils.get((ctx.guild.roles if ctx.guild else []), id=self.bot.config['leaderRole'])
+        leader_role: discord.Role | None = discord.utils.get((ctx.guild.roles if ctx.guild else []), id=self.bot.config['leaderRole'])
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ''
+        name: str = ''
         for part in name_parts:
             name += part + ' '
         name = name.strip()
@@ -662,15 +666,15 @@ class Portables(Cog):
         if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['sheetName'])
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
         sheet: AsyncioGspreadWorksheet = await ss.worksheet('Smileys')
 
         header_rows = 4
-        smileys = await sheet.col_values(1)
+        smileys: list[str | None] = await sheet.col_values(1)
         smileys = smileys[header_rows:]
 
-        current_smileys = []
+        current_smileys: list[str | None] = []
         for i, smiley in enumerate(smileys):
             if smiley is None or not smiley:
                 current_smileys = smileys[:i]
@@ -683,14 +687,14 @@ class Portables(Cog):
             if not smiley:
                 continue
             if name.upper() == smiley.upper():
-                row = i + header_rows + 1
+                row: int = i + header_rows + 1
                 break
         if row:
             await sheet.delete_rows(row)
         row = header_rows + len(current_smileys) + 1
-        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
-        end_time = (datetime.now(UTC) + timedelta(days=30)).strftime("%b %#d, %Y")
-        values = [name, 'No', 'Applied', '', '', '', '', '', '', '', '', '', '', 'Pending', timestamp, end_time]
+        timestamp: str = datetime.now(UTC).strftime("%b %#d, %Y")
+        end_time: str = (datetime.now(UTC) + timedelta(days=30)).strftime("%b %#d, %Y")
+        values: list[str] = [name, 'No', 'Applied', '', '', '', '', '', '', '', '', '', '', 'Pending', timestamp, end_time]
         await sheet.insert_row(values, row)
         await ctx.send(f'**{name}** has been added to the smileys sheet.')
         if isinstance(ctx.author, discord.Member) and ctx.author.top_role <= leader_role:
@@ -699,7 +703,7 @@ class Portables(Cog):
 
     @commands.command(pass_context=True, hidden=True)
     @portables_leader()
-    async def activatesmiley(self, ctx: commands.Context, *name_parts):
+    async def activatesmiley(self, ctx: commands.Context, *name_parts) -> None:
         '''
         Sets smiley status to active (Leader+) (Portables only).
         Arguments: name.
@@ -710,19 +714,19 @@ class Portables(Cog):
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ''
+        name: str = ''
         for part in name_parts:
             name += part + ' '
         name = name.strip()
         if not name:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['sheetName'])
-        sheet = await ss.worksheet('Smileys')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Smileys')
 
         header_rows = 4
-        smileys = await sheet.col_values(1)
+        smileys: list[str | None] = await sheet.col_values(1)
         smileys = smileys[header_rows:]
 
         for i, smiley in enumerate(smileys):
@@ -734,7 +738,7 @@ class Portables(Cog):
             if not smiley:
                 continue
             if name.upper() == smiley.upper():
-                row = i + header_rows + 1
+                row: int = i + header_rows + 1
                 name = smiley
                 break
         if not row:
@@ -748,8 +752,7 @@ class Portables(Cog):
         if not row:
             raise commands.CommandError(message=f'Could not find smiley: `{name}`.')
         col = 14
-        status = await sheet.cell(row, col)
-        status = status.value
+        status: str | None = (await sheet.cell(row, col)).value
         if status == 'Active':
             raise commands.CommandError(message=f'Error: `{name}`\'s status was already set to active.')
         await sheet.update_cell(row, col, 'Active')
@@ -758,7 +761,7 @@ class Portables(Cog):
 
     @commands.command(pass_context=True, aliases=['a'], ignore_extra=True)
     @portables_only()
-    async def add(self, ctx: commands.Context):
+    async def add(self, ctx: commands.Context) -> None:
         """
         Add portable locations (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
@@ -767,19 +770,18 @@ class Portables(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing() # send 'typing...' status
 
-        portables = self.bot.get_guild(self.bot.config['portablesServer'])
+        portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
         if not portables:
             raise commands.CommandError(message=f'Error: could not find Portables server.')
-        member = await portables.fetch_member(ctx.author.id)
+        member: discord.Member = await portables.fetch_member(ctx.author.id)
 
-        adminCommandsChannel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
-        if adminCommandsChannel:
-            if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != adminCommandsChannel and not ctx.channel.id in self.portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
+        admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
+        if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
+            ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids):
+            raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
         # get the input corresponding to this message
-        input = ctx.message.content.upper()
+        input: str = ctx.message.content.upper()
         if ctx.prefix:
             input = input.replace(ctx.prefix.upper(), '', 1)
         if ctx.invoked_with:
@@ -795,26 +797,26 @@ class Portables(Cog):
         # replace some portable types due to incompatibilities with location abbreviations
         input = input.replace('RANGE', '')
         input = input.replace('WORKBENCH', '')
-        new_ports = get_ports(input) # get the set of portable locations corresponding to the input
+        new_ports: list[tuple[list[int], str]] = get_ports(input) # get the set of portable locations corresponding to the input
 
         if not new_ports: # if there were no locations, return
             raise commands.CommandError(message=f'Invalid argument: `location`.')
 
         ports_row: list[str | None] = await self.get_port_row() # get the current portable locations from the sheet
 
-        val = ports_row[col-1] # get the string corresponding to our portable type
+        val: str | None = ports_row[col-1] # get the string corresponding to our portable type
         ports: list[list[tuple[list[int], str]]] = []
         for i, p in enumerate(ports_row): # for each portable, get the set of portable locations
             ports[i] = get_ports(p) if p else []
 
-        error = check_ports(new_ports, ports) # check for errors in the set of portables
+        error: str = check_ports(new_ports, ports) # check for errors in the set of portables
         if error: # if there was an error, send the error message and return
             raise commands.CommandError(message=error)
 
-        new_ports_text = format(new_ports).replace('*', '\*') # string representing portables to be added
-        current_ports = get_ports(val) if val else [] # current portables on sheets
-        sum_ports = add_ports(current_ports, new_ports) # set of portables after adding given portables
-        new_val = format(sum_ports) # string representing the new set of portable locations
+        new_ports_text: str = format(new_ports).replace('*', '\*') # string representing portables to be added
+        current_ports: list[tuple[list[int], str]] = get_ports(val) if val else [] # current portables on sheets
+        sum_ports: list[tuple[list[int], str]] = add_ports(current_ports, new_ports) # set of portables after adding given portables
+        new_val: str = format(sum_ports) # string representing the new set of portable locations
 
         # check whether multiple portables were added
         multiple = False
@@ -830,11 +832,11 @@ class Portables(Cog):
             else:
                 raise commands.CommandError(message=f'The `{portable}` location `{format(new_ports)}` was already on the sheet.')
 
-        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp: str = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
-        name = '' # initialize empty name of user
+        name: str = '' # initialize empty name of user
         is_helper = False # boolean value representing whether or not the user is a rank
-        helper_role = discord.utils.get(portables.roles, id=self.bot.config['helperRole'])
+        helper_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['helperRole'])
         if helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_helper = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
@@ -849,7 +851,7 @@ class Portables(Cog):
 
     @commands.command(pass_context=True, aliases=['rem'], ignore_extra=True)
     @portables_only()
-    async def remove(self, ctx: commands.Context):
+    async def remove(self, ctx: commands.Context) -> None:
         """
         Remove portable locations (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
@@ -858,19 +860,18 @@ class Portables(Cog):
         self.bot.increment_command_counter() # increment global commands counter
         await ctx.channel.typing() # send 'typing...' status
 
-        portables = self.bot.get_guild(self.bot.config['portablesServer'])
+        portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
         if not portables:
             raise commands.CommandError(message=f'Error: could not find Portables server.')
-        member = await portables.fetch_member(ctx.author.id)
+        member: discord.Member = await portables.fetch_member(ctx.author.id)
 
-        admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
-        if admin_commands_channel:
-            if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
+        admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
+        if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
+            ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids):
+            raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
         # get the input corresponding to this message
-        input = ctx.message.content.upper()
+        input: str = ctx.message.content.upper()
         if ctx.prefix:
             input = input.replace(ctx.prefix.upper(), '', 1)
         if ctx.invoked_with:
@@ -897,16 +898,15 @@ class Portables(Cog):
                     raise commands.CommandError(message=f'Invalid argument: world `{str(world)}`.')
 
         # get the current locations for this portable from the sheet
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['sheetName'])
-        sheet = await ss.worksheet('Home')
-        val = await sheet.cell(21, col)
-        val = val.value
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Home')
+        val: str | None = (await sheet.cell(21, col)).value
 
-        old_ports_text = format(old_ports).replace('*', '\*') # string representing portables to be removed
-        current_ports = get_ports(val) if val else [] # current portables on sheets
-        dif_ports = remove_ports(current_ports, old_ports) # set of portables after removing given portables
-        new_val = format(dif_ports) # string representing the new set of portable locations
+        old_ports_text: str = format(old_ports).replace('*', '\*') # string representing portables to be removed
+        current_ports: list[tuple[list[int], str]] = get_ports(val) if val else [] # current portables on sheets
+        dif_ports: list[tuple[list[int], str]] = remove_ports(current_ports, old_ports) # set of portables after removing given portables
+        new_val: str = format(dif_ports) # string representing the new set of portable locations
 
         # check whether multiple portables were removed
         multiple = False
@@ -922,11 +922,11 @@ class Portables(Cog):
             else:
                 raise commands.CommandError(message=f'The `{portable}` location `{format(old_ports)}` was not found.')
 
-        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp: str = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
-        name = '' # initialize empty name of user
+        name: str = '' # initialize empty name of user
         is_helper = False # boolean value representing whether or not the user is a rank
-        helper_role = discord.utils.get(portables.roles, id=self.bot.config['helperRole'])
+        helper_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['helperRole'])
         if helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_helper = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
@@ -941,7 +941,7 @@ class Portables(Cog):
 
     @commands.command(aliases=['rall'], ignore_extra=True)
     @is_helper()
-    async def removeall(self, ctx: commands.Context, *input):
+    async def removeall(self, ctx: commands.Context, *input) -> None:
         '''
         Removes all instances of a given location, or all locations of a given portable. (Helper+) (Portables only)
         Arguments: [portable] / [worlds][locations]
@@ -951,29 +951,28 @@ class Portables(Cog):
         self.bot.increment_command_counter() # increment global commands counter
         await ctx.channel.typing() # send 'typing...' status
 
-        portables = self.bot.get_guild(self.bot.config['portablesServer'])
-        member = await portables.fetch_member(ctx.author.id) if portables else None
+        portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
+        member: discord.Member | None = await portables.fetch_member(ctx.author.id) if portables else None
 
-        admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
-        if admin_commands_channel:
-            if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
+        admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
+        if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
+            ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids):
+            raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
         input_str: str | None = ' '.join(input).upper().strip() if input else None
         if not input_str:
             raise commands.CommandError(message=f'Required argument missing: `portable/location`.')
 
-        to_remove = get_ports(input_str)
+        to_remove: list[tuple[list[int], str]] = get_ports(input_str)
         if format(to_remove) == 'N/A':
             to_remove = []
         if not to_remove:
-            port = ''
+            port: str = ''
             index = 0
             for i, aliases in enumerate(portable_aliases):
                 if input_str.lower() in aliases:
                     port = aliases[0]
-                    index = i
+                    index: int = i
                     break
             if not port:
                 if ctx.channel.id in self.portables_channel_ids:
@@ -981,11 +980,11 @@ class Portables(Cog):
             if not port:
                 raise commands.CommandError(message=f'Invalid argument: `{input_str}`.')
 
-        current_values = await self.get_port_row()
-        current = [get_ports(i) if i else [] for i in current_values]
+        current_values: list[str | None] = await self.get_port_row()
+        current: list[list[tuple[list[int], str]]] = [get_ports(i) if i else [] for i in current_values]
 
         if to_remove:
-            new_values = [format(remove_ports(cur, to_remove)) for cur in current]
+            new_values: list[str] = [format(remove_ports(cur, to_remove)) for cur in current]
         else:
             new_values = [format(cur) for cur in current]
             new_values[index] = 'N/A'
@@ -997,11 +996,11 @@ class Portables(Cog):
             else:
                 raise commands.CommandError(message=f'Portable `{port}` had no locations listed.')
 
-        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp: str = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
-        name = '' # initialize empty name of user
+        name: str = '' # initialize empty name of user
         is_rank = False # boolean value representing whether or not the user is a rank
-        rank_role = discord.utils.get(portables.roles, id=self.bot.config['rankRole']) if portables else None
+        rank_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['rankRole']) if portables else None
         if rank_role in (member.roles if member else []): # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
             name = get_rsn(member) if member else '' # and get the name of the user
@@ -1016,7 +1015,7 @@ class Portables(Cog):
 
     @commands.command(pass_context=True, ignore_extra=True)
     @is_helper()
-    async def edit(self, ctx: commands.Context, portable='', *input_locs):
+    async def edit(self, ctx: commands.Context, portable: str = '', *input_locs) -> None:
         '''
         Edit portable locations (Helper+) (Portables only).
         Arguments: portable, worlds, location, worlds, location, etc...
@@ -1026,14 +1025,13 @@ class Portables(Cog):
         self.bot.increment_command_counter() # increment global commands counter
         await ctx.channel.typing() # send 'typing...' status
 
-        portables = self.bot.get_guild(self.bot.config['portablesServer'])
-        member = await portables.fetch_member(ctx.author.id) if portables else None
+        portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
+        member: discord.Member | None = await portables.fetch_member(ctx.author.id) if portables else None
 
-        admin_commands_channel = self.bot.get_channel(self.bot.config['adminCommandsChannel'])
-        if admin_commands_channel:
-            if ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']):
-                if ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids:
-                    raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
+        admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
+        if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
+            ctx.channel != admin_commands_channel and not ctx.channel.id in self.portables_channel_ids):
+            raise commands.CommandError(message=f'Error: `Incorrect channel`. Please use {self.portables_channel_mention_string}.')
 
         if not portable: # if there was no portable type in the input, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
@@ -1041,44 +1039,44 @@ class Portables(Cog):
         for i, port_aliases in enumerate(portable_aliases):
             if portable in port_aliases:
                 portable = port_aliases[0]
-                col = i + 1
+                col: int = i + 1
                 break
 
-        input = ''
+        input: str = ''
         for loc in input_locs:
             input += loc + ' '
         input = input.upper().strip()
 
-        name = '' # initialize empty name of user
+        name: str = '' # initialize empty name of user
         is_rank = False # boolean value representing whether or not the user is a rank
         rank_role = discord.utils.get(portables.roles, id=self.bot.config['rankRole']) if portables else None
         if rank_role in (member.roles if member else []): # if the rank role is in the set of roles corresponding to the user
             is_rank = True # then set isRank to true
             name = get_rsn(member) if member else '' # and get the name of the user
 
-        timestamp = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
+        timestamp: str = datetime.now(UTC).strftime("%#d %b, %#H:%M") # get timestamp string in format: day Month, hours:minutes
 
         if input.replace('/', '').replace(' ', '') in ['NA', 'NO', 'NONE', '0', 'ZERO']: # if input was 'N/A' or a variation, remove all locations and return
             await self.update_sheet(col, 'N/A', timestamp, name, is_rank)
             await ctx.send(f'The **{portable}** locations have been edited to: **N/A**.')
             return
 
-        new_ports = get_ports(input) # calculate new set of portables from the input string
+        new_ports: list[tuple[list[int], str]] = get_ports(input) # calculate new set of portables from the input string
         if not new_ports: # if there were no portables, return
             raise commands.CommandError(message=f'Invalid argument: `location`.')
 
-        ports_row = await self.get_port_row() # get the row of portable locations from sheets
-        old_val = ports_row[col-1]
+        ports_row: list[str | None] = await self.get_port_row() # get the row of portable locations from sheets
+        old_val: str | None = ports_row[col-1]
         ports: list[list[tuple[list[int], str]]] = []
         for i, p in enumerate(ports_row): # for each portable, get the set of portable locations
             ports[i] = get_ports(p) if p else []
 
-        error = check_ports(new_ports, ports) # check for errors in the set of portables
+        error: str = check_ports(new_ports, ports) # check for errors in the set of portables
         if error: # if there was an error, send the error message and return
             raise commands.CommandError(message=error)
 
-        new_val = format(new_ports) # create a string corresponding
-        new_ports_text = new_val.replace('*', '\\*') # in the text for the discord message, escape the stars for formatting issues
+        new_val: str = format(new_ports) # create a string corresponding
+        new_ports_text: str = new_val.replace('*', '\\*') # in the text for the discord message, escape the stars for formatting issues
 
         # if no change, raise an error
         if new_val == old_val:
@@ -1090,7 +1088,7 @@ class Portables(Cog):
 
     @commands.command(pass_context=True, aliases=['watch'], hidden=True)
     @is_rank()
-    async def watchlist(self, ctx: commands.Context, name="", *reasons):
+    async def watchlist(self, ctx: commands.Context, name: str = "", *reasons) -> None:
         '''
         Adds a player to the watchlist (Rank+) (Portables only).
         Arguments: name, reason, screenshot (optional).
@@ -1109,38 +1107,38 @@ class Portables(Cog):
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         if not reasons:
             raise commands.CommandError(message=f'Required argument missing: `reason`.')
-        screenshot = ''
+        screenshot: str = ''
         reasons = list(reasons)
         if validators.url(reasons[len(reasons)-1]):
             screenshot = reasons[len(reasons)-1]
             del reasons[len(reasons)-1]
-        reason = " ".join(reasons)
+        reason: str = " ".join(reasons)
 
         if not screenshot:
             if ctx.message.attachments:
                 screenshot = ctx.message.attachments[0].url
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['sheetName'])
-        sheet = await ss.worksheet('Watchlist')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['sheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Watchlist')
         header_rows = 5
 
-        watchlist = await sheet.col_values(1)
+        watchlist: list[str | None] = await sheet.col_values(1)
         watchlist = watchlist[header_rows:]
 
         for i, player in enumerate(watchlist):
             if not player:
                 watchlist = watchlist[:i]
                 break
-        timestamp = datetime.now(UTC).strftime("%b %#d, %Y")
-        username = ctx.author.display_name
+        timestamp: str = datetime.now(UTC).strftime("%b %#d, %Y")
+        username: str = ctx.author.display_name
         username = re.sub(r'[^A-z0-9 -]', '', username).replace('`', '').strip()
         count = 1
         for player in [watched for watched in watchlist if watched]:
             if name.upper() == player.upper():
                 count += 1
-        row = header_rows + len(watchlist) + 1
-        values = [name, timestamp, reason, username, screenshot]
+        row: int = header_rows + len(watchlist) + 1
+        values: list[str] = [name, timestamp, reason, username, screenshot]
 
         await sheet.insert_row(values, row)
 
@@ -1148,7 +1146,7 @@ class Portables(Cog):
 
     @commands.command(pass_context=True, aliases=['act', 'active'], hidden=True)
     @portables_admin()
-    async def activity(self, ctx: commands.Context, *name_parts):
+    async def activity(self, ctx: commands.Context, *name_parts) -> None:
         '''
         Notes rank activity on admin sheets (Admin+) (Portables only).
         Arguments: name
@@ -1156,12 +1154,12 @@ class Portables(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        user = ctx.author
-        username = user.display_name
+        user: discord.User | discord.Member = ctx.author
+        username: str = user.display_name
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ''
+        name: str = ''
         for part in name_parts:
             name += part + ' '
         name = name.strip()
@@ -1170,29 +1168,29 @@ class Portables(Cog):
         if name.upper() in username.upper():
             raise commands.CommandError(message=f'Invalid argument: `{name}`. You cannot track your own activity.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['adminSheetName'])
-        sheet = await ss.worksheet('Rank Reports')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['adminSheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Rank Reports')
         header_rows = 4
 
-        month = datetime.now(UTC).strftime("%B")
-        sheet_month_cell = await sheet.cell(3, 1)
-        sheet_month = sheet_month_cell.value
+        month: str = datetime.now(UTC).strftime("%B")
+        sheet_month_cell: gspread.Cell = await sheet.cell(3, 1)
+        sheet_month: str | None = sheet_month_cell.value
         if sheet_month and month.upper().strip() != sheet_month.upper().strip():
             raise commands.CommandError(message=f'Error: `admin_sheet_month`. Please wait for a Leader to perform this month\'s rank changes.')
-        ranks = await sheet.col_values(1)
+        ranks: list[str | None] = await sheet.col_values(1)
         ranks = ranks[header_rows:]
         for i, rank in enumerate(ranks):
             if rank is None or not rank:
                 ranks = ranks[:i]
                 break
-        timestamp = datetime.now(UTC).strftime("%#d")
+        timestamp: str = datetime.now(UTC).strftime("%#d")
         row = 0
         for i, rank in enumerate(ranks):
             if not rank or rank in rank_titles:
                 continue
             if name.upper() == rank.upper():
-                row = i + header_rows + 1
+                row: int = i + header_rows + 1
                 name = rank
                 break
         if not row:
@@ -1205,18 +1203,18 @@ class Portables(Cog):
                     break
         if not row:
             raise commands.CommandError(message=f'Could not find rank: `{name}`.')
-        activity = await sheet.row_values(row)
+        activity: list[str | None] = await sheet.row_values(row)
         activity = activity[3:34]
         activity = list(filter(bool, activity))
         if timestamp in activity:
             raise commands.CommandError(message=f'`{name}` has already been noted active for today.')
-        col = 4 + len(activity)
+        col: int = 4 + len(activity)
         await sheet.update_cell(row, col, timestamp)
         await ctx.send(f'**{name}** has been noted as active for **{timestamp}** **{datetime.now(UTC).strftime("%b")}**.')
 
     @commands.command(pass_context=True, hidden=True)
     @portables_admin()
-    async def sheetactivity(self, ctx: commands.Context, *name_parts):
+    async def sheetactivity(self, ctx: commands.Context, *name_parts) -> None:
         '''
         Notes rank sheet activity on admin sheets (Admin+) (Portables only).
         Arguments: name
@@ -1224,12 +1222,12 @@ class Portables(Cog):
         self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        user = ctx.author
-        username = user.display_name
+        user: discord.User | discord.Member = ctx.author
+        username: str = user.display_name
 
         if not name_parts:
             raise commands.CommandError(message=f'Required argument missing: `name`.')
-        name = ''
+        name: str = ''
         for part in name_parts:
             name += part + ' '
         name = name.strip()
@@ -1238,29 +1236,29 @@ class Portables(Cog):
         if name.upper() in username.upper():
             raise commands.CommandError(message=f'Invalid argument: `{name}`. You cannot track your own activity.')
 
-        agc = await self.bot.agcm.authorize()
-        ss = await agc.open(self.bot.config['adminSheetName'])
-        sheet = await ss.worksheet('Rank Reports')
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open(self.bot.config['adminSheetName'])
+        sheet: AsyncioGspreadWorksheet = await ss.worksheet('Rank Reports')
         header_rows = 4
 
-        month = datetime.now(UTC).strftime("%B")
-        sheet_month_cell = await sheet.cell(3, 1)
-        sheet_month = sheet_month_cell.value
+        month: str = datetime.now(UTC).strftime("%B")
+        sheet_month_cell: gspread.Cell = await sheet.cell(3, 1)
+        sheet_month: str | None = sheet_month_cell.value
         if month != sheet_month:
             raise commands.CommandError(message=f'Error: `admin_sheet_month`. Please wait for a Leader to perform this month\'s rank changes.')
-        ranks = await sheet.col_values(1)
+        ranks: list[str | None] = await sheet.col_values(1)
         ranks = ranks[header_rows:]
         for i, rank in enumerate(ranks):
             if rank is None or not rank:
                 ranks = ranks[:i]
                 break
-        timestamp = datetime.now(UTC).strftime("%#d")
+        timestamp: str = datetime.now(UTC).strftime("%#d")
         row = 0
         for i, rank in enumerate(ranks):
             if not rank or rank in rank_titles:
                 continue
             if name.upper() == rank.upper():
-                row = i + header_rows + 1
+                row: int = i + header_rows + 1
                 name = rank
                 break
         if not row:
@@ -1274,7 +1272,7 @@ class Portables(Cog):
         if not row:
             raise commands.CommandError(message=f'Could not find rank: `{name}`.')
 
-        activity = await sheet.row_values(row)
+        activity: list[str | None] = await sheet.row_values(row)
         sheet_activity = activity[34:65]
         activity = activity[3:34]
 
@@ -1282,10 +1280,9 @@ class Portables(Cog):
         activity = list(filter(bool, activity))
         if timestamp in sheet_activity:
             raise commands.CommandError(message=f'`{name}` has already been noted active for today.')
-        sheet_col = 35 + len(sheet_activity)
+        sheet_col: int = 35 + len(sheet_activity)
         await sheet.update_cell(row, sheet_col, timestamp)
         await ctx.send(f'**{name}** has been noted as active on sheets for **{timestamp}** **{datetime.now(UTC).strftime("%b")}**.')
-
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Portables(bot))
