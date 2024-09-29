@@ -467,10 +467,10 @@ class ModCommands(Cog):
         '''
         Edits the nickname of the given user.
         '''
-        nickname = ' '.join(nickname) if nickname else None
         if not nickname:
             raise CommandError(message=f'Required argument missing: `nickname`.')
         try:
+            nickname = nickname.replace(member.mention, '')
             await member.edit(nick=nickname)
             await ctx.send(f'`{member.name}`\'s nickname has been changed to `{nickname}`.')
         except discord.Forbidden:
