@@ -1,5 +1,4 @@
-import asyncio
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, UTC
 import logging
 import os
 from pathlib import Path
@@ -10,7 +9,7 @@ from discord.ext import commands
 from src.configuration import get_config
 from src.auth_utils import get_google_sheets_credentials
 import string
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import TCPConnector, ClientSession, ClientTimeout
 import gspread_asyncio
 import traceback
 from github import Github
@@ -21,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from src.discord_utils import find_text_channel
 from src.database_utils import get_db_guild, find_or_create_db_guild
 from praw import Reddit
+import certifi
+import ssl
 
 class Bot(commands.AutoShardedBot):
     bot: commands.AutoShardedBot
@@ -68,7 +69,9 @@ class Bot(commands.AutoShardedBot):
             intents = intents
         )
         
-        self.aiohttp = ClientSession(timeout=ClientTimeout(total=60))
+        ssl_context: ssl.SSLContext = ssl.create_default_context(cafile=certifi.where())
+        connector = TCPConnector(ssl=ssl_context)
+        self.aiohttp = ClientSession(timeout=ClientTimeout(total=60), connector=connector)
         self.agcm = gspread_asyncio.AsyncioGspreadClientManager(get_google_sheets_credentials)
         self.github = Github(self.config['github_access_token'])
         self.reddit = Reddit(
