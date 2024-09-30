@@ -114,13 +114,16 @@ class Timer(Cog):
 
         if not time:
             raise commands.CommandError(message=f'Required argument missing: `time`.')
+        
+        input: str = time
+        time = time.upper()
 
         # Format H(:MM) AM/PM
         am_pm_offset = timedelta(0)
         if 'AM' in time or 'PM' in time:
             if 'PM' in time:
                 am_pm_offset = timedelta(hours=12)
-            time = time.replace('AM', '').replace('PM', '').replace(' ', '')
+            time = time.replace('AM', '').replace('PM', '').strip()
 
         # Format: HH:MM
         if ':' in time:
@@ -150,7 +153,7 @@ class Timer(Cog):
 
         for timezone_name in timezones:
             timezone: pytz._UTCclass | StaticTzInfo | DstTzInfo = pytz.timezone(timezone_name)
-            t_x: datetime = t_0 + timezone.utcoffset(t_0)
+            t_x: datetime = t_0 + timezone.utcoffset(t_0.replace(tzinfo=None))
             time_str: str = t_x.strftime('%H:%M')
             timezone_times.append((t_x, f'{time_str} {timezone_name}'))
         
@@ -170,7 +173,7 @@ class Timer(Cog):
         '''
         self.bot.increment_command_counter()
 
-        input: str = ' '.join(tz_or_loc).upper()
+        input: str = tz_or_loc.upper()
 
         if not input:
             timezone: str | None = None
