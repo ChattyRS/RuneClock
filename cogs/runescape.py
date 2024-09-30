@@ -679,7 +679,7 @@ class Runescape(Cog):
         levels: list[int] = []
 
         for i, _ in enumerate(lines):
-            levels.append(int(lines[i][1]))
+            levels.append(int(lines[i].split(',')[1]))
 
         stats_interface: Array = imageio.imread('images/stats_interface_empty.png')
             
@@ -753,7 +753,7 @@ class Runescape(Cog):
         if not username_2:
             raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `set07rsn` command, or add a second username as argument.')
         
-        for name in [name_1, name_2]:
+        for name in [username_1, username_2]:
             if len(name) > 12:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
             if re.match(r'^[A-z0-9 -]+$', name) is None:
@@ -761,7 +761,7 @@ class Runescape(Cog):
         
         level_list: list[list[str]] = []
         
-        for name in [name_1, name_2]:
+        for name in [username_1, username_2]:
             url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
 
             r: ClientResponse = await self.bot.aiohttp.get(url)
@@ -831,8 +831,8 @@ class Runescape(Cog):
         compare_image_file = discord.File(compare_image_bytes, filename='07compare.png')
         osrs_icon = discord.File(osrs_icon, filename='osrs.png')
 
-        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name_1}'.replace(' ', '+')
-        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={username_1}'.replace(' ', '+')
+        embed = discord.Embed(title=f'{username_1}, {username_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
         # player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)
@@ -935,8 +935,8 @@ class Runescape(Cog):
 
         msg = f'```\n{msg}\n```'
 
-        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.now(UTC), description=msg, url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'))
-        embed.set_author(name=f'Wise Old Man', url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'), icon_url='https://wiseoldman.net/img/logo.png')
+        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.now(UTC), description=msg, url=f'https://wiseoldman.net/players/{name}/gained'.replace(' ', '-'))
+        embed.set_author(name=f'Wise Old Man', url=f'https://wiseoldman.net/players/{name}/gained'.replace(' ', '-'), icon_url='https://wiseoldman.net/img/logo.png')
 
         await ctx.send(embed=embed)
 
@@ -1070,16 +1070,16 @@ class Runescape(Cog):
         if not username_2:
             raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `setrsn` command, or add a second username as argument.')
         
-        for name in [name_1, name_2]:
+        for name in [username_1, username_2]:
             if len(name) > 12:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
             if re.match(r'^[A-z0-9 -]+$', name) is None:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         
         level_list: list[list[str]] = []
-        exp_list = []
+        exp_list: list[list[str]] = []
         
-        for name in [name_1, name_2]:
+        for name in [username_1, username_2]:
             url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
 
             r: ClientResponse = await self.bot.aiohttp.get(url)
@@ -1163,8 +1163,8 @@ class Runescape(Cog):
         compare_image_file = discord.File(compare_image_bytes, filename='compare.png')
         rs3_icon = discord.File(rs3_icon, filename='rs3.png')
 
-        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name_1}'.replace(' ', '+')
-        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={username_1}'.replace(' ', '+')
+        embed = discord.Embed(title=f'{username_1}, {username_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='RuneScape HiScores', url='https://secure.runescape.com/m=hiscore/ranking', icon_url='attachment://rs3.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)

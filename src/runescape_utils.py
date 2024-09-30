@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import re
 import math
 from discord import User, Member
@@ -144,7 +144,7 @@ def get_rotation(t: datetime, rotation_count: int, interval_days: int, offset_da
     interval = timedelta(days=interval_days)
     offset = timedelta(days=offset_days)
 
-    t_0: datetime = datetime(1970, 1, 1, 0, 0, 0, 0) + offset
+    t_0: datetime = datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=UTC) + offset
     rotation: int = ((t - t_0) // interval) % rotation_count
     time_to_next: timedelta = interval - ((t - t_0) % interval)
 
@@ -356,7 +356,7 @@ rs3_skill_emojis: list[str] = [
 ]
 
 skill_indices: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21]
-skill_indices_rs3: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23, 24, 25, 26, 27]
+skill_indices_rs3: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23, 24, 25, 26, 27, 28]
 
 cb_indices_rs3: list[int] = [0, 2, 1, 3, 6, 4, 5, 23]
 cb_indices_osrs: list[int] = [0, 2, 1, 3, 6, 4, 5]
