@@ -285,7 +285,7 @@ class BackgroundTasks(Cog):
         try:
             async with self.bot.async_session() as session:
                 deleted_from_guild_ids: list[int] = []
-                notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time.replace(tzinfo=UTC) <= datetime.now(UTC)))).scalars().all()
+                notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
                 for notification in notifications:
                     guild: discord.Guild | None = self.bot.get_guild(notification.guild_id)
                     if not guild or not notification.message:
