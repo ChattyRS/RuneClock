@@ -3,7 +3,7 @@ from discord.ext import tasks
 from discord.ext.commands import Cog
 from src.bot import Bot
 import asyncio
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, UTC, tzinfo
 import logging
 from typing import Any, NoReturn, Sequence
 from sqlalchemy import select
@@ -285,7 +285,7 @@ class BackgroundTasks(Cog):
         try:
             async with self.bot.async_session() as session:
                 deleted_from_guild_ids: list[int] = []
-                notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
+                notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time.replace(tzinfo=UTC) <= datetime.now(UTC)))).scalars().all()
                 for notification in notifications:
                     guild: discord.Guild | None = self.bot.get_guild(notification.guild_id)
                     if not guild or not notification.message:
@@ -299,7 +299,7 @@ class BackgroundTasks(Cog):
 
                     interval = timedelta(seconds = notification.interval)
                     if interval.total_seconds() != 0:
-                        while notification.time < datetime.now(UTC):
+                        while notification.time.replace(tzinfo=UTC) < datetime.now(UTC):
                             notification.time += interval
                     else:
                         deleted_from_guild_ids.append(notification.guild_id)
