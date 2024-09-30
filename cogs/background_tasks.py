@@ -290,10 +290,12 @@ class BackgroundTasks(Cog):
                     guild: discord.Guild | None = self.bot.get_guild(notification.guild_id)
                     if not guild or not notification.message:
                         await session.delete(notification)
+                        await session.commit()
                         continue
                     channel: discord.TextChannel | None = find_guild_text_channel(guild, notification.channel_id)
                     if not channel:
                         await session.delete(notification)
+                        await session.commit()
                         continue
                     self.bot.queue_message(QueueMessage(channel, notification.message))
 
@@ -304,6 +306,7 @@ class BackgroundTasks(Cog):
                     else:
                         deleted_from_guild_ids.append(notification.guild_id)
                         await session.delete(notification)
+                        await session.commit()
                 
                 for guild_id in deleted_from_guild_ids:
                     guild_notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == guild_id))).scalars().all()
