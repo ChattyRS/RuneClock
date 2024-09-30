@@ -292,7 +292,7 @@ class Notifications(Cog):
         
         async with self.bot.async_session() as session:
             id: int | None = (await session.execute(select(Notification.notification_id).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalar()
-            id = id if id else 0
+            id = id+1 if id else 0
             session.add(Notification(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=round(interval.total_seconds()), message=message))
             await session.commit()
 
