@@ -1,103 +1,35 @@
+from typing import Any
+from aiohttp import ClientResponse
 import discord
 from discord.ext import commands
-import sys
-sys.path.append('../')
-from main import config_load, increment_command_counter, Poll
+from discord.ext.commands import Cog
+from sqlalchemy import select
+from src.bot import Bot
+from src.database import Poll
 import random
-from pyowm.owm import OWM
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from operator import attrgetter
-from utils import is_int
-import codecs
-import json
+from src.number_utils import is_int
 import validators
+from src.date_utils import months
+from src.discord_utils import get_guild_text_channel, perm_string, num_emoji
 
-config = config_load()
+class General(Cog):
+    rps_items: list[str] = ['Rock', 'Paper', 'Scissors']
+    rps_items_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
 
-rps = ['Rock', 'Paper', 'Scissors']
-rps_upper = ['ROCK', 'PAPER', 'SCISSORS']
-
-months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-owm = OWM(config['weatherAPI'])
-owm_manager = owm.weather_manager()
-
-num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
-
-def perm_string(p):
-    '''
-    Translates permissions to a string of important permissions.
-    '''
-    s = ''
-
-    if p.administrator:
-        s += 'Administrator, '
-    if p.manage_guild:
-        s += 'Manage Server, '
-    if p.ban_members:
-        s += 'Ban Members, '
-    if p.kick_members:
-        s += 'Kick Members, '
-    if p.manage_channels:
-        s += 'Manage Channels, '
-    if p.manage_messages:
-        s += 'Manage Messages, '
-    if p.mention_everyone:
-        s += 'Mention Everyone, '
-    if p.manage_nicknames:
-        s += 'Manage Nicknames, '
-    if p.manage_roles:
-        s += 'Manage Roles, '
-    if p.manage_emojis:
-        s += 'Manage Emojis, '
-    if p.manage_webhooks:
-        s += 'Manage Webhooks, '
-    if p.view_audit_log:
-        s += 'View Audit Logs, '
-
-    if s:
-        s = s[:len(s)-2]
-
-    return s
-
-# Dict of latin words from latin wiktionary
-def load_words():
-    with codecs.open('data/loremIpsum.json', 'r', encoding='utf-8-sig') as doc:
-        return json.load(doc)
-
-# Create a simple list from the weirdly formatted dictionary, excluding non-alphabetic words
-word_list = []
-for lst in load_words()['*']:
-    lst = lst['a']['*']
-    for item in lst:
-        word = item['title']
-        if word.isalpha():
-            word_list.append(word)
-
-# Divide total number of words pseudo-randomly over number of paragraphs
-def get_paragraph_lengths(paragraphs, words):
-    lower = round(words/paragraphs/2) # minimum words per paragraph
-    upper = round(words/paragraphs*2) # maximum words per paragraph
-    lengths = random.sample(range(lower, upper), paragraphs)
-    while sum(lengths) < words:
-        lengths[random.randint(0, paragraphs-1)] += 1
-    while sum(lengths) > words:
-        lengths[random.randint(0, paragraphs-1)] -= 1
-    return lengths
-
-class General(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
     @commands.command(pass_context=True, aliases=['flip', 'coin', 'coinflip'])
-    async def flipcoin(self, ctx: commands.Context):
+    async def flipcoin(self, ctx: commands.Context) -> None:
         '''
         Flips a coin.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         
-        i = random.randint(0,1)
-        result = ''
+        i: int = random.randint(0,1)
+        result: str
         if i:
             result = 'heads'
         else:
@@ -106,11 +38,11 @@ class General(commands.Cog):
         await ctx.send(f'{ctx.author.mention} {result}!')
 
     @commands.command(pass_context=True, aliases=['dice'])
-    async def roll(self, ctx: commands.Context, sides=6, num=1):
+    async def roll(self, ctx: commands.Context, sides=6, num=1) -> None:
         '''
         Rolls a dice.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         
         if is_int(num):
             num = int(num)
@@ -125,30 +57,30 @@ class General(commands.Cog):
         if sides < 2 or sides > 2147483647:
             raise commands.CommandError(message=f'Invalid argument: `{sides}`.')
 
-        results = []
+        results: list[int] = []
         for _ in range (0, num):
             results.append(random.randint(1,sides))
-        result = str(results).replace('[', '').replace(']', '')
+        result: str = str(results).replace('[', '').replace(']', '')
         
         await ctx.send(f'{ctx.author.mention} You rolled {result}!')
 
     @commands.command(pass_context=True)
-    async def rps(self, ctx: commands.Context, choice=''):
+    async def rps(self, ctx: commands.Context, choice='') -> None:
         '''
         Play rock, paper, scissors.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         
-        if not choice.upper() in rps_upper:
+        if not choice.upper() in self.rps_items_upper:
             raise commands.CommandError(message=f'Invalid argument: `{choice}`.')
         
-        for x in rps:
+        for x in self.rps_items:
             if choice.upper() == x.upper():
                 choice = x
-        i = random.randint(0,2)
-        myChoice = rps[i]
-        result = f'You chose **{choice}**. I choose **{myChoice}**.\n'
-        choices = [myChoice, choice]
+        i: int = random.randint(0,2)
+        myChoice: str = self.rps_items[i]
+        result: str = f'You chose **{choice}**. I choose **{myChoice}**.\n'
+        choices: list[str] = [myChoice, choice]
         if choice == myChoice:
             result += '**Draw!**'
         elif 'Rock' in choices and 'Paper' in choices:
@@ -160,83 +92,57 @@ class General(commands.Cog):
         
         await ctx.send(result)
 
-    @commands.command(pass_context=True, aliases=['forecast'])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def weather(self, ctx: commands.Context, *location):
-        '''
-        Get the weather forecast for a location
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-        
-        location = ' '.join(location)
-        if not location:
-            raise commands.CommandError(message=f'Required argument missing: `location`.')
-
-        try:
-            observation = owm_manager.weather_at_place(location)
-        except Exception as e:
-            raise commands.CommandError(message=f'Error: could not find location: `{location}`.')
-        w = observation.weather
-        temperature = w.temperature('celsius')
-        wind = w.wind('meters_sec')
-
-        title = f'Weather for: {observation.location.name}, {observation.location.country}'
-        colour = 0x00b2ff
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
-        embed.add_field(name='Condition:', value=f'{w.status}')
-        embed.add_field(name='Temperature:', value=f'Current: {round(temperature["temp"])}°C\nMax: {round(temperature["temp_max"])}°C\nMin: {round(temperature["temp_min"])}°C')
-        embed.add_field(name='Wind speed:', value=f'{round(wind["speed"]*3.6)} km/h')
-        
-        await ctx.send(embed=embed)
-
     @commands.command(pass_context=True)
-    async def serverinfo(self, ctx: commands.Context):
+    async def serverinfo(self, ctx: commands.Context) -> None:
         '''
         Get info on a server
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        title = f'Server info for: **{ctx.guild.name}**'
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+
+        title: str = f'Server info for: **{ctx.guild.name}**'
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp)
-        embed.add_field(name='Owner', value=ctx.guild.owner.mention)
+        if ctx.guild.owner:
+            embed.add_field(name='Owner', value=ctx.guild.owner.mention)
         embed.add_field(name='Channels', value=f'{len(ctx.guild.channels)}')
         embed.add_field(name='Members', value=f'{ctx.guild.member_count}')
         embed.add_field(name='Roles', value=f'{len(ctx.guild.roles)}')
-        icon = ctx.guild.icon.url
-        if icon:
-            embed.set_thumbnail(url=icon)
+        if ctx.guild.icon and ctx.guild.icon.url:
+            embed.set_thumbnail(url=ctx.guild.icon.url)
         embed.set_footer(text=f'ID: {ctx.guild.id}')
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, alias=['userinfo', 'memberinfo'])
-    async def whois(self, ctx: commands.Context, *memberName):
+    async def whois(self, ctx: commands.Context, *member_name) -> None:
         '''
         Get info on a member.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
         
-        msg = ctx.message
-        member = ''
-        if msg.mentions:
-            member = msg.mentions[0]
+        member: discord.Member | discord.User | str = ''
+        if ctx.message.mentions:
+            member = ctx.message.mentions[0]
         else:
-            if not memberName:
+            if not member_name:
                 raise commands.CommandError(message=f'Required argument missing: `member`.')
             else:
-                name = ''
-                for n in memberName:
+                name: str = ''
+                for n in member_name:
                     name += n + ' '
                 name = name.strip()
                 for m in ctx.guild.members:
                     if m.name.upper() == name.upper():
                         member = m
                         break
-                    nick = m.nick
+                    nick: str | None = m.nick
                     if nick:
                         if nick.upper() == name.upper():
                             member = m
@@ -254,35 +160,35 @@ class General(commands.Cog):
         if not member:
             raise commands.CommandError(message=f'Error: could not find member: `{name}`.')
 
-        members = await ctx.guild.query_members(user_ids=[member.id], presences=True)
+        members: list[discord.Member] = await ctx.guild.query_members(user_ids=[member.id], presences=True)
         member = members[0]
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp: datetime = datetime.now(UTC)
         embed = discord.Embed(colour=colour, timestamp=timestamp, description=f'{member.mention}')
         if member.display_avatar.url:
             embed.set_author(name=member.name, url=None, icon_url=member.display_avatar.url)
             embed.set_thumbnail(url=member.display_avatar.url)
         embed.add_field(name='Display name', value=member.display_name)
         embed.add_field(name='Status', value=f'{str(member.status)[0].upper() + str(member.status)[1:]}')
-        join_time = member.joined_at
-        min = join_time.minute
+        join_time: datetime | None = member.joined_at if member.joined_at else timestamp
+        min: int | str = join_time.minute
         if min == 0:
             min = '00'
-        time = f'{join_time.day} {months[join_time.month-1]} {join_time.year}, {join_time.hour}:{min}'
+        time: str = f'{join_time.day} {months[join_time.month-1]} {join_time.year}, {join_time.hour}:{min}'
+
         embed.add_field(name='Joined', value=time)
         join_list = sorted(ctx.guild.members, key=attrgetter('joined_at'))
         join_pos = join_list.index(member)+1
         embed.add_field(name='Join Position', value=str(join_pos))
-        creation_time = member.created_at
+        creation_time: datetime = member.created_at
         min = creation_time.minute
         if min == 0:
             min = '00'
         time = f'{creation_time.day} {months[creation_time.month-1]} {creation_time.year}, {creation_time.hour}:{min}'
         embed.add_field(name='Registered', value=time)
-        roles = member.roles
-        role_str = ''
-        for i, r in enumerate(roles):
+        role_str: str = ''
+        for i, r in enumerate(member.roles):
             if i == 0:
                 continue
             role_str += r.mention + ' '
@@ -291,7 +197,7 @@ class General(commands.Cog):
             embed.add_field(name=f'Roles ({len(member.roles)-1})', value=role_str, inline=False)
         else:
             embed.add_field(name=f'Roles (0)', value='None', inline=False)
-        perm_str = perm_string(member.guild_permissions)
+        perm_str: str = perm_string(member.guild_permissions)
         if perm_str:
             embed.add_field(name=f'Permissions', value=perm_str)
         embed.set_footer(text=f'ID: {member.id}')
@@ -299,148 +205,99 @@ class General(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def quote(self, ctx: commands.Context, msg_id=''):
+    async def quote(self, ctx: commands.Context, msg_id='') -> None:
         '''
         Quotes a message from a given message ID.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
 
+        if not ctx.guild or not isinstance(ctx.channel, discord.TextChannel):
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+        
         if not msg_id:
             raise commands.CommandError(message=f'Required argument missing: `message_id`.')
         elif not is_int(msg_id):
             raise commands.CommandError(message=f'Invalid argument: `{msg_id}`.')
         else:
             msg_id = int(msg_id)
+
+        await ctx.channel.typing()
         
-        chan = ''
+        channel: discord.TextChannel | None = None
 
         try:
-            msg = await ctx.channel.fetch_message(msg_id)
-            chan = ctx.channel
+            msg: discord.Message | None = await ctx.channel.fetch_message(msg_id)
+            channel = ctx.channel
         except:
-            msg = ''
+            msg = None
 
         if not msg:
             for channel in ctx.guild.text_channels:
                 try:
                     msg = await channel.fetch_message(msg_id)
-                    chan = channel
+                    channel = msg.channel if isinstance(msg.channel, discord.TextChannel) else None
                     break
                 except:
-                    msg = ''
+                    msg = None
 
-        if not msg:
+        if not msg or not channel:
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`.')
 
-        embed = discord.Embed(description=f'In: {chan.mention}\n“{msg.content}”', colour=0x00b2ff, timestamp=msg.created_at)
+        embed = discord.Embed(description=f'In: {channel.mention}\n“{msg.content}”', colour=0x00b2ff, timestamp=msg.created_at)
         embed.set_author(name=msg.author.display_name, icon_url=msg.author.display_avatar.url)
         embed.set_footer(text=f'ID: {msg.id}')
 
         await ctx.message.delete()
         await ctx.send(embed=embed)
-
-    @commands.command(aliases=['lorem', 'ipsum', 'loremipsum'])
-    async def lipsum(self, ctx: commands.Context, words=0, paragraphs=1):
-        '''
-        Generate random Lorem Ipsum text.
-        '''
-        increment_command_counter()
-
-        # Verify that both the number of words and paragraphs are positive
-        if words < 1:
-            raise commands.CommandError(message=f'Invalid argument: `{words}`.')
-        if paragraphs < 1:
-            raise commands.CommandError(message=f'Invalid argument: `{paragraphs}`.')
-
-        # Initialize variables
-        text = ''
-        paragraph_lengths = get_paragraph_lengths(paragraphs, words)
-        sentence_length = random.randint(10, 30)
-        punctuation = [', ', ', ', ', ', '; ', ': '] # comma is 3x more common
-
-        for p in range(0, paragraphs):
-            paragraph_length = paragraph_lengths[p] # get length for this paragraph
-
-            word_num = 0
-            for w in range(0, paragraph_length):
-                word = word_list[random.randint(0, len(word_list)-1)] # get random word
-                word_num += 1 # position of word in sentence
-
-                # if new sentence, start with upper case, and choose sentence length
-                if word_num % sentence_length == 1:
-                    sentence_length = random.randint(10, 30)
-                    word_num = 1
-                    word = word[:1].upper() + word[1:]
-
-                text += word
-
-                # add punctuation and/or space
-                if not w == paragraph_length-1:
-                    if word_num == sentence_length:
-                        text += '. '
-                    elif not random.randint(0, 20):
-                        text += punctuation[random.randint(0, len(punctuation)-1)]
-                    else:
-                        text += ' '
-                else:
-                    text += '.'
-
-            # Add whitespace between paragraphs
-            if not p == paragraphs-1:
-                text += '\n\n'
-
-        # Check if message length is OK
-        if len(text) > 2048:
-            raise commands.CommandError(message=f'Error: character limit exceeded.')
-
-        # Create and send embed
-        embed = discord.Embed(title='Lorem Ipsum', description=text, timestamp=datetime.utcnow())
-        embed.set_author(name='Chatty', icon_url='https://i.imgur.com/hu3nR8o.png')
-        embed.set_footer(text=f'{words} words, {paragraphs} paragraphs')
-        await ctx.send(embed=embed)
     
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def shorten(self, ctx: commands.Context, url=''):
+    async def shorten(self, ctx: commands.Context, url='') -> None:
         '''
         Shorten a URL.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
 
         if not url:
             raise commands.CommandError(message='Required argument missing: `url`.')
         if not validators.url(url):
             raise commands.CommandError(message=f'Invalid argument: `{url}`. Argument must be a valid URL.')
+        
+        await ctx.channel.typing()
 
-        r = await self.bot.aiohttp.get(f'https://is.gd/create.php?format=simple&url={url}')
+        r: ClientResponse = await self.bot.aiohttp.get(f'https://is.gd/create.php?format=simple&url={url}')
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving shortened URL, please try again in a minute.')
-            data = await r.text()
+            data: str = await r.text()
 
         await ctx.send(data)
     
     @commands.command()
-    async def id(self, ctx: commands.Context, *input):
+    async def id(self, ctx: commands.Context, *input) -> None:
         '''
         Get the ID of a discord object.
         It is best to provide a mention to ensure the right object is found.
         Supports: channels, roles, members, emojis, messages, guild.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
 
         if not input:
             raise commands.CommandError(message='Required argument missing: `input`.')
-        input = ' '.join(input)
-        input_raw = input
-        input = input.lower()
-        output = ''
-        output_type = ''
-        backup = ''
-        backup_type = ''
+        
+        if not ctx.guild or not isinstance(ctx.channel, discord.TextChannel):
+            raise commands.CommandError(message=f'This command can only be used from a server.')
+        
+        await ctx.channel.typing()
+
+        input_str: str = ' '.join(input)
+        input_raw: str = input_str
+        input_str = input_str.lower()
+
+        output: Any = None
+        output_type: str
+        fallback: Any = None
+        fallback_type: str
 
         # handle mentions / defaults
         if ctx.message.channel_mentions:
@@ -452,74 +309,74 @@ class General(commands.Cog):
         elif ctx.message.mentions:
             output = ctx.message.mentions[0]
             output_type = 'member'
-        elif input == ctx.guild.name.lower() or input == 'guild' or input == 'server':
+        elif input_str == ctx.guild.name.lower() or input_str == 'guild' or input_str == 'server':
             output = ctx.guild
             output_type = 'guild'
-        elif input == 'owner':
+        elif input_str == 'owner':
             output = ctx.guild.owner
             output_type = 'member'
-        elif input == 'me':
+        elif input_str == 'me':
             output = ctx.message.author
             output_type = 'member'
-        elif input == 'you' or input == 'u':
+        elif input_str == 'you' or input_str == 'u':
             output = ctx.guild.me
             output_type = 'member'
         
         # channels
         if not output:
-            for channel in ctx.guild.channels:
-                if channel.name.lower() == input:
+            for channel in ctx.guild.text_channels:
+                if channel.name.lower() == input_str:
                     output = channel
                     output_type = 'channel'
                     break
-                elif not backup:
-                    if input in channel.name.lower():
-                        backup = channel
-                        backup_type = 'channel'
+                elif not fallback:
+                    if input_str in channel.name.lower():
+                        fallback = channel
+                        fallback_type = 'channel'
         
         # roles
         if not output:
             for role in ctx.guild.roles:
-                if role.name.lower() == input:
+                if role.name.lower() == input_str:
                     output = role
                     output_type = 'role'
                     break
-                elif not backup:
-                    if input in role.name.lower():
-                        backup = role
-                        backup_type = 'role'
+                elif not fallback:
+                    if input_str in role.name.lower():
+                        fallback = role
+                        fallback_type = 'role'
         
         # members
         if not output:
             for member in ctx.guild.members:
-                if member.display_name.lower() == input or member.name.lower() == input:
+                if member.display_name.lower() == input_str or member.name.lower() == input_str:
                     output = member
                     output_type = 'member'
                     break
-                elif not backup:
-                    if input in member.display_name.lower() or input in member.name.lower():
-                        backup = member
-                        backup_type = 'member'
+                elif not fallback:
+                    if input_str in member.display_name.lower() or input_str in member.name.lower():
+                        fallback = member
+                        fallback_type = 'member'
         
         # emoji
         if not output:
             guild_emojis = await ctx.guild.fetch_emojis()
             for emoji in guild_emojis:
-                if str(emoji) == input_raw or emoji.name.lower() == input:
+                if str(emoji) == input_raw or emoji.name.lower() == input_str:
                     output = emoji
                     output_type = 'emoji'
                     break
-                elif not backup:
-                    if input in emoji.name.lower():
-                        backup = emoji
-                        backup_type = 'emoji'
+                elif not fallback:
+                    if input_str in emoji.name.lower():
+                        fallback = emoji
+                        fallback_type = 'emoji'
         
         # message
         if not output:
             for channel in ctx.guild.text_channels:
                 async for message in channel.history(limit=100):
                     if message.guild == ctx.guild:
-                        if input in message.content and not message.id == ctx.message.id:
+                        if input_str in message.content and not message.id == ctx.message.id:
                             output = message
                             output_type = 'message'
                             break
@@ -531,19 +388,22 @@ class General(commands.Cog):
                 await ctx.send(f'The ID for {output_type} `{output.name}` is: `{output.id}`.')
             else:
                 await ctx.send(f'The ID for the following message, sent by `{output.author.display_name}` in {output.channel.mention} is: `{output.id}`.\n"{output.content}"')
-        elif backup:
-            await ctx.send(f'The ID for {backup_type} `{backup.name}` is: `{backup.id}`.')
+        elif fallback:
+            await ctx.send(f'The ID for {fallback_type} `{fallback.name}` is: `{fallback.id}`.')
         else:
-            raise commands.CommandError(message=f'Error, could not find any object: `{input}`. Please check your spelling.')
+            raise commands.CommandError(message=f'Error, could not find any object: `{input_str}`. Please check your spelling.')
     
     @commands.command(aliases=['strawpoll'])
-    async def poll(self, ctx: commands.Context, hours='24', *options):
+    async def poll(self, ctx: commands.Context, hours='24', *options) -> None:
         '''
         Create a poll in which users can vote by reacting.
         Poll duration can vary from 1 hour to 1 week (168 hours).
         Options must be separated by commas.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
 
         if not is_int(hours):
             options = [hours] + list(options)
@@ -553,68 +413,77 @@ class General(commands.Cog):
         if hours < 1 or hours > 168:
             raise commands.CommandError(message=f'Invalid argument: `{hours}`. Must be positive and less than 168.')
         
-        options = ' '.join(options)
-        options = options.split(',')
+        options_str: str = ' '.join(options)
+        options = options_str.split(',')
         
         if len(options) < 2:
             raise commands.CommandError(message='Error: insufficient options to create a poll. At least two options are required.')
         elif len(options) > 20:
             raise commands.CommandError(message='Error: too many options. This command only supports up to 20 options.')
 
-        txt = ''
+        txt: str = ''
         i = 0
         for opt in options:
             txt += f'\n{num_emoji[i]} {opt}'
             i += 1
         txt += f'\n\nThis poll will be open for {hours} hours!'
         
-        embed = discord.Embed(title='**Poll**', description=f'Created by {ctx.message.author.mention}\n{txt}', timestamp=datetime.utcnow())
+        embed = discord.Embed(title='**Poll**', description=f'Created by {ctx.message.author.mention}\n{txt}', timestamp=datetime.now(UTC))
         
-        msg = await ctx.send(embed=embed)
+        msg: discord.Message = await ctx.send(embed=embed)
         embed.set_footer(text=f'ID: {msg.id}')
         await msg.edit(embed=embed)
         for num in range(i):
             await msg.add_reaction(num_emoji[num])
-        
-        await Poll.create(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.utcnow()+timedelta(hours=hours))
+
+        async with self.bot.async_session() as session:
+            session.add(Poll(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.now(UTC)+timedelta(hours=hours)))
+            await session.commit()
 
     @commands.command()
-    async def close(self, ctx: commands.Context, msg_id=''):
+    async def close(self, ctx: commands.Context, msg_id='') -> None:
         '''
         Close a poll by giving its message ID.
         '''
-        increment_command_counter()
-        await ctx.channel.typing()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used from a server.')
 
         if not is_int(msg_id):
             raise commands.CommandError(message=f'Invalid argument: `{msg_id}`. Must be an integer.')
         msg_id = int(msg_id)
 
-        poll = await Poll.query.where(Poll.message_id==msg_id).gino.first()
-        if not poll:
-            raise commands.CommandError(message=f'Could not find active poll by ID: `{msg_id}`.')
+        await ctx.channel.typing()
 
-        if poll.author_id != ctx.message.author.id:
-            raise commands.CommandError(message=f'Insufficient permissions: only the creator of the poll can close it prematurely.')
+        async with self.bot.async_session() as session:
+            poll: Poll | None = (await session.execute(select(Poll).where(Poll.message_id == msg_id))).scalar_one_or_none()
+            if not poll:
+                raise commands.CommandError(message=f'Could not find active poll by ID: `{msg_id}`.')
 
-        await poll.delete()
+            if poll.author_id != ctx.message.author.id:
+                raise commands.CommandError(message=f'Insufficient permissions: only the creator of the poll can close it prematurely.')
+
+            await session.delete(poll)
+            await session.commit()
 
         try: 
-            msg = await ctx.guild.get_channel(poll.channel_id).fetch_message(msg_id)
+            channel: discord.TextChannel = get_guild_text_channel(ctx.guild, poll.channel_id)
+            msg: discord.Message = await channel.fetch_message(msg_id)
         except:
             raise commands.CommandError(message=f'Error: could not find message: `{msg_id}`. Was the poll deleted?')
         
-        results = {}
+        results: dict[str, int] = {}
         votes = 0
         for reaction in msg.reactions:
             results[str(reaction.emoji)] = reaction.count - 1
             votes += reaction.count - 1
         max_score = 0
-        winner = ''
+        winner: str = ''
         tie = False
         for emoji, score in results.items():
             if score > max_score:
-                max_score = score
+                max_score: int = score
                 winner = emoji
                 tie = False
             elif score == max_score:
@@ -622,23 +491,23 @@ class General(commands.Cog):
                 winner += f' and {emoji}'
         percentage = int((max_score)/max(1,votes)*100)
 
-        embed = msg.embeds[0]
+        embed: discord.Embed = msg.embeds[0]
         if not tie:
             embed.add_field(name='Results', value=f'Option {winner} won with {percentage}% of the votes!')
         else:
             embed.add_field(name='Results', value=f'It\'s a tie! Options {winner} each have {percentage}% of the votes!')
         await msg.edit(embed=embed)
 
-        txt = ''
+        txt: str = ''
         for emoji, score in results.items():
             txt += f'{emoji}: {score}\n'
         if not tie:
             txt += f'\nOption {winner} won with {percentage}% of the votes!'
         else:
             txt += f'It\'s a tie! Options {winner} each have {percentage}% of the votes!'
-        embed = discord.Embed(title='**Poll Results**', description=txt, timestamp=datetime.utcnow())
+        embed = discord.Embed(title='**Poll Results**', description=txt, timestamp=datetime.now(UTC))
         await ctx.send(embed=embed)
 
 
-async def setup(bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(General(bot))

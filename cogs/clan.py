@@ -1,175 +1,29 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import traceback
-from typing import List
+from typing import Any
 import discord
-from discord import TextStyle, app_commands
-from discord.ext import commands
-import sys
-import random
-import copy
-sys.path.append('../')
-from main import config_load, Guild
+from discord import SelectOption, TextStyle, app_commands
+from discord.ext.commands import Cog, CommandError
+from src.bot import Bot
+from src.database import Guild
 import re
-from utils import is_int
-
-config = config_load()
-
-num_emoji = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹']
-
-
-wom_skills: list[str] = [
-    'overall',
-    'attack',
-    'defence',
-    'strength',
-    'hitpoints',
-    'ranged',
-    'prayer',
-    'magic',
-    'cooking',
-    'woodcutting',
-    'fletching',
-    'fishing',
-    'firemaking',
-    'crafting',
-    'smithing',
-    'mining',
-    'herblore',
-    'agility',
-    'thieving',
-    'slayer',
-    'farming',
-    'runecrafting',
-    'hunter',
-    'construction'
-]
-
-wom_bosses: list[str] = [
-    'abyssal_sire',
-    'alchemical_hydra',
-    'araxxor',
-    'artio',
-    'barrows_chests',
-    'bryophyta',
-    'callisto',
-    'calvarion',
-    'cerberus',
-    'chambers_of_xeric',
-    'chambers_of_xeric_challenge_mode',
-    'chaos_elemental',
-    'chaos_fanatic',
-    'commander_zilyana',
-    'corporeal_beast',
-    'crazy_archaeologist',
-    'dagannoth_prime',
-    'dagannoth_rex',
-    'dagannoth_supreme',
-    'deranged_archaeologist',
-    'duke_sucellus',
-    'general_graardor',
-    'giant_mole',
-    'grotesque_guardians',
-    'hespori',
-    'kalphite_queen',
-    'king_black_dragon',
-    'kraken',
-    'kreearra',
-    'kril_tsutsaroth',
-    'lunar_chests',
-    'mimic',
-    'nex',
-    'nightmare',
-    'phosanis_nightmare',
-    'obor',
-    'phantom_muspah',
-    'sarachnis',
-    'scorpia',
-    'scurrius',
-    'skotizo',
-    'sol_heredit',
-    'spindel',
-    'tempoross',
-    'the_gauntlet',
-    'the_corrupted_gauntlet',
-    'the_leviathan',
-    'the_whisperer',
-    'theatre_of_blood',
-    'theatre_of_blood_hard_mode',
-    'thermonuclear_smoke_devil',
-    'tombs_of_amascut',
-    'tombs_of_amascut_expert',
-    'tzkal_zuk',
-    'tztok_jad',
-    'vardorvis',
-    'venenatis',
-    'vetion',
-    'vorkath',
-    'wintertodt',
-    'zalcano',
-    'zulrah'
-]
-
-wom_clues: list[str] = [
-    'clue_scrolls_all',
-    'clue_scrolls_beginner',
-    'clue_scrolls_easy',
-    'clue_scrolls_medium',
-    'clue_scrolls_hard',
-    'clue_scrolls_elite',
-    'clue_scrolls_master'
-]
-
-wom_minigames: list[str] = [
-    'league_points',
-    'bounty_hunter_hunter',
-    'bounty_hunter_rogue',
-    'last_man_standing',
-    'pvp_arena',
-    'soul_wars_zeal',
-    'guardians_of_the_rift',
-    'colosseum_glory'
-]
-
-wom_efficiency: list[str] = ['ehp', 'ehb']
-
-wom_metrics = wom_skills + wom_bosses + wom_clues + wom_minigames + wom_efficiency
-
-def choose_metric(exclude = [], type = ''):
-    type = type.lower().strip()
-
-    options = copy.deepcopy(wom_metrics)
-    if 'skill' in type:
-        options = copy.deepcopy(wom_skills)
-    elif 'boss' in type:
-        options = copy.deepcopy(wom_bosses)
-    elif 'clue' in type:
-        options = copy.deepcopy(wom_clues)
-    elif 'minigame' in type:
-        options = copy.deepcopy(wom_minigames)
-    elif 'efficiency' in type:
-        options = copy.deepcopy(wom_efficiency)
-
-    for opt in exclude:
-        if opt in options:
-            options.remove(opt)
-
-    if not options:
-        raise Exception('No options to choose from')
-
-    return random.choice(options)
+from src.database_utils import get_db_guild
+from src.discord_utils import get_role
+from src.number_utils import is_int
+from src.wise_old_man import wom_metrics, choose_metric
     
 
 class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__()
-        self.bot = bot
+        self.bot: Bot = bot
 
     group_id = discord.ui.TextInput(label='Group ID', placeholder="Group ID...", min_length=1, max_length=10, required=True, style=TextStyle.short)
     verification_code = discord.ui.TextInput(label='Verification code', placeholder="Verification code...", min_length=11, max_length=11, required=True, style=TextStyle.short)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        group_id = self.group_id.value.strip()
-        verification_code = self.verification_code.value.strip()
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        group_id: str | int = self.group_id.value.strip()
+        verification_code: str = self.verification_code.value.strip()
 
         # Validation
         if not group_id:
@@ -189,16 +43,19 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
 
         # Get WOM group
         group = None
-        url = f'https://api.wiseoldman.net/v2/groups/{group_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        url: str = f'https://api.wiseoldman.net/v2/groups/{group_id}'
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
-            group = await r.json()
+            group: Any = await r.json()
 
         # Store group id and verification code
-        guild = await Guild.get(interaction.guild.id)
-        await guild.update(wom_group_id=group_id, wom_verification_code=verification_code).apply()
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild, session)
+            guild.wom_group_id = group_id
+            guild.wom_verification_code = verification_code
+            await session.commit()
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Wise Old Man**', colour=0x00e400)
@@ -208,50 +65,53 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
 
         await interaction.response.send_message(embed=embed)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
     
 class Dropdown(discord.ui.Select):
-    def __init__(self, options):
+    def __init__(self, bot: Bot, options: list[SelectOption]) -> None:
         # The placeholder is what will be shown when no option is chosen
         # The min and max values indicate we can only pick one of the options
         # The options parameter defines the dropdown options. We defined this above
         super().__init__(placeholder='Choose a role...', min_values=1, max_values=1, options=options, custom_id='wom_role_select')
+        self.bot: Bot = bot
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction) -> None:
         # Use the interaction object to update the guild wom_role_id. 
         # The self object refers to the Select object, 
         # and the values attribute gets a list of the user's
         # selected options. We only want the first one.
-        role = interaction.guild.get_role(int(self.values[0]))
-        guild = await Guild.get(interaction.guild.id)
-        await guild.update(wom_role_id=role.id).apply()
+        role: discord.Role = get_role(self.bot, interaction.guild, int(self.values[0]))
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild, session)
+            guild.wom_role_id = role.id
+            await session.commit()
         await interaction.response.send_message(f'The WOM management role has been set to `{role.name}`', ephemeral=True)
 
 class SelectRoleView(discord.ui.View):
-    def __init__(self, bot, guild):
+    def __init__(self, bot: Bot, guild: discord.Guild) -> None:
         super().__init__()
-        self.bot = bot
+        self.bot: Bot = bot
 
         # Get options for role dropdown
-        options = [discord.SelectOption(label=role.name, value=str(role.id)) for role in sorted(guild.roles, reverse=True)]
+        options: list[SelectOption] = [discord.SelectOption(label=role.name, value=str(role.id)) for role in sorted(guild.roles, reverse=True)]
         if len(options) > 25:
             options = options[:25]
 
         # Adds the dropdown to our view object.
-        self.add_item(Dropdown(options))
+        self.add_item(Dropdown(self.bot, options))
 
 class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__()
-        self.bot = bot
+        self.bot: Bot = bot
 
     rsn = discord.ui.TextInput(label='Who do you want to add?', placeholder="Player name...", min_length=1, max_length=12, required=True, style=TextStyle.short)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        rsn = self.rsn.value
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        rsn: str = self.rsn.value
 
         # Validation
         if not rsn:
@@ -260,9 +120,9 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
 
         # Get WOM group
         group = None
-        guild = await Guild.get(interaction.guild.id)
-        url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+        url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -270,11 +130,11 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         
         # Add player to group
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
-        payload = {'verificationCode': guild.wom_verification_code}
+        payload: dict[str, Any] = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [{'username': rsn, 'role': 'member'}]
-        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
-                data = await r.json()
+                data: Any = await r.json()
                 await interaction.response.send_message(f'An error occurred while trying to add `{rsn}` to WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
                 return
             data = await r.json()
@@ -286,27 +146,27 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
 
-        pattern = re.compile('([^\s\w]|_)+')
-        formatted_name = pattern.sub('', rsn).replace(' ', '%20')
-        player_image_url = f'https://services.runescape.com/m=avatar-rs/{formatted_name}/chat.png'
+        pattern: re.Pattern[str] = re.compile(r'([^\s\w]|_)+')
+        formatted_name: str = pattern.sub('', rsn).replace(' ', '%20')
+        player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{formatted_name}/chat.png'
         embed.set_thumbnail(url=player_image_url)
 
         await interaction.response.send_message(embed=embed)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
 class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__()
-        self.bot = bot
+        self.bot: Bot = bot
 
     rsn = discord.ui.TextInput(label='Who do you want to remove?', placeholder="Player name...", min_length=1, max_length=12, required=True, style=TextStyle.short)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        rsn = self.rsn.value
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        rsn: str = self.rsn.value
 
         # Validation
         if not rsn:
@@ -315,9 +175,9 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
 
         # Get WOM group
         group = None
-        guild = await Guild.get(interaction.guild.id)
-        url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
-        async with self.bot.aiohttp.get(url, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+        url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
+        async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
@@ -325,11 +185,11 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         
         # Remove player from group
         url = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}/members'
-        payload = {'verificationCode': guild.wom_verification_code}
+        payload: dict[str, Any] = {'verificationCode': guild.wom_verification_code}
         payload['members'] = [rsn]
-        async with self.bot.aiohttp.delete(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.delete(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
-                data = await r.json()
+                data: Any = await r.json()
                 await interaction.response.send_message(f'An error occurred while trying to remove `{rsn}` from WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
                 return
             data = await r.json()
@@ -341,29 +201,29 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
 
-        pattern = re.compile('([^\s\w]|_)+')
-        formatted_name = pattern.sub('', rsn).replace(' ', '%20')
-        player_image_url = f'https://services.runescape.com/m=avatar-rs/{formatted_name}/chat.png'
+        pattern: re.Pattern[str] = re.compile(r'([^\s\w]|_)+')
+        formatted_name: str = pattern.sub('', rsn).replace(' ', '%20')
+        player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{formatted_name}/chat.png'
         embed.set_thumbnail(url=player_image_url)
 
         await interaction.response.send_message(embed=embed)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
 class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__()
-        self.bot = bot
+        self.bot: Bot = bot
 
     competition_title = discord.ui.TextInput(label='Competition title', placeholder=f'Title...', min_length=1, max_length=50, required=True, style=TextStyle.short)
     metric = discord.ui.TextInput(label='Competition metric', placeholder=f'Skill / boss', min_length=min([len(m) for m in wom_metrics]), max_length=max([len(m) for m in wom_metrics]), required=True, style=TextStyle.short)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        competition_title = self.competition_title.value
-        metric = self.metric.value.strip().replace(' ', '_').lower()
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        competition_title: str = self.competition_title.value
+        metric: str = self.metric.value.strip().replace(' ', '_').lower()
 
         # Validation
         if not competition_title:
@@ -377,13 +237,13 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
             return
 
         # Get guild info from database
-        guild = await Guild.get(interaction.guild.id)
+        guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
 
         # Calculate start and end datetimes
-        now = datetime.utcnow()
-        start = now + timedelta(days=-now.weekday(), weeks=1)
+        now: datetime = datetime.now(UTC)
+        start: datetime | str = now + timedelta(days=-now.weekday(), weeks=1)
         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-        end = start + timedelta(weeks=1)
+        end: datetime | str = start + timedelta(weeks=1)
 
         start = start.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
         start = start[:len(start)-4] + "Z"
@@ -392,15 +252,15 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         end = end[:len(end)-4] + "Z"
         
         # Create competition
-        payload = {"title": competition_title, "metric": metric, "startsAt": start, "endsAt": end, "groupId": guild.wom_group_id, "groupVerificationCode": guild.wom_verification_code}
+        payload: dict[str, Any] = {"title": competition_title, "metric": metric, "startsAt": start, "endsAt": end, "groupId": guild.wom_group_id, "groupVerificationCode": guild.wom_verification_code}
         url = 'https://api.wiseoldman.net/v2/competitions'
         data = None
-        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']}) as r:
+        async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 201:
-                raise commands.CommandError(message=f'Error status: {r.status}.')
-            data = await r.json()
+                raise CommandError(message=f'Error status: {r.status}.')
+            data: Any = await r.json()
             
-        competition = data['competition']
+        competition: Any = data['competition']
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Wise Old Man**', colour=0xff0000)
@@ -414,45 +274,53 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
 
         await interaction.response.send_message(embed=embed)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(f'{type(error).__name__}: {error}')
         traceback.print_tb(error.__traceback__)
 
 class RandomMetricView(discord.ui.View):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__(timeout=None)
-        self.bot = bot
+        self.bot: Bot = bot
 
     @discord.ui.button(label='Reroll', style=discord.ButtonStyle.blurple, custom_id='wom_metric_reroll_button')
-    async def reroll(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def reroll(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         # Validate permission
-        if interaction.user.id != int(interaction.message.embeds[0].footer.text.lower().replace('user id:', '').strip()):
+        if not interaction.message:
+            await interaction.response.send_message('Message not found.', ephemeral=True)
+            return
+        embed: discord.Embed = interaction.message.embeds[0]
+        if not embed.footer.text or not embed.title or not embed.description:
+            await interaction.response.send_message('Malformed embed.', ephemeral=True)
+            return
+        if interaction.user.id != int(embed.footer.text.lower().replace('user id:', '').strip()):
             await interaction.response.send_message('Only the original user of this command can reroll the result.', ephemeral=True)
             return
         # Reroll result
-        type = interaction.message.embeds[0].title.replace('*', '').lower().strip()
-        exclude = await get_excluded_metrics(interaction) + [interaction.message.embeds[0].description]
+        type: str = interaction.message.embeds[0].title.replace('*', '').lower().strip() if interaction.message and interaction.message.embeds[0].title else ''
+        guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+        exclude: list[str] = await get_excluded_metrics(guild) + ([interaction.message.embeds[0].description] if interaction.message and interaction.message.embeds[0].description else [])
         try:
-            metric = choose_metric(exclude, type)
+            metric: str = choose_metric(exclude, type)
         except:
             await interaction.response.send_message('Your result could not be rerolled, because there is no other outcome possible.', ephemeral=True)
             return
         # Update message
-        embed = interaction.message.embeds[0]
+        embed: discord.Embed = interaction.message.embeds[0]
         embed.description = metric
         await interaction.message.edit(embed=embed)
         await interaction.response.send_message(f'Rerolled metric: `{metric}`', ephemeral=True)
 
 class WOMExcludeModal(discord.ui.Modal, title='Wise Old Man: exclude metrics'):
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         super().__init__()
-        self.bot = bot
+        self.bot: Bot = bot
 
     metrics_to_exclude = discord.ui.TextInput(label='Metrics to exclude', placeholder=f'runecrafting, theatre_of_blood_hard_mode', min_length=None, max_length=4000, required=False, style=TextStyle.long)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        metrics_to_exclude = [metric.strip().replace(' ', '_') for metric in self.metrics_to_exclude.value.strip().lower().split(',') if metric.strip()]
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        metrics_to_exclude: list[str] = [metric.strip().replace(' ', '_') for metric in self.metrics_to_exclude.value.strip().lower().split(',') if metric.strip()]
 
         # Validation
         for metric in metrics_to_exclude:
@@ -460,11 +328,10 @@ class WOMExcludeModal(discord.ui.Modal, title='Wise Old Man: exclude metrics'):
                 await interaction.response.send_message(f'Invalid metric: `{metric}`.', ephemeral=True)
                 return
 
-        # Get guild info from database
-        guild = await Guild.get(interaction.guild.id)
-
-        # Update guild data
-        await guild.update(wom_excluded_metrics=','.join(metrics_to_exclude)).apply()
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild, session)
+            guild.wom_excluded_metrics = ','.join(metrics_to_exclude)
+            await session.commit()
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Wise Old Man**', colour=0xff0000)
@@ -474,38 +341,35 @@ class WOMExcludeModal(discord.ui.Modal, title='Wise Old Man: exclude metrics'):
 
         await interaction.response.send_message(embed=embed)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
-async def get_excluded_metrics(interaction: discord.Interaction):
-    # Get guild info from database
-    guild = await Guild.get(interaction.guild.id)
+async def get_excluded_metrics(guild: Guild) -> list[str]:
+    excluded: str | None = guild.wom_excluded_metrics
+    return excluded.split(',') if excluded else []
 
-    excluded = guild.wom_excluded_metrics
-    if excluded:
-        return excluded.split(',')
-    else:
-        return []
+class Clan(Cog):
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
-class Clan(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
-        self.bot = bot
-
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         pass
 
     @app_commands.command(name='wom')
-    async def wom(self, interaction: discord.Interaction, action: str):
+    async def wom(self, interaction: discord.Interaction, action: str) -> None:
         '''
         Manage the clan WOM group
         '''
         # Check permissions
-        guild = await Guild.get(interaction.guild.id)
-        if not interaction.user.guild_permissions.administrator and interaction.user.id != config['owner']:
-            guild = await Guild.get(interaction.guild.id)
-            wom_role = None
+        
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
+            return
+        if interaction.guild and isinstance(interaction.user, discord.Member) and not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+            wom_role: discord.Role | None = None
             if guild.wom_role_id:
                 wom_role = interaction.guild.get_role(guild.wom_role_id)
             if wom_role is None or not interaction.user.top_role >= wom_role or action in ['setup', 'role', 'exclude']:
@@ -543,38 +407,38 @@ class Clan(commands.Cog):
         self,
         interaction: discord.Interaction,
         current: str,
-    ) -> List[app_commands.Choice[str]]:
-        actions = ['add', 'remove', 'competition', 'skill', 'boss']
-        admin_actions = ['setup', 'role', 'exclude']
+    ) -> list[app_commands.Choice[str]]:
+        actions: list[str] = ['add', 'remove', 'competition', 'skill', 'boss']
+        admin_actions: list[str] = ['setup', 'role', 'exclude']
         return [
             app_commands.Choice(name=action, value=action)
             for action in actions if current.lower() in action.lower()
         ] + [
             app_commands.Choice(name=action, value=action)
             for action in admin_actions if current.lower() in action.lower() and 
-            (interaction.user.guild_permissions.administrator or interaction.user.id == config['owner'])
+            ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == self.bot.config['owner'])
         ]
 
-    async def wom_add(self, interaction: discord.Interaction):
+    async def wom_add(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(AddToWOMModal(self.bot))
 
-    async def wom_remove(self, interaction: discord.Interaction):
+    async def wom_remove(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(RemoveFromWOMModal(self.bot))
 
-    async def wom_competition(self, interaction: discord.Interaction):
+    async def wom_competition(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(WOMCompetitionModal(self.bot))
     
-    async def wom_setup(self, interaction: discord.Interaction):
+    async def wom_setup(self, interaction: discord.Interaction) -> None:
         # Validation
-        if not (interaction.user.guild_permissions.administrator or interaction.user.id == config['owner']):
+        if not ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == self.bot.config['owner']):
             await interaction.response.send_message('Missing permission: `administrator`', ephemeral=True)
             return
         await interaction.response.send_modal(WOMSetupModal(self.bot))
 
-    async def set_wom_role(self, interaction: discord.Interaction):
+    async def set_wom_role(self, interaction: discord.Interaction) -> None:
         # Set the role required to manage the clan WOM group.
         # Validation
-        if not (interaction.user.guild_permissions.administrator or interaction.user.id == config['owner']):
+        if not interaction.guild or not ((isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator) or interaction.user.id == self.bot.config['owner']):
             await interaction.response.send_message('Missing permission: `administrator`', ephemeral=True)
             return
         view = SelectRoleView(self.bot, interaction.guild)
@@ -583,7 +447,8 @@ class Clan(commands.Cog):
     async def random_skill(self, interaction: discord.Interaction):
         # Choose a random skill
         try:
-            metric = choose_metric(await get_excluded_metrics(interaction), 'skill')
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+            metric: str = choose_metric(await get_excluded_metrics(guild), 'skill')
         except:
             await interaction.response.send_message('Error choosing random skill.', ephemeral=True)
             return
@@ -594,10 +459,11 @@ class Clan(commands.Cog):
         view = RandomMetricView(self.bot)
         await interaction.response.send_message(embed=embed, view=view)
 
-    async def random_boss(self, interaction: discord.Interaction):
+    async def random_boss(self, interaction: discord.Interaction) -> None:
         # Choose a random boss
         try:
-            metric = choose_metric(await get_excluded_metrics(interaction), 'boss')
+            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+            metric: str = choose_metric(await get_excluded_metrics(guild), 'boss')
         except:
             await interaction.response.send_message('Error choosing random boss.', ephemeral=True)
             return
@@ -608,8 +474,8 @@ class Clan(commands.Cog):
         view = RandomMetricView(self.bot)
         await interaction.response.send_message(embed=embed, view=view)
 
-    async def set_exclude(self, interaction: discord.Interaction):
+    async def set_exclude(self, interaction: discord.Interaction) -> None:
          await interaction.response.send_modal(WOMExcludeModal(self.bot))
 
-async def setup(bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Clan(bot))

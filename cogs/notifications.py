@@ -1,155 +1,248 @@
+import logging
+from typing import Sequence
 import discord
 from discord.ext import commands
-from main import config_load, increment_command_counter, Guild, Notification, OnlineNotification
-import sys
-sys.path.append('../')
-from datetime import datetime, timedelta
-from utils import is_int, is_admin
+from discord.ext.commands import Cog
+from sqlalchemy import select
+from src.bot import Bot
+from src.database import Guild, Notification, OnlineNotification
+from datetime import datetime, timedelta, UTC
+from src.database_utils import get_db_guild
+from src.discord_utils import find_text_channel, get_guild_text_channel, get_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
+from src.message_queue import QueueMessage
+from src.number_utils import is_int
+from src.checks import is_admin
+from src.runescape_utils import dnd_names
+from discord.abc import GuildChannel
+from src.date_utils import parse_datetime_string, parse_timedelta_string
 
-config = config_load()
+class Notifications(Cog):
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
-ranks = ['Warbands', 'Amlodd', 'Hefin', 'Ithell', 'Trahaearn', 'Meilyr', 'Crwys',
-         'Cadarn', 'Iorwerth', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant',
-         'Spotlight', 'WildernessFlashEvents']
+    def cog_load(self) -> None:
+        '''
+        Starts background tasks when the cog is loaded.
+        '''
+        self.bot.loop.create_task(self.role_setup())
 
-class Notifications(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
-        self.bot = bot
+    async def role_setup(self) -> None:
+        '''
+        Sets up message and reactions for role management if no message is sent in the channel yet
+        Adds messages to cache to track reactions
+        '''
+        print(f'Initializing role management...')
+        logging.info('Initializing role management...')
+
+        guilds: Sequence[Guild]
+        async with self.bot.async_session() as session:
+            guilds = (await session.execute(select(Guild).where(Guild.role_channel_id.isnot(None)))).scalars().all()
+
+        channels: list[discord.TextChannel] = []
+        for db_guild in guilds:
+            channel: discord.TextChannel | None = find_text_channel(self.bot, db_guild.role_channel_id)
+            if channel:
+                channels.append(channel)
+
+        if not channels:
+            msg: str = f'Sorry, I was unable to retrieve any role management channels. Role management is down.'
+            print(msg)
+            print('-' * 10)
+            logging.critical(msg)
+            logChannel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['testChannel'])
+            self.bot.queue_message(QueueMessage(logChannel, msg))
+            return
+            
+        msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
+        notif_emojis: list[discord.Emoji] = []
+        for r in dnd_names:
+            emoji_id: int = self.bot.config[f'{r.lower()}EmojiID']
+            emoji: discord.Emoji | None = self.bot.get_emoji(emoji_id)
+            if emoji:
+                notif_emojis.append(emoji)
+                msg += str(emoji) + ' ' + r + '\n'
+        msg += "\nIf you wish to stop receiving notifications, simply remove your reaction. If your reaction isn't there anymore, then you can add a new one and remove it."
+        for c in channels:
+            try:
+                messages = 0
+                async for message in c.history(limit=1):
+                    messages += 1
+                if not messages:
+                    message: discord.Message = await c.send(msg)
+                    try:
+                        for emoji in notif_emojis:
+                            await message.add_reaction(emoji)
+                    except Exception as e:
+                        print(f'Exception: {e}')
+            except discord.Forbidden:
+                continue
+
+        msg = f'Role management ready'
+        print(msg)
+        print('-' * 10)
+        logging.info(msg)
+
+    @Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+        '''
+        Function to add handle on reactions
+        '''
+        channel: discord.TextChannel | None = find_text_channel(self.bot, payload.channel_id)
+        if not channel:
+            return
+
+        user: discord.Member = await channel.guild.fetch_member(payload.user_id)
+        if user.bot:
+            return
+
+        guild: Guild = await get_db_guild(self.bot.async_session, channel.guild)
+        if guild.role_channel_id != channel.id:
+            return
+        
+        emoji: discord.PartialEmoji = payload.emoji
+        role_name: str = emoji.name
+
+        if role_name in dnd_names:
+            role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
+        if not role:
+            return
+        
+        try:
+            await user.add_roles(role)
+        except discord.Forbidden:
+            pass
+
+    @Cog.listener()
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent) -> None:
+        '''
+        Function to remove roles on reactions
+        '''
+        channel: discord.TextChannel | None = find_text_channel(self.bot, payload.channel_id)
+        if not channel:
+            return
+        
+        user: discord.Member = await channel.guild.fetch_member(payload.user_id)
+        if user.bot:
+            return
+        
+        guild: Guild = await get_db_guild(self.bot.async_session, channel.guild)
+        if guild.role_channel_id != channel.id:
+            return
+
+        emoji: discord.PartialEmoji = payload.emoji
+        role_name: str = emoji.name
+        
+        if role_name in dnd_names:
+            role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
+        if not role:
+            return
+        
+        try:
+            await user.remove_roles(role)
+        except discord.Forbidden:
+            return
 
     @commands.command(aliases=['rsnewschannel', 'newschannel'])
     @is_admin()
-    async def rs3newschannel(self, ctx: commands.Context, channel=''):
+    async def rs3newschannel(self, ctx: commands.Context, *, channel: GuildChannel | None) -> None:
         '''
         Changes the server's RS3 news channel. (Admin+)
         Arguments: channel
         If no channel is given, RS3 news messages will be disabled.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        guild = await Guild.get(ctx.guild.id)
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+        
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
 
-        if not channel:
-            if guild.rs3_news_channel_id:
-                await guild.update(rs3_news_channel_id=None).apply()
+            if not channel and not guild.rs3_news_channel_id:
+                raise commands.CommandError(message=f'Required argument missing: `channel`.')
+            elif not channel:
+                guild.rs3_news_channel_id = None
+                await session.commit()
                 await ctx.send('RS3 news messages have been disabled for this server.')
                 return
-            else:
-                raise commands.CommandError(message=f'Required argument missing: `channel`.')
-        else:
-            if ctx.message.channel_mentions:
-                channel = ctx.message.channel_mentions[0]
-            elif is_int(channel):
-                id = channel
-                channel = ctx.guild.get_channel(int(id))
-                if not channel:
-                    raise commands.CommandError(message=f'Could not find channel: `{id}`.')
-            else:
-                found = False
-                for c in ctx.guild.text_channels:
-                    if c.name.lower() == channel.lower():
-                        channel = c
-                        found = True
-                        break
-                if not found:
-                    raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
             
-            await guild.update(rs3_news_channel_id=channel.id).apply()
+            guild.rs3_news_channel_id = channel.id
+            await session.commit()
 
             await ctx.send(f'The RS3 news channel has been set to {channel.mention}.')
 
 
     @commands.command(aliases=['07newschannel'])
     @is_admin()
-    async def osrsnewschannel(self, ctx: commands.Context, channel=''):
+    async def osrsnewschannel(self, ctx: commands.Context, *, channel: GuildChannel | None) -> None:
         '''
         Changes the server's OSRS news channel. (Admin+)
         Arguments: channel
         If no channel is given, OSRS news messages will be disabled.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        guild = await Guild.get(ctx.guild.id)
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+        
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
 
-        if not channel:
-            if guild.osrs_news_channel_id:
-                await guild.update(osrs_news_channel_id=None).apply()
-                await ctx.send('OSRS news messages have been disabled for this server.')
-                return
-            else:
+            if not channel and not guild.osrs_news_channel_id:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')
-        else:
-            if ctx.message.channel_mentions:
-                channel = ctx.message.channel_mentions[0]
-            elif is_int(channel):
-                id = channel
-                channel = ctx.guild.get_channel(int(id))
-                if not channel:
-                    raise commands.CommandError(message=f'Could not find channel: `{id}`.')
-            else:
-                found = False
-                for c in ctx.guild.text_channels:
-                    if c.name.lower() == channel.lower():
-                        channel = c
-                        found = True
-                        break
-                if not found:
-                    raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+            elif not channel:
+                guild.osrs_news_channel_id = None
+                await session.commit()
+                await ctx.send(content='OSRS news messages have been disabled for this server.')
+                return
             
-            await guild.update(osrs_news_channel_id=channel.id).apply()
+            guild.osrs_news_channel_id = channel.id
+            await session.commit()
 
             await ctx.send(f'The OSRS news channel has been set to {channel.mention}.')
 
     @commands.command(pass_context=True)
     @is_admin()
-    async def rsnotify(self, ctx: commands.Context, channel=''):
+    async def rsnotify(self, ctx: commands.Context, *, channel: GuildChannel | None) -> None:
         '''
         Changes server's RS notification channel. (Admin+)
         Arguments: channel.
         If no channel is given, notifications will no longer be sent.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if ctx.message.channel_mentions:
-            channel = ctx.message.channel_mentions[0]
-        elif channel:
-            found = False
-            for c in ctx.guild.text_channels:
-                if channel.upper() in c.name.upper():
-                    channel = c
-                    found = True
-                    break
-            if not found:
-                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
-        else:
-            guild = await Guild.get(ctx.guild.id)
-            if guild.notification_channel_id:
-                await guild.update(notification_channel_id=None).apply()
-                await ctx.send(f'I will no longer send notifications in server **{ctx.guild.name}**.')
-                return
-            else:
-                raise commands.CommandError(message=f'Required argument missing: `channel`.')
-
-        permissions = discord.Permissions.none()
-        colour = discord.Colour.default()
-        role_names = []
-        for role in ctx.guild.roles:
-            role_names.append(role.name.upper())
-        for rank in ranks:
-            if not rank.upper() in role_names:
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+        
+        if channel:
+            permissions: discord.Permissions = discord.Permissions.none()
+            colour: discord.Colour = discord.Colour.default()
+            for rank in [dnd_name for dnd_name in dnd_names if not dnd_name.upper() in [role.name.upper() for role in ctx.guild.roles]]:
                 try:
                     await ctx.guild.create_role(name=rank, permissions=permissions, colour=colour, hoist=False, mentionable=True)
                 except discord.Forbidden:
                     raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
         
-        guild = await Guild.get(ctx.guild.id)
-        await guild.update(notification_channel_id=channel.id).apply()
+        async with self.bot.async_session() as session:
+            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+
+            if not channel and not guild.notification_channel_id:
+                raise commands.CommandError(message=f'Required argument missing: `channel`.')
+            elif not channel:
+                guild.notification_channel_id = None
+                await session.commit()
+                await ctx.send(content='I will no longer send notifications in server **{ctx.guild.name}**.')
+                return
+
+            guild.notification_channel_id = channel.id
+            await session.commit()
         
         await ctx.send(f'The notification channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
 
     @commands.command()
     @is_admin()
-    async def addnotification(self, ctx: commands.Context, channel, time, interval, *message):
+    async def addnotification(self, ctx: commands.Context, channel: GuildChannel | str | int | None, time: datetime | str | None, interval: timedelta | str | None, *, message: str) -> None:
         '''
         Adds a custom notification. (Admin+)
         Format:
@@ -158,252 +251,83 @@ class Notifications(commands.Cog):
         interval: HH:MM, [num][unit]* where unit in {d, h, m}, 0 (one time only notification)
         message: string
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        guild = ctx.guild
-        msg = ctx.message
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+        if not channel:
+            raise commands.CommandError(message=f'Required argument missing: `channel`.')
+        if not time:
+            raise commands.CommandError(message=f'Required argument missing: `time`.')
+        if not interval:
+            raise commands.CommandError(message=f'Required argument missing: `interval`.')
+        if not message:
+            raise commands.CommandError(message=f'Required argument missing: `message`.')
 
         # Check given channel
-        temp = None
-        if channel:
-            if msg.channel_mentions:
-                temp = msg.channel_mentions[0]
+        if channel and not isinstance(channel, GuildChannel):
+            if ctx.message.channel_mentions and isinstance(ctx.message.channel_mentions[0], GuildChannel):
+                channel = ctx.message.channel_mentions[0]
             elif is_int(channel):
-                temp = guild.get_channel(int(channel))
-                if not temp:
-                    for c in guild.text_channels:
-                        if c.name.upper() == channel.upper():
-                            temp = c
-                            break
-            else:
-                for c in guild.text_channels:
-                    if c.name.upper() == channel.upper():
-                        temp = c
-                        break
-        if temp:
-            channel = temp
-        else:
-            raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
+                channel_by_id = ctx.guild.get_channel(int(channel))
+                channel = channel_by_id if channel_by_id else str(channel)
+            if isinstance(channel, str):
+                channel = get_text_channel_by_name(ctx.guild, channel)
+        if not isinstance(channel, GuildChannel):
+            raise commands.CommandError(f'Could not find channel.')
 
         # Handle input time
-        input_time = time
-        time = time.replace('/', '-')
-        parts = time.split('-')
-        if ' ' in parts[len(parts)-1]:
-            temp = parts[len(parts)-1]
-            parts = parts[:len(parts)-1]
-            for part in temp.split(' '):
-                parts.append(part.strip())
-        if len(parts) == 1: # format: HH:MM
-            parts = parts[0].split(':')
-            if len(parts) != 2:
-                await ctx.send(f'Time `{input_time}` was not correctly formatted. For the correct format, please use the `help addnotification` command.')
-                return
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 17.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 18.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 19.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 20.')
-            time = datetime.utcnow()
-            time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours)
-        elif len(parts) == 3: # format: DD-MM HH:MM
-            day = parts[0]
-            month = parts[1]
-            time_of_day = parts[2]
-            if not is_int(month):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 21.')
-            month = int(month)
-            if month < 1 or month > 12:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 22.')
-            if not is_int(day):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 23.')
-            day = int(day)
-            year = datetime.utcnow().year
-            if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 24.')
-            elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 25.')
-            elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 26.')
-            elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 27.')
-            parts = time_of_day.split(':')
-            if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 28.')
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 29.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 30.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 31.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 32.')
-            time = datetime.utcnow()
-            time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month)
-        elif len(parts) == 4:
-            day = parts[0]
-            month = parts[1]
-            year = parts[2]
-            time_of_day = parts[3]
-            if not is_int(year):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 1.')
-            year = int(year)
-            if year < datetime.utcnow().year or year > datetime.utcnow().year+1:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 2.')
-            if not is_int(month):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 3.')
-            month = int(month)
-            if month < 1 or month > 12:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 4.')
-            if not is_int(day):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 5.')
-            day = int(day)
-            if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 6.')
-            elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 7.')
-            elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 8.')
-            elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 9.')
-            parts = time_of_day.split(':')
-            if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 10.')
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 11.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 12.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 13.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 14.')
-            time = datetime.utcnow()
-            time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month, year=year)
-        else:
-            raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 15.')
-        if time < datetime.utcnow():
-            raise commands.CommandError(message=f'Invalid argument: `{time}`. Error ID: 16.')
+        time = parse_datetime_string(time) if isinstance(time, str) else time
+        time = time.replace(tzinfo=UTC)
+        if time < datetime.now(UTC):
+            raise commands.CommandError(f'Invalid argument: `{time}`. Time cannot be in the past.')
 
         # Handle input time interval
-        if interval == '0':
-            interval = timedelta(minutes=0)
-        elif ':' in interval: # format: HH:MM
-            parts = interval.split(':')
-            if len(parts) != 2:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            hours, minutes = parts[0], parts[1]
-            if not is_int(hours):
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            hours = int(hours)
-            if hours < 0 or hours > 23:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-
-            if not is_int(minutes):
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            minutes = int(minutes)
-            if minutes < 0 or minutes > 59:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            interval = timedelta(hours=hours, minutes=minutes)
-        else: # format: [num][unit] where unit in {d, h, m}
-            temp = interval.replace(' ', '')
-            units = ['d', 'h', 'm']
-            input = []
-            num = ''
-            for char in temp:
-                if not is_int(char) and not char.lower() in units:
-                    raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                elif is_int(char):
-                    num += char
-                elif char.lower() in units:
-                    if not num:
-                        raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                    input.append((int(num), char.lower()))
-                    num = ''
-            days = 0
-            hours = 0
-            minutes = 0
-            for i in input:
-                num = i[0]
-                unit = i[1]
-                if unit == 'd':
-                    days += num
-                elif unit == 'h':
-                    hours += num
-                elif unit == 'm':
-                    minutes += num
-            if days*24*60 + hours*60 + minutes <= 0:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            elif days*24*60 + hours*60 + minutes > 60*24*366:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            interval = timedelta(days=days, hours=hours, minutes=minutes)
-
+        interval = parse_timedelta_string(interval) if isinstance(interval, str) else interval
+        if (interval.days if interval.days else 0) * 24 * 60 * 60 + (interval.seconds if interval.seconds else 0) > 366 * 24 * 60 * 60:
+            raise commands.CommandError(f'Invalid argument: `{interval}`. Interval cannot exceed 1 year.')
         if 0 < interval.total_seconds() < 900:
-            raise commands.CommandError(message=f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
-
-        # Handle input message
-        msg = ''
-        for m in message:
-            msg += m + ' '
-        msg = msg.strip()
-        if not msg:
-            raise commands.CommandError(message=f'Invalid argument: `message`.')
+            raise commands.CommandError(f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
         
-        notifications = await Notification.query.where(Notification.guild_id==ctx.guild.id).order_by(Notification.notification_id.desc()).gino.all()
-        id = 0
-        if notifications:
-            id = notifications[0].notification_id + 1
-        await Notification.create(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=interval.total_seconds(), message=msg)
+        async with self.bot.async_session() as session:
+            id: int | None = (await session.execute(select(Notification.notification_id).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalar()
+            id = id if id else 0
+            session.add(Notification(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=round(interval.total_seconds()), message=message))
+            await session.commit()
 
-        await ctx.send(f'Notification added with id: `{id}`\n```channel:  {channel.id}\ntime:     {str(time)} UTC\ninterval: {int(interval.total_seconds())} (seconds)\nmessage:  {msg}```')
+        await ctx.send(f'Notification added with id: `{id}`\n```channel:  {channel.id}\ntime:     {str(time)} UTC\ninterval: {int(interval.total_seconds())} (seconds)\nmessage:  {message}```')
 
     @commands.command()
-    async def notifications(self, ctx: commands.Context):
+    async def notifications(self, ctx: commands.Context) -> None:
         '''
         Returns list of custom notifications for this server.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        notifications = await Notification.query.where(Notification.guild_id==ctx.guild.id).order_by(Notification.notification_id.asc()).gino.all()
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
+
+        async with self.bot.async_session() as session:
+            notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalars().all()
+
         if not notifications:
             raise commands.CommandError(message=f'Error: this server does not have any custom notifications.')
         
-        msg = ''
-        for notification in notifications:
-            msg += f'id:       {notification.notification_id}\nchannel:  {notification.channel_id}\ntime:     {notification.time} UTC\ninterval: {notification.interval} (seconds)\nmessage:  {notification.message}\n\n'
-        msg = msg.strip()
-        if len(msg) <= 1994:
-            await ctx.send(f'```{msg}```')
-        else:
-            # https://stackoverflow.com/questions/13673060/split-string-into-strings-by-length
-            chunks, chunk_size = len(msg), 1994 # msg at most 2000 chars, and we have 6 ` chars
-            msgs = [msg[i:i+chunk_size] for i in range(0, chunks, chunk_size)]
-            for msg in msgs:
-                await ctx.send(f'```{msg}```')
+        msg: str = '\n\n'.join([f'id:       {n.notification_id}\nchannel:  {n.channel_id}\ntime:     {n.time} UTC\ninterval: {n.interval} (seconds)\nmessage:  {n.message}' for n in notifications])
+        await send_code_block_over_multiple_messages(ctx, msg)
 
     @commands.command()
     @is_admin()
-    async def removenotification(self, ctx: commands.Context, id):
+    async def removenotification(self, ctx: commands.Context, id: str | int) -> None:
         '''
         Removes a custom notification by ID. (Admin+)
         To get the ID of the notification that you want to remove, use the command "notifications".
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
 
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
@@ -412,22 +336,26 @@ class Notifications(commands.Cog):
         else:
             id = int(id)
 
-        notification = await Notification.query.where(Notification.guild_id==ctx.guild.id).where(Notification.notification_id==id).gino.first()
-        if not notification:
-            raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
-        
-        await notification.delete()
+        async with self.bot.async_session() as session:
+            notifications: list[Notification] = [n for n in (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.asc()))).scalars().all()]
+            notification: list[Notification] | Notification = [n for n in notifications if n.notification_id == id]
+            if not notification:
+                raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
+            notification = notification[0]
 
-        notifications = await Notification.query.where(Notification.guild_id==ctx.guild.id).order_by(Notification.notification_id.asc()).gino.all()
-        if notifications:
-            for i, notification in enumerate(notifications):
-                await notification.update(notification_id=i).apply()
+            notifications.remove(notification)
+            await session.delete(notification)
+
+            for i, n in enumerate(notifications):
+                n.notification_id = i
+
+            await session.commit()
 
         await ctx.send(f'Removed custom notification: `{id}`')
     
     @commands.command(aliases=['updatenotification'])
     @is_admin()
-    async def editnotification(self, ctx: commands.Context, id, key='message', *value):
+    async def editnotification(self, ctx: commands.Context, id: int | str, key: str = 'message', *, value: GuildChannel | datetime | timedelta | str | None) -> None:
         '''
         Update an existing notification. (Admin+)
         Key can be "channel", "time", "interval", or "message"
@@ -437,7 +365,10 @@ class Notifications(commands.Cog):
         interval: HH:MM, [num][unit]* where unit in {d, h, m}, 0 (one time only notification)
         message: string
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
+
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
 
         if not id:
             raise commands.CommandError(message=f'Required argument missing: `id`.')
@@ -449,198 +380,62 @@ class Notifications(commands.Cog):
         if not key in ['channel', 'time', 'interval', 'message']:
             raise commands.CommandError(message=f'Invalid argument: `{key}`. Key must be channel, time, interval, or message.')
 
+        if isinstance(value, str):
+            value = ' '.join(value).strip()
         if not value:
             raise commands.CommandError(message=f'Required argument missing: `value`.')
-        value = ' '.join(value).strip()
-        if not value:
-            raise commands.CommandError(message=f'Required argument missing: `value`.')
-
-        notification = await Notification.query.where(Notification.guild_id==ctx.guild.id).where(Notification.notification_id==id).gino.first()
-        if not notification:
-            raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
         
-        if key == 'channel':
-            if ctx.message.channel_mentions:
-                temp = ctx.message.channel_mentions[0]
-            elif is_int(value):
-                temp = ctx.guild.get_channel(int(value))
-                if not temp:
-                    for c in ctx.guild.text_channels:
-                        if c.name.upper() == value.upper():
-                            temp = c
-                            break
-            else:
-                for c in ctx.guild.text_channels:
-                    if c.name.upper() == value.upper():
-                        temp = c
-                        break
-            if temp:
-                channel = temp
-            else:
-                raise commands.CommandError(message=f'Could not find channel: `{channel}`.')
-            await notification.update(channel_id=channel.id).apply()
+        async with self.bot.async_session() as session:
+            notification: Notification | None = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).where(Notification.notification_id == id))).scalar_one_or_none()
+            if not notification:
+                raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
         
-        elif key == 'time':
-            time = value
-            input_time = time
-            time = time.replace('/', '-')
-            parts = time.split('-')
-            if ' ' in parts[len(parts)-1]:
-                temp = parts[len(parts)-1]
-                parts = parts[:len(parts)-1]
-                for part in temp.split(' '):
-                    parts.append(part)
-            if len(parts) == 1: # format: HH:MM
-                parts = parts[0].split(':')
-                if len(parts) != 2:
-                    await ctx.send(f'Time `{input_time}` was not correctly formatted. For the correct format, please use the `help addnotification` command.')
-                    return
-                hours, minutes = parts[0], parts[1]
-                if not is_int(hours):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours = int(hours)
-                if hours < 0 or hours > 23:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+            if key == 'channel':
+                channel: str | GuildChannel | datetime | timedelta | None = value
+                if channel and not isinstance(channel, GuildChannel):
+                    if ctx.message.channel_mentions and isinstance(ctx.message.channel_mentions[0], GuildChannel):
+                        channel = ctx.message.channel_mentions[0]
+                    elif is_int(channel):
+                        channel_by_id: GuildChannel | None = ctx.guild.get_channel(int(channel)) # type: ignore
+                        channel = channel_by_id if channel_by_id else str(channel)
+                    if isinstance(channel, str):
+                        channel = get_text_channel_by_name(ctx.guild, channel)
+                if not isinstance(channel, GuildChannel):
+                    raise commands.CommandError(f'Could not find channel.')
+            
+                notification.channel_id = channel.id
+            
+            elif key == 'time':
+                if not isinstance(value, datetime) and not isinstance(value, str):
+                    raise commands.CommandError(message=f'Could not parse time: `{value}`')
+                time: datetime = parse_datetime_string(value) if isinstance(value, str) else value
+                time = time.replace(tzinfo=UTC)
+                if time < datetime.now(UTC):
+                    raise commands.CommandError(message=f'Invalid argument: `{time}`. Time cannot be in the past.')
 
-                if not is_int(minutes):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                minutes = int(minutes)
-                if minutes < 0 or minutes > 59:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.utcnow()
-                time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours)
-            elif len(parts) == 3: # format: DD-MM HH:MM
-                day = parts[0]
-                month = parts[1]
-                time_of_day = parts[2]
-                if not is_int(month):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                month = int(month)
-                if month < 1 or month > 12:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                if not is_int(day):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                day = int(day)
-                year = datetime.utcnow().year
-                if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                parts = time_of_day.split(':')
-                if len(parts) != 2:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours, minutes = parts[0], parts[1]
-                if not is_int(hours):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours = int(hours)
-                if hours < 0 or hours > 23:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
+                notification.time = time
+            
+            elif key == 'interval':
+                if not isinstance(value, timedelta) and not isinstance(value, str):
+                    raise commands.CommandError(message=f'Could not parse interval: `{value}`')
+                interval: timedelta | int = parse_timedelta_string(value) if isinstance(value, str) else value
 
-                if not is_int(minutes):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                minutes = int(minutes)
-                if minutes < 0 or minutes > 59:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.utcnow()
-                time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month)
-            elif len(parts) == 4:
-                day = parts[0]
-                month = parts[1]
-                year = parts[2]
-                time_of_day = parts[3]
-                if not is_int(year):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                year = int(year)
-                if year < datetime.utcnow().year or year > datetime.utcnow().year+1:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                if not is_int(month):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                month = int(month)
-                if month < 1 or month > 12:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                if not is_int(day):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                day = int(day)
-                if month in [1, 3, 5, 7, 8, 10, 12] and (day < 1 or day > 31):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif month in [4, 6, 9, 11] and (day < 1 or day > 30):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 == 0 and month == 2 and (day < 0 or day > 29):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                elif year % 4 != 0 and month == 2 and (day < 0 or day > 28):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                parts = time_of_day.split(':')
-                if len(parts) != 2:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours, minutes = parts[0], parts[1]
-                if not is_int(hours):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                hours = int(hours)
-                if hours < 0 or hours > 23:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-
-                if not is_int(minutes):
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                minutes = int(minutes)
-                if minutes < 0 or minutes > 59:
-                    raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-                time = datetime.utcnow()
-                time = time.replace(microsecond=0, second=0, minute=minutes, hour=hours, day=day, month=month, year=year)
-            else:
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-            if time < datetime.utcnow():
-                raise commands.CommandError(message=f'Invalid argument: `{time}`.')
-
-            await notification.update(time=time).apply()
+                if (interval.days if interval.days else 0) * 24 * 60 * 60 + (interval.seconds if interval.seconds else 0) > 366 * 24 * 60 * 60:
+                    raise commands.CommandError(f'Invalid argument: `{interval}`. Interval cannot exceed 1 year.')
+                if 0 < interval.total_seconds() < 900:
+                    raise commands.CommandError(f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
         
-        elif key == 'interval':
-            interval = value
-            temp = interval.replace(' ', '')
-            units = ['d', 'h', 'm']
-            input = []
-            num = ''
-            for char in temp:
-                if not is_int(char) and not char.lower() in units:
-                    raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                elif is_int(char):
-                    num += char
-                elif char.lower() in units:
-                    if not num:
-                        raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-                    input.append((int(num), char.lower()))
-                    num = ''
-            days = 0
-            hours = 0
-            minutes = 0
-            for i in input:
-                num = i[0]
-                unit = i[1]
-                if unit == 'd':
-                    days += num
-                elif unit == 'h':
-                    hours += num
-                elif unit == 'm':
-                    minutes += num
-            if days*24*60 + hours*60 + minutes <= 0:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            elif days*24*60 + hours*60 + minutes > 60*24*366:
-                raise commands.CommandError(message=f'Invalid argument: `{interval}`.')
-            interval = timedelta(days=days, hours=hours, minutes=minutes)
-            interval = interval.total_seconds()
+                notification.interval = round(interval.total_seconds())
+            
+            elif isinstance(value, str):
+                notification.message = value
 
-            await notification.update(interval=interval).apply()
-        
-        else:
-            await notification.update(message=value).apply()
+            await session.commit()
         
         await ctx.send(f'Notification edited with id: `{id}`\n```channel:  {notification.channel_id}\ntime:     {notification.time} UTC\ninterval: {notification.interval} (seconds)\nmessage:  {notification.message}```')
 
     @commands.command()
-    async def online(self, ctx: commands.Context, *member):
+    async def online(self, ctx: commands.Context, *, member: discord.Member, type: int = 1) -> None:
         '''
         Notify next time a user comes online.
         Arguments: member (mention, id, name), (optional: int type [1-4])
@@ -650,50 +445,10 @@ class Notifications(commands.Cog):
         Type 4: notify when member goes offline
         Type 1-3 also trigger when the member sends a message
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        if not member:
-            raise commands.CommandError(message=f'Required argument missing: `member`.')
-        type = 1
-        potential_type = member[len(member) - 1]
-        if is_int(potential_type):
-            if 1 <= int(potential_type) <= 4:
-                type = int(potential_type)
-                member = member[0:len(member) - 1]
-
-        if ctx.message.mentions:
-            member = ctx.message.mentions[0]
-        else:
-            name = ""
-            for m in member:
-                name += m + " "
-            name = name.strip()
-
-            found = False
-            if is_int(name):
-                potential_id = int(name)
-                for m in ctx.guild.members:
-                    if m.id == potential_id:
-                        found = True
-                        member = m
-                        break
-            if not found:
-                for m in ctx.guild.members:
-                    if m.display_name.upper().replace(" ", "") == name.upper().replace(" ", ""):
-                        found = True
-                        member = m
-                        break
-            if not found:
-                for m in ctx.guild.members:
-                    if name.upper().replace(" ", "") in m.display_name.upper().replace(" ", ""):
-                        found = True
-                        member = m
-                        break
-            if not found:
-                raise commands.CommandError(message=f'Could not find member: `{name}`.')
-        
-        members = await ctx.guild.query_members(user_ids=[member.id], presences=True)
-        member = members[0]
+        if not ctx.guild:
+            raise commands.CommandError(message=f'This command can only be used in a server.')
 
         if type in [1,2,3] and str(member.status) == 'online':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already online.')
@@ -704,82 +459,79 @@ class Notifications(commands.Cog):
         elif type == 4 and str(member.status) == 'offline':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already offline.')
         
-        online_notification = await OnlineNotification.query.where(OnlineNotification.guild_id==ctx.guild.id).where(OnlineNotification.author_id==ctx.author.id).where(OnlineNotification.member_id==member.id).gino.first()
-        if online_notification:
-            await online_notification.delete()
-            await ctx.send(f'You will no longer be notified of `{member.display_name}`\'s status.')
-        else:
-            await OnlineNotification.create(guild_id=ctx.guild.id, author_id=ctx.author.id, member_id=member.id, channel_id=ctx.message.channel.id, type=type)
-            if type in [1,2,3]:
-                await ctx.send(f'You will be notified when `{member.display_name}` is online.')
+        async with self.bot.async_session() as session:
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == ctx.guild.id)
+                                                                                    .where(OnlineNotification.author_id == ctx.author.id).where(OnlineNotification.member_id == member.id))).scalar_one_or_none()
+            if online_notification:
+                await session.delete(online_notification)
+                await session.commit()
+                await ctx.send(f'You will no longer be notified of `{member.display_name}`\'s status.')
             else:
-                await ctx.send(f'You will be notified when `{member.display_name}` is offline.')
+                session.add(OnlineNotification(guild_id=ctx.guild.id, author_id=ctx.author.id, member_id=member.id, channel_id=ctx.message.channel.id, type=type))
+                await session.commit()
+                if type in [1,2,3]:
+                    await ctx.send(f'You will be notified when `{member.display_name}` is online.')
+                else:
+                    await ctx.send(f'You will be notified when `{member.display_name}` is offline.')
 
     @commands.Cog.listener()
-    async def on_member_update(self, before, after):
+    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
         '''
         Notify users of status updates.
         '''
-        if before.status != after.status:
-            try:
-                online_notification = await OnlineNotification.query.where(OnlineNotification.guild_id==after.guild.id).where(OnlineNotification.member_id==after.id).gino.first()
-            except:
-                return
+        if before.status == after.status:
+            return
+        
+        async with self.bot.async_session() as session:
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == after.guild.id)
+                                                                                    .where(OnlineNotification.member_id == after.id))).scalar_one_or_none()
             if not online_notification:
                 return
-            if online_notification.type in [1,2,3] and str(after.status) == 'online':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is online! {user.mention}')
-                except:
-                    pass
-            elif online_notification.type in [2,3] and str(after.status) == 'idle':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is online! {user.mention}')
-                except:
-                    pass
-            elif online_notification.type == 2 and str(after.status) == 'dnd':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is online! {user.mention}')
-                except:
-                    pass
-            elif online_notification.type == 4 and str(after.status) == 'offline':
-                try:
-                    channel = discord.utils.get(after.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(after.guild.members, id=online_notification.author_id)
-                    await channel.send(f'`{after.display_name}` is offline! {user.mention}')
-                except:
-                    pass
-            else:
-                return
+            try:
+                channel: discord.TextChannel = get_guild_text_channel(after.guild, online_notification.channel_id)
+                user: discord.Member | None = discord.utils.get(after.guild.members, id=online_notification.author_id)
+                if not channel or not user:
+                    raise commands.CommandError('User or channel not found.')
+                if ((online_notification.type in [1,2,3] and str(after.status) == 'online') or (online_notification.type in [2,3] and str(after.status) == 'idle') 
+                    or (online_notification.type == 2 and str(after.status) == 'dnd') or (online_notification.type == 4 and str(after.status) == 'offline')):
+                    on_or_offline: str = 'offline' if online_notification.type == 4 else 'online'
+                    await channel.send(f'`{after.display_name}` is {on_or_offline}! {user.mention}')
+                else:
+                    return
+            except:
+                pass
 
-            await online_notification.delete()
+            await session.delete(online_notification)
+            await session.commit()
     
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message) -> None:
         '''
         Notify of online status on activity.
         '''
         if message.guild is None:
             return
-        try:
-            online_notification = await OnlineNotification.query.where(OnlineNotification.guild_id==message.guild.id).where(OnlineNotification.member_id==message.author.id).gino.first()
-        except:
-            return
-        if online_notification:
-            if online_notification.type in [1,2,3]:
-                try:
-                    channel = discord.utils.get(message.guild.channels, id=online_notification.channel_id)
-                    user = discord.utils.get(message.guild.members, id=online_notification.author_id)
+        
+        async with self.bot.async_session() as session:
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == message.guild.id)
+                                                                                    .where(OnlineNotification.member_id == message.author.id))).scalar_one_or_none()
+            if not online_notification:
+                return
+            
+            try:
+                channel: discord.TextChannel = get_guild_text_channel(message.guild, online_notification.channel_id)
+                user: discord.Member | None = discord.utils.get(message.guild.members, id=online_notification.author_id)
+                if not channel or not user:
+                    raise commands.CommandError('User or channel not found.')
+                if online_notification.type in [1,2,3]:
                     await channel.send(f'`{message.author.display_name}` is online! {user.mention}')
-                except:
-                    pass
-                await online_notification.delete()
+                else:
+                    return
+            except:
+                pass
 
-async def setup(bot):
+            await session.delete(online_notification)
+            await session.commit()
+
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Notifications(bot))

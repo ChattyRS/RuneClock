@@ -1,75 +1,23 @@
-import asyncio
 import discord
 from discord.ext import commands
-import sys
-sys.path.append('../')
-from main import increment_command_counter, User
-from datetime import datetime, timedelta
-from utils import time_diff_to_string
+from discord.ext.commands import Cog
+import asyncio
+from sqlalchemy import select
+from src.bot import Bot
+from src.database import User
+from datetime import datetime, timedelta, UTC
+from src.date_utils import timedelta_to_string, string_to_timezone
 import pytz
-from utils import countries, is_int
+from src.number_utils import is_int
+from pytz.tzinfo import StaticTzInfo, DstTzInfo
 
-def string_to_timezone(timezone):
-    if timezone.upper() == 'USA':
-        timezone = 'US'
-    valid = False
-    for x in pytz.all_timezones:
-        y = x.split('/')
-        y = y[len(y)-1]
-        if timezone.upper() == y.upper():
-            timezone = x
-            valid = True
-            break
-    if not valid:
-        for x in pytz.country_timezones:
-            if timezone.upper() in x.upper():
-                timezones = pytz.country_timezones[x]
-                timezone = timezones[0]
-                valid = True
-                break
-    if not valid:
-        for country in countries:
-            name = country['name']
-            code = country['code']
-            if timezone.upper() == name.upper():
-                timezone = code
-                break
-        for x in pytz.country_timezones:
-            if timezone.upper() in x.upper():
-                timezones = pytz.country_timezones[x]
-                timezone = timezones[0]
-                valid = True
-                break
-    if not valid:
-        for x in pytz.all_timezones:
-            if timezone.upper() in x.upper():
-                timezone = x
-                valid = True
-                break
-    if not valid:
-        for country in countries:
-            name = country['name']
-            code = country['code']
-            if timezone.upper() in name.upper():
-                timezone = code
-                break
-        for x in pytz.country_timezones:
-            if timezone.upper() in x.upper():
-                timezones = pytz.country_timezones[x]
-                timezone = timezones[0]
-                valid = True
-                break
-    if not valid:
-        raise commands.CommandError(message=f'Invalid argument: timezone `{timezone}`.')
-    return timezone
-
-class Timer(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
-        self.bot = bot
+class Timer(Cog):
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
 
     @commands.command(pass_context=True, aliases=['reminder', 'remind', 'remindme'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def timer(self, ctx: commands.Context, time='', unit='', *msg):
+    async def timer(self, ctx: commands.Context, time: str = '', unit: str = 'm', *, msg: str | None) -> None:
         '''
         Lets the user set a timer.
         Arguments: time, unit (optional, default m), message (optional).
@@ -77,21 +25,21 @@ class Timer(commands.Cog):
         Please note that timers will be lost if the bot is restarted or goes down unexpectedly.
         Don't forget to surround your inputs with "quotation marks" if they contains spaces.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not time:
             raise commands.CommandError(message=f'Required argument missing: `time`.')
-        count = time.count(':')
+        count: int = time.count(':')
         if count:
             if count == 1:
-                index = time.index(':')
-                h = time[:index]
-                m = time[index+1:]
+                index: int = time.index(':')
+                h: str = time[:index]
+                m: str = time[index+1:]
                 if not is_int(h) or not is_int(m):
                     raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
                 else:
-                    time = int(h) * 3600 + int(m) * 60
-                    if time % 3600 == 0:
+                    time_seconds = int(h) * 3600 + int(m) * 60
+                    if time_seconds % 3600 == 0:
                         unit = 'hours'
                     else:
                         unit = 'minutes'
@@ -101,19 +49,19 @@ class Timer(commands.Cog):
                 time = time[index+1:]
                 index = time.index(':')
                 m = time[:index]
-                s = time[index+1:]
+                s: str = time[index+1:]
                 if not is_int(h) or not is_int(m) or not is_int(s):
                     raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
                 else:
-                    time = int(h) * 3600 + int(m) * 60 + int(s)
-                    if time % 60 == 0:
+                    time_seconds = int(h) * 3600 + int(m) * 60 + int(s)
+                    if time_seconds % 60 == 0:
                         unit = 'minutes'
-                    elif time % 3600 == 0:
+                    elif time_seconds % 3600 == 0:
                         unit = 'hours'
                     else:
                         unit = 'seconds'
         elif is_int(time):
-            time = int(time)
+            time_seconds = int(time)
         else:
             raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
         if not count:
@@ -122,133 +70,128 @@ class Timer(commands.Cog):
                     unit = 'seconds'
                 elif 'M' in unit.upper():
                     unit = 'minutes'
-                    time *= 60
+                    time_seconds *= 60
                 elif 'H' in unit.upper():
                     unit = 'hours'
-                    time *= 3600
+                    time_seconds *= 3600
             else:
                 unit = 'minutes'
-                time *= 60
+                time_seconds *= 60
 
-        if time < 1 or time > 86400:
+        if time_seconds < 1 or time_seconds > 86400:
             raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
 
-        timeStr = time_diff_to_string(timedelta(seconds=time))
+        time_str: str = timedelta_to_string(timedelta(seconds=time_seconds))
 
-        await ctx.send(f'You have set a timer for **{timeStr}**.')
+        await ctx.send(f'You have set a timer for **{time_str}**.')
 
-        await asyncio.sleep(time)
+        await asyncio.sleep(time_seconds)
 
-        if msg:
-            txt = ''
-            for i in msg:
-                txt += i + ' '
-            txt = txt.strip()
-            await ctx.send(f'{ctx.author.mention} {txt}')
-        else:
-            await ctx.send(f'{ctx.author.mention} It\'s time!')
+        await ctx.send(f'{ctx.author.mention} {msg if msg else "It's time!"}')
 
     @commands.command(aliases=['timezone'])
-    async def tz(self, ctx: commands.Context, timezone='UTC'):
+    async def tz(self, ctx: commands.Context, timezone: str = 'UTC') -> None:
         '''
         Check the time in a given timezone.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         timezone = string_to_timezone(timezone)
 
-        tz = pytz.timezone(timezone)
-        time = datetime.now(tz)
+        tz: pytz._UTCclass | StaticTzInfo | DstTzInfo = pytz.timezone(timezone)
+        time: datetime = datetime.now(tz)
 
-        time_str = time.strftime('%H:%M')
+        time_str: str = time.strftime('%H:%M')
 
         await ctx.send(f'{timezone} time: `{time_str}`.')
 
     @commands.command()
-    async def worldtime(self, ctx: commands.Context, *time):
+    async def worldtime(self, ctx: commands.Context, *, time: str) -> None:
         '''
         Convert a given time in UTC to several timezones across the world.
         '''
-        increment_command_counter()
-
-        input = ' '.join(time).upper()
-        time = input
+        self.bot.increment_command_counter()
 
         if not time:
             raise commands.CommandError(message=f'Required argument missing: `time`.')
+        
+        input: str = time
+        time = time.upper()
 
         # Format H(:MM) AM/PM
         am_pm_offset = timedelta(0)
         if 'AM' in time or 'PM' in time:
             if 'PM' in time:
                 am_pm_offset = timedelta(hours=12)
-            time = time.replace('AM', '').replace('PM', '').replace(' ', '')
+            time = time.replace('AM', '').replace('PM', '').strip()
 
         # Format: HH:MM
         if ':' in time:
-            hours, minutes = time.split(':')
-            if not is_int(hours) or not is_int(minutes):
+            hours_str, minutes_str = time.split(':')
+            if not is_int(hours_str) or not is_int(minutes_str):
                 raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
-            hours, minutes = int(hours), int(minutes)
+            hours, minutes = int(hours_str), int(minutes_str)
         else:
-            hours, minutes = time, 0
-            if not is_int(hours):
+            hours_str, minutes = time, 0
+            if not is_int(hours_str):
                 raise commands.CommandError(message=f'Invalid argument: time `{time}`.')
-            hours = int(hours)
+            hours = int(hours_str)
         
-        t_0 = datetime.utcnow().replace(microsecond=0, second=0, minute=minutes, hour=hours)
+        t_0: datetime = datetime.now(UTC).replace(microsecond=0, second=0, minute=minutes, hour=hours)
         t_0 += am_pm_offset
-        
-        msg = []
 
         # US/Pacific = MST, US/Central = EST
-        timezones = ['US/Pacific', 'US/Central', 'US/Eastern', 'UTC', 'Europe/London', 'CET', 'Australia/ACT']
+        timezones: list[str] = ['US/Pacific', 'US/Central', 'US/Eastern', 'UTC', 'Europe/London', 'CET', 'Australia/ACT']
 
-        user = await User.get(ctx.author.id)
-        if user:
-            if user.timezone:
-                if not user.timezone in timezones:
-                    timezones.append(user.timezone)
+        async with self.bot.async_session() as session:
+            user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+
+        if user and user.timezone and not user.timezone in timezones:
+            timezones.append(user.timezone)
+
+        timezone_times: list[tuple[datetime, str]] = []
 
         for timezone_name in timezones:
-            timezone = pytz.timezone(timezone_name)
-            t_x = t_0 + timezone.utcoffset(t_0)
-            time_str = t_x.strftime('%H:%M')
-            msg.append([t_x, f'{time_str} {timezone_name}'])
+            timezone: pytz._UTCclass | StaticTzInfo | DstTzInfo = pytz.timezone(timezone_name)
+            t_x: datetime = t_0 + timezone.utcoffset(t_0.replace(tzinfo=None))
+            time_str: str = t_x.strftime('%H:%M')
+            timezone_times.append((t_x, f'{time_str} {timezone_name}'))
         
-        msg = sorted(msg, key=lambda x: x[0])
-        msg = '\n'.join([x[1] for x in msg])
+        timezone_times = sorted(timezone_times, key=lambda x: x[0])
+        msg: str = '\n'.join([x[1] for x in timezone_times])
         
-        embed = discord.Embed(title=f'{input} UTC', colour=0x00b2ff, timestamp=datetime.utcnow(), description=msg)
+        embed = discord.Embed(title=f'{input} UTC', colour=0x00b2ff, timestamp=datetime.now(UTC), description=msg)
         embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 
         await ctx.send(embed=embed)
     
     @commands.command()
-    async def settimezone(self, ctx: commands.Context, *tz_or_loc):
+    async def settimezone(self, ctx: commands.Context, *, tz_or_loc: str) -> None:
         '''
         Set your personal timezone.
         This timezone will be shown (among others) when you use the `worldtime` command.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        input = ' '.join(tz_or_loc).upper()
+        input: str = tz_or_loc.upper()
 
         if not input:
-            timezone = None
+            timezone: str | None = None
         else:
             timezone = string_to_timezone(input)
 
         if timezone:
-            tz = pytz.timezone(timezone)
-            time = datetime.now(tz)
-            time_str = time.strftime('%H:%M')
+            tz: pytz._UTCclass | StaticTzInfo | DstTzInfo = pytz.timezone(timezone)
+            time: datetime = datetime.now(tz)
+            time_str: str = time.strftime('%H:%M')
 
-        user = await User.get(ctx.author.id)
-        if user:
-            await user.update(timezone=timezone).apply()
-        else:
-            await User.create(id=ctx.author.id, timezone=timezone)
+        async with self.bot.async_session() as session:
+            user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+            if user:
+                user.timezone = timezone
+            else:
+                session.add(User(id = ctx.author.id, timezone = timezone))
+            await session.commit()
         
         if timezone:
             await ctx.send(f'{ctx.author.mention} your timezone has been set to `{timezone}` ({time_str}).')
@@ -256,5 +199,5 @@ class Timer(commands.Cog):
             await ctx.send(f'{ctx.author.mention} your timezone has been removed.')
 
 
-async def setup(bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Timer(bot))

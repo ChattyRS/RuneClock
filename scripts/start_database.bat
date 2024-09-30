@@ -1,2 +1,2 @@
-cd "C:/Program Files/PostgreSQL/15/bin"
-postgres -D "C:/Program Files/PostgreSQL/15/data"
+cd "C:/Program Files/PostgreSQL/16/bin"
+postgres -D "C:/Program Files/PostgreSQL/16/data"

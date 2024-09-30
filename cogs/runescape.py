@@ -1,427 +1,310 @@
+from typing import Any, Iterator, Sequence
+from aiohttp import ClientResponse
 import discord
 from discord.ext import commands, tasks
-import sys
-sys.path.append('../')
-from main import config_load, increment_command_counter, User, NewsPost, RS3Item, OSRSItem
+from discord.ext.commands import Cog
+from imageio.core.util import Array
+from matplotlib.axis import Tick
+from matplotlib.text import Text
+from sqlalchemy import select
+from src.bot import Bot
+from src.database import User, NewsPost, RS3Item, OSRSItem
 import re
-from datetime import datetime, timedelta
-import praw
+from datetime import datetime, timedelta, UTC
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num
 import matplotlib.dates as mdates
 from matplotlib.dates import DateFormatter
 import math
-from bs4 import BeautifulSoup
-from utils import is_int, is_float, draw_num, xp_to_level, combat_level, draw_outline_osrs, draw_outline_rs3
-from utils import level_to_xp, time_diff_to_string, osrs_combat_level
+from bs4 import BeautifulSoup, NavigableString, Tag
+from src.number_utils import is_int, is_float, format_float
+from src.runescape_utils import xp_to_level, level_to_xp, combat_level, osrs_combat_level
+from src.runescape_utils import skills_07, osrs_skill_emojis, skills_rs3, rs3_skill_emojis
+from src.runescape_utils import skill_indices, skill_indices_rs3, cb_indices_rs3, cb_indices_osrs
+from src.runescape_utils import araxxor, vorago, rots
+from src.graphics import draw_num, draw_outline_osrs, draw_outline_rs3
 import io
 import imageio
 import copy
 import numpy as np
 import random
-from youtubesearchpython import Playlist, playlist_from_channel_id
-from utils import float_to_formatted_string
+from praw.reddit import Subreddit, Submission
+from src.graphics import yellow, orange, white, green, red
 
-config = config_load()
+class Runescape(Cog):
+    vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.now(UTC), description='Today\'s vis wax combo has not been released yet.')
+    vis_wax_combo: list = []
+    vis_wax_released = False
+    vis_wax_check_frequency: int = 60*15 # seconds
+    vis_time = 0
 
-reddit = praw.Reddit(client_id=config['redditID'],
-                     client_secret=config['redditSecret'],
-                     password=config['redditPW'],
-                     user_agent=config['user_agent'],
-                     username=config['redditName'])
-
-graph_cache_07 = {}
-
-graph_cache_rs3 = {}
-
-skills_07 = ['Overall', 'Attack', 'Defence', 'Strength', 'Hitpoints', 'Ranged',
-            'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
-            'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
-            'Thieving', 'Slayer', 'Farming', 'Runecraft', 'Hunter', 'Construction']
-
-osrs_skill_emojis = ['<:Attack_icon:624387168982269952>', '<:Defence_icon:624387168655114263>', '<:Strength_icon:624387169145847808>', '<:Hitpoints_icon:624387169058029568>', '<:Ranged_icon:624387169028538378>',
-            '<:Prayer_icon:624387169129332743>', '<:Magic_icon:624387168726548495>', '<:Cooking_icon:624387169066287104>', '<:Woodcutting_icon:624387168844120065>', '<:Fletching_icon:624387168885800981>', '<:Fishing_icon:624387169024213008>',
-            '<:Firemaking_icon:624387169011630120>', '<:Crafting_icon:624387169003503616>', '<:Smithing_icon:624387168898383903>', '<:Mining_icon:624387168785137669>', '<:Herblore_icon:624387169053704195>', '<:Agility_icon:624387168609239048>',
-            '<:Thieving_icon:624387169015955475>', '<:Slayer_icon:624387168822886435>', '<:Farming_icon:624387168990658570>', '<:Runecraft_icon:624387169041121290>', '<:Hunter_icon:624387169070350336>', '<:Construction_icon:624387168995115041>', '<:Stats_icon:624389156344430594>']
-
-skills_rs3 = ['Overall', 'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged',
-            'Prayer', 'Magic', 'Cooking', 'Woodcutting', 'Fletching', 'Fishing',
-            'Firemaking', 'Crafting', 'Smithing', 'Mining', 'Herblore', 'Agility',
-            'Thieving', 'Slayer', 'Farming', 'Runecrafting', 'Hunter', 'Construction',
-            'Summoning', 'Dungeoneering', 'Divination', 'Invention', 'Archaeology']
-
-skills_rs3_gains = skills_rs3 + ['Necromancy']
-
-rs3_skill_emojis = ['<:Attack:962315037668696084>', '<:Defence:962315037396074517>', '<:Strength:962315037538668555>', '<:Constitution:962315037601562624>', '<:Ranged:962315037177970769>',
-            '<:Prayer:962315037509300224>', '<:Magic:962315037207318579>', '<:Cooking:962315037563817994>', '<:Woodcutting:962315037593194516>', '<:Fletching:962315037664493568>', '<:Fishing:962315037630951484>',
-            '<:Firemaking:962315037542871070>', '<:Crafting:962315037647732766>', '<:Smithing:962315037530271744>', '<:Mining:962315037526085632>', '<:Herblore:962315037563834398>', '<:Agility:962315037635121162>',
-            '<:Thieving:962315037106634753>', '<:Slayer:962315037278609419>', '<:Farming:962315037484130324>', '<:Runecrafting:962315037538676736>', '<:Hunter:962315037261848607>', '<:Construction:962315037626761226>',
-            '<:Summoning:962315037559631892>', '<:Dungeoneering:962315037815492648>', '<:Divination:962315037727412245>', '<:Invention:962315037723222026>', '<:Archaeology:962315037509316628>']
-  
-indices = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21]
-indices_rs3 = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23, 24, 25, 26, 27]
-
-cb_indices_rs3 = [0, 2, 1, 3, 6, 4, 5, 23]
-cb_indices_osrs = [0, 2, 1, 3, 6, 4, 5]
-
-yellow = [255, 255, 0, 255]
-orange = [255, 140, 0, 255]
-white = [255, 255, 255, 255]
-green = [0, 221, 0, 255]
-red = [221, 0, 0, 255]
-
-def translate_age(age):
-    age = age.replace('dagen', 'days')
-    age = age.replace('dag', 'day')
-    age = age.replace('weken', 'weeks')
-    age = age.replace('maanden', 'months')
-    age = age.replace('maand', 'month')
-    age = age.replace('jaren', 'years')
-    age = age.replace('jaar', 'year')
-    age = age.replace('geleden', 'ago')
-    return age
-
-vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.utcnow(), description='Today\'s vis wax combo has not been released yet.')
-vis_wax_combo = []
-vis_wax_released = False
-vis_wax_check_frequency = 60*15 # seconds
-vis_time = 0
-
-'''
-rotation_count: number of rotations
-interval: frequency of rotation changes
-offset: 1 jan 1970 + offset = starting day for rot 0
-'''
-def get_rotation(t, rotation_count, interval, offset):
-    t = t.replace(second=0, microsecond=0)
-    interval = timedelta(days=interval)
-    offset = timedelta(days=offset)
-
-    t_0 = datetime(1970, 1, 1, 0, 0, 0, 0) + offset
-    rotation = ((t - t_0) // interval) % rotation_count
-    time_to_next = interval - ((t - t_0) % interval)
-
-    return (rotation, time_to_next)
-
-def araxxor(t):
-    rotation, next = get_rotation(t, 3, 4, 9)
-    return (['Path 1 (Minions)', 'Path 2 (Acid)', 'Path 3 (Darkness)'][rotation], time_diff_to_string(next))
-
-def vorago(t):
-    rotation, next = get_rotation(t, 6, 7, 6)
-    return (['Ceiling collapse', 'Scopulus', 'Vitalis', 'Green bomb', 'Team split', 'The end'][rotation], time_diff_to_string(next))
-
-def rots(t):
-    rotations = [
-        [['Dharok','Torag','Verac'],['Karil','Ahrim','Guthan']],
-		[['Karil','Torag','Guthan'],['Ahrim','Dharok','Verac']],
-		[['Karil','Guthan','Verac'],['Ahrim','Torag','Dharok']],
-		[['Guthan','Torag','Verac'],['Karil','Ahrim','Dharok']],
-		[['Karil','Torag','Verac'],['Ahrim','Guthan','Dharok']],
-		[['Ahrim','Guthan','Dharok'],['Karil','Torag','Verac']],
-		[['Karil','Ahrim','Dharok'],['Guthan','Torag','Verac']],
-		[['Ahrim','Torag','Dharok'],['Karil','Guthan','Verac']],
-		[['Ahrim','Dharok','Verac'],['Karil','Torag','Guthan']],
-		[['Karil','Ahrim','Guthan'],['Torag','Dharok','Verac']],
-		[['Ahrim','Torag','Guthan'],['Karil','Dharok','Verac']],
-		[['Ahrim','Guthan','Verac'],['Karil','Torag','Dharok']],
-		[['Karil','Ahrim','Torag'],['Guthan','Dharok','Verac']],
-		[['Karil','Ahrim','Verac'],['Dharok','Torag','Guthan']],
-		[['Ahrim','Torag','Verac'],['Karil','Dharok','Guthan']],
-		[['Karil','Dharok','Guthan'],['Ahrim','Torag','Verac']],
-		[['Dharok','Torag','Guthan'],['Karil','Ahrim','Verac']],
-		[['Guthan','Dharok','Verac'],['Karil','Ahrim','Torag']],
-		[['Karil','Torag','Dharok'],['Ahrim','Guthan','Verac']],
-		[['Karil','Dharok','Verac'],['Ahrim','Torag','Guthan']]
-    ]
-
-    rotation, next = get_rotation(t, 20, 1, 0)
-    return (rotations[rotation], time_diff_to_string(next))
-
-class Runescape(commands.Cog):
-    def __init__(self, bot: commands.AutoShardedBot):
-        self.bot = bot
+    def __init__(self, bot: Bot) -> None:
+        self.bot: Bot = bot
         self.vis_wax.start()
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         self.vis_wax.cancel()
     
     @tasks.loop(seconds=60)
-    async def vis_wax(self):
+    async def vis_wax(self) -> None:
         '''
         Loop to track location update activity
         '''
-        global vis_time
-        global vis_wax_released
-        global vis_wax_check_frequency
-        vis_time += 60
+        self.vis_time += 60
 
-        if vis_wax_released:
-            if vis_time > vis_wax_check_frequency:
-                vis_time = 0
+        if self.vis_wax_released:
+            if self.vis_time > self.vis_wax_check_frequency:
+                self.vis_time = 0
             else:
                 return
 
-        global vis_wax_embed
-        global vis_wax_combo
-
-        now = datetime.utcnow()
+        now: datetime = datetime.now(UTC)
         colour = 0x00b2ff
 
-        reset = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        if now < reset + timedelta(seconds=vis_wax_check_frequency):
-            vis_wax_released = False
-            vis_wax_embed = discord.Embed(title='Vis wax combination', colour=colour, timestamp=now, description='Today\'s vis wax combo has not been released yet.')
+        reset: datetime = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        if now < reset + timedelta(seconds=self.vis_wax_check_frequency):
+            self.vis_wax_released = False
+            self.vis_wax_embed = discord.Embed(title='Vis wax combination', colour=colour, timestamp=now, description='Today\'s vis wax combo has not been released yet.')
 
-        r = await self.bot.aiohttp.get('https://warbandtracker.com/goldberg/index.php')
+        r: ClientResponse = await self.bot.aiohttp.get('https://warbandtracker.com/goldberg/index.php')
         async with r:
-            data = await r.text()
+            data: str = await r.text()
 
             bs = BeautifulSoup(data, "html.parser")
-            table_body = bs.find('table')
-            rows = table_body.find_all('tr')
-            columns = []
+            table_body: Tag | NavigableString | None = bs.find('table')
+            rows: list[Any] = table_body.find_all('tr') if isinstance(table_body, Tag) else []
+            columns: list[Any] = []
             for row in rows:
-                cols = row.find_all('td')
+                cols: list[Any] = row.find_all('td')
                 cols = [x.text.strip() for x in cols]
                 columns.append(cols)
             
-            first_rune, second_runes_temp = columns[1][0], columns[3]
+            first_rune: str = columns[1][0]
+            second_runes_known: list[str] = columns[3]
 
             first_rune, acc_0 = first_rune.split('Reported by ')
             acc_0 = float(acc_0[:len(acc_0)-2])
 
-            second_runes = []
-            for rune in second_runes_temp:
+            second_runes: list[Any] = []
+            for rune in second_runes_known:
                 rune, acc = rune.split('Reported by ')
                 second_runes.append([rune, float(acc[:len(acc)-2])])
             
-            config = config_load()
-            emoji_server = self.bot.get_guild(int(config['emoji_server']))
+            emoji_server: discord.Guild | None = self.bot.get_guild(int(self.bot.config['emoji_server']))
             if not emoji_server:
                 return
-            second_runes_temp = []
+            second_runes_temp: list = []
             for emoji in emoji_server.emojis:
                 if emoji.name.upper() == first_rune.upper().replace(' ', '_'):
                     first_rune = f'{emoji} {first_rune}'
             for tmp in second_runes:
-                second_rune = tmp[0]
+                second_rune: str = tmp[0]
                 for emoji in emoji_server.emojis:
                     if emoji.name.upper() == second_rune.upper().replace(' ', '_'):
                         second_rune = f'{emoji} {second_rune}'
                         second_runes_temp.append([second_rune, tmp[1]])
             second_runes = second_runes_temp
             
-            if vis_wax_released:
-                vis_wax_combo = [[first_rune, acc_0], second_runes]
+            if self.vis_wax_released:
+                self.vis_wax_combo = [[first_rune, acc_0], second_runes]
             else:
-                if vis_wax_combo == [[first_rune, acc_0], second_runes]:
+                if self.vis_wax_combo == [[first_rune, acc_0], second_runes]:
                     return
                 else:
-                    vis_wax_combo = [[first_rune, acc_0], second_runes]
-                    vis_wax_released = True
+                    self.vis_wax_combo = [[first_rune, acc_0], second_runes]
+                    self.vis_wax_released = True
             
-            vis_wax_embed = discord.Embed(title='Vis wax combination', colour=colour, timestamp=now)
-            vis_wax_embed.add_field(name='First rune', value = f'{first_rune} ({acc_0}%)')
+            self.vis_wax_embed = discord.Embed(title='Vis wax combination', colour=colour, timestamp=now)
+            self.vis_wax_embed.add_field(name='First rune', value = f'{first_rune} ({acc_0}%)')
 
-            val = '\n'.join([f'{rune} ({acc}%)' for rune, acc in second_runes])
-            vis_wax_embed.add_field(name='Second rune', value=val)
+            val: str = '\n'.join([f'{rune} ({acc}%)' for rune, acc in second_runes])
+            self.vis_wax_embed.add_field(name='Second rune', value=val)
 
-            vis_wax_embed.set_footer(text='Powered by Warband Tracker')
+            self.vis_wax_embed.set_footer(text='Powered by Warband Tracker')
 
 
     @commands.command(pass_context=True, aliases=['rsn'])
-    async def setrsn(self, ctx: commands.Context, *rsn):
+    async def setrsn(self, ctx: commands.Context, *, rsn: str | None) -> None:
         '''
         Sets your Runescape 3 RSN.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        name = ' '.join(rsn)
+        if rsn and len(rsn) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{rsn}`.')
+        elif rsn and re.match(r'^[A-z0-9 -]+$', rsn) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{rsn}`.')
 
-        if not name:
-            user = await User.get(ctx.author.id)
+        async with self.bot.async_session() as session:
+            user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+
+            if not user and not rsn:
+                raise commands.CommandError(message=f'Required argument missing: `RSN`.')
+            
             if user:
-                await user.update(rsn=None).apply()
-                if user.osrs_rsn is None:
-                    await user.delete()
-                await ctx.send(f'{ctx.author.mention} Your RSN has been removed.')
-                return
-            raise commands.CommandError(message=f'Required argument missing: `RSN`.')
+                user.rsn = rsn
+            
+            await session.commit()
         
-        if len(name) > 12:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        
-        user = await User.get(ctx.author.id)
-        if user:
-            await user.update(rsn=name).apply()
+        if rsn:
+            await ctx.send(f'{ctx.author.mention} Your RSN has been set to **{rsn}**.')
         else:
-            await User.create(id=ctx.author.id, rsn=name)
-
-        await ctx.send(f'{ctx.author.mention} Your RSN has been set to **{name}**.')
+            await ctx.send(f'{ctx.author.mention} Your RSN has been removed.')
 
     @commands.command(pass_context=True, aliases=['07rsn'])
-    async def set07rsn(self, ctx: commands.Context, *rsn):
+    async def set07rsn(self, ctx: commands.Context, *, rsn: str | None) -> None:
         '''
         Sets your Old School Runescape RSN.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        name = ' '.join(rsn)
+        if rsn and len(rsn) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{rsn}`.')
+        elif rsn and re.match(r'^[A-z0-9 -]+$', rsn) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{rsn}`.')
 
-        if not name:
-            user = await User.get(ctx.author.id)
+        async with self.bot.async_session() as session:
+            user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+
+            if not user and not rsn:
+                raise commands.CommandError(message=f'Required argument missing: `RSN`.')
+            
             if user:
-                await user.update(osrs_rsn=None).apply()
-                if user.rsn is None:
-                    await user.delete()
-                await ctx.send(f'{ctx.author.mention} Your RSN has been removed.')
-                return
-            raise commands.CommandError(message=f'Required argument missing: `RSN`.')
+                user.osrs_rsn = rsn
+            
+            await session.commit()
         
-        if len(name) > 12:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        
-        user = await User.get(ctx.author.id)
-        if user:
-            await user.update(osrs_rsn=name).apply()
+        if rsn:
+            await ctx.send(f'{ctx.author.mention} Your Old School RSN has been set to **{rsn}**.')
         else:
-            await User.create(id=ctx.author.id, osrs_rsn=name)
-
-        await ctx.send(f'{ctx.author.mention} Your Old School RSN has been set to **{name}**.')
+            await ctx.send(f'{ctx.author.mention} Your Old School RSN has been removed.')
 
     @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def alog(self, ctx: commands.Context, *username):
+    async def alog(self, ctx: commands.Context, *, username: str | None) -> None:
         '''
         Get the last 20 activities on a player's adventurer's log.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = ' '.join(username)
-
-        if not name:
-            user = await User.get(ctx.author.id)
+        if not username:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
             if user:
-                name = user.rsn
-            if not name:
+                username = user.rsn
+            if not username:
                 raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
 
-        if len(name) > 12:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
-            raise commands.CommandError(message=f'Invalid argument: `{name}`.')
+        if len(username) > 12:
+            raise commands.CommandError(message=f'Invalid argument: `{username}`.')
+        if re.match(r'^[A-z0-9 -]+$', username) is None:
+            raise commands.CommandError(message=f'Invalid argument: `{username}`.')
 
-        url = f'https://apps.runescape.com/runemetrics/profile/profile?user={name}&activities=20'.replace(' ', '%20')
+        url: str = f'https://apps.runescape.com/runemetrics/profile/profile?user={username}&activities=20'.replace(' ', '%20')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving data, please try again in a minute.')
-            data = await r.json()
+            data: dict = await r.json()
 
         if 'error' in data:
             if data['error'] == 'NO_PROFILE':
-                raise commands.CommandError(message=f'Could not find adventurer\'s log for: `{name}`.')
+                raise commands.CommandError(message=f'Could not find adventurer\'s log for: `{username}`.')
             elif data['error'] == 'PROFILE_PRIVATE':
-                raise commands.CommandError(message=f'Error: `{name}`\'s adventurer\'s log is set to private.')
+                raise commands.CommandError(message=f'Error: `{username}`\'s adventurer\'s log is set to private.')
 
-        activities = data['activities']
+        activities: list[dict[str, Any]] = data['activities']
 
-        txt = ''
+        txt: str = ''
         for activity in activities:
             txt += f'[{activity["date"]}] {activity["text"]}\n'
         txt = txt.strip()
         txt = f'```{txt}```'
 
-        embed = discord.Embed(title=f'{name}\'s Adventurer\'s log', description=txt, colour=0x00b2ff, timestamp=datetime.utcnow(), url=f'https://apps.runescape.com/runemetrics/app/overview/player/{name.replace(" ", "%20")}')
-        embed.set_thumbnail(url=f'https://services.runescape.com/m=avatar-rs/{name.replace(" ", "%20")}/chat.png')
+        embed = discord.Embed(title=f'{username}\'s Adventurer\'s log', description=txt, colour=0x00b2ff, timestamp=datetime.now(UTC), url=f'https://apps.runescape.com/runemetrics/app/overview/player/{username.replace(" ", "%20")}')
+        embed.set_thumbnail(url=f'https://services.runescape.com/m=avatar-rs/{username.replace(" ", "%20")}/chat.png')
 
         await ctx.send(embed=embed)
 
 
     @commands.command(name='07reddit', pass_context=True, aliases=['osrsreddit'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07reddit(self, ctx: commands.Context):
+    async def _07reddit(self, ctx: commands.Context) -> None:
         '''
         Get top 5 hot posts from r/2007scape.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        submissions = reddit.subreddit('2007scape').hot(limit=5)
+        subreddit: Subreddit = self.bot.reddit.subreddit('2007scape')
+        submissions: Iterator[Submission] = subreddit.hot(limit=5)
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp: datetime = datetime.now(UTC)
         embed = discord.Embed(title=f'/r/2007scape', colour=colour, timestamp=timestamp)
 
         for s in submissions:
-            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}')
+            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}', inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['rsreddit', 'rs3reddit'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def reddit(self, ctx: commands.Context):
+    async def reddit(self, ctx: commands.Context) -> None:
         '''
         Get top 5 hot posts from r/runescape.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        submissions = reddit.subreddit('runescape').hot(limit=5)
+        subreddit: Subreddit = self.bot.reddit.subreddit('runescape')
+        submissions: Iterator[Submission] = subreddit.hot(limit=5)
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp: datetime = datetime.now(UTC)
         embed = discord.Embed(title=f'/r/runescape', colour=colour, timestamp=timestamp)
 
         for s in submissions:
-            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}')
+            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}', inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(name='07rsw', pass_context=True, aliases=['07wiki', 'osrswiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07rsw(self, ctx: commands.Context, *query):
+    async def _07rsw(self, ctx: commands.Context, *, query: str) -> None:
         '''
         Get top 5 results for a search on OSRS Wiki.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        search = ''
-        for i in query:
-            search += i + '+'
-        search = search[:len(search)-1]
+        query = query.replace(' ', '+')
 
-        if not search:
+        if not query:
             raise commands.CommandError(message=f'Required argument missing: `query`.')
 
-        url = f'https://oldschool.runescape.wiki/api.php?action=opensearch&format=json&search={search}'
+        url: str = f'https://oldschool.runescape.wiki/api.php?action=opensearch&format=json&search={query}'
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving data, please try again in a minute.')
-            data = await r.json()
+            data: list = await r.json()
 
-        items = data[1]
-        urls = data[3]
+        items: list[str] = data[1]
+        urls: list[str] = data[3]
 
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
         embed = discord.Embed(title=f'__Old School RuneScape Wiki__', colour=colour, timestamp=timestamp, url='https://oldschool.runescape.wiki/')
         embed.set_thumbnail(url='https://oldschool.runescape.wiki/images/b/bc/Wiki.png')
 
         if len(items) > 5:
             items = items[:5]
         elif not items:
-            raise commands.CommandError(message=f'Error: no pages matching `{search}`.')
+            raise commands.CommandError(message=f'Error: no pages matching `{query}`.')
 
         for i, item in enumerate(items):
             embed.add_field(name=item, value=urls[i], inline=False)
@@ -430,41 +313,37 @@ class Runescape(commands.Cog):
 
     @commands.command(pass_context=True, aliases=['rswiki', 'wiki', 'rs3wiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def rsw(self, ctx: commands.Context, *query):
+    async def rsw(self, ctx: commands.Context, *, query: str) -> None:
         '''
         Get top 5 results for a search on RS Wiki.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        search = ''
-        for i in query:
-            search += i + '+'
-        search = search[:len(search)-1]
+        query = query.replace(' ', '+')
 
-        if not search:
+        if not query:
             raise commands.CommandError(message=f'Required argument missing: `query`.')
 
-        url = f'https://runescape.wiki/api.php?action=opensearch&format=json&search={search}'
+        url: str = f'https://runescape.wiki/api.php?action=opensearch&format=json&search={query}'
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving data, please try again in a minute.')
-            data = await r.json()
+            data: list = await r.json()
 
-        items = data[1]
-        urls = data[3]
+        items: list[str] = data[1]
+        urls: list[str] = data[3]
 
-        colour = 0x00b2ff
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title=f'__RuneScape Wiki__', colour=colour, timestamp=timestamp, url='https://runescape.wiki/')
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=f'__RuneScape Wiki__', colour=0x00b2ff, timestamp=timestamp, url='https://runescape.wiki/')
         embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
 
         if len(items) > 5:
             items = items[:5]
         elif not items:
-            raise commands.CommandError(message=f'Error: could not find a page matching `{search}`.')
+            raise commands.CommandError(message=f'Error: could not find a page matching `{query}`.')
 
         for i, item in enumerate(items):
             embed.add_field(name=item, value=urls[i], inline=False)
@@ -472,100 +351,91 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07news', pass_context=True, aliases=['osrsnews'])
-    async def _07news(self, ctx: commands.Context):
+    async def _07news(self, ctx: commands.Context) -> None:
         '''
         Get 5 latest OSRS news posts.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        news_posts = await NewsPost.query.where(NewsPost.game=='osrs').order_by(NewsPost.time.desc()).gino.all()
+        async with self.bot.async_session() as session:
+            news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost).where(NewsPost.game == 'osrs').order_by(NewsPost.time.desc()).fetch(5))).scalars().all()
 
         embed = discord.Embed(title=f'Old School RuneScape News')
 
-        for i, post in enumerate(news_posts):
-            if i >= 5:
-                break
+        for post in news_posts:
             embed.add_field(name=post.title, value=post.link + '\n' + post.description, inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['rsnews', 'rs3news'])
-    async def news(self, ctx: commands.Context):
+    async def news(self, ctx: commands.Context) -> None:
         '''
         Get 5 latest RS news posts.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        news_posts = await NewsPost.query.where(NewsPost.game=='rs3').order_by(NewsPost.time.desc()).gino.all()
+        async with self.bot.async_session() as session:
+            news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost).where(NewsPost.game == 'rs3').order_by(NewsPost.time.desc()).fetch(5))).scalars().all()
 
         embed = discord.Embed(title=f'RuneScape News')
 
-        for i, post in enumerate(news_posts):
-            if i >= 5:
-                break
+        for post in news_posts:
             embed.add_field(name=post.title, value=post.link + '\n' + post.description, inline=False)
 
         await ctx.send(embed=embed)
 
     @commands.command(name='07price', pass_context=True, aliases=['osrsprice'])
-    async def _07price(self, ctx: commands.Context, days='30', *item_name):
+    async def _07price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
         '''
         Get the OSRS GE price for an item.
         Argument "days" is optional, default is 30.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if is_int(days):
-            days = int(days)
+        if is_int(days_or_item):
+            days: int = int(days_or_item)
             if days < 1 or days > 180:
                 await ctx.send('Graph period must be between 1 and 180 days. Defaulted to 30.')
-                days =  30
+                days = 30
         else:
-            item_name = list(item_name)
-            item_name.insert(0, days)
+            item_name = days_or_item + (' ' + item_name if item_name else '')
             days = 30
 
-        name = ' '.join(item_name)
-
-        if not name:
+        if not item_name:
             raise commands.CommandError(message=f'Required argument missing: `item_name`.')
-        if len(name) < 2:
+        if len(item_name) < 2:
             raise commands.CommandError(message=f'Invalid argument: `item_name`. Length must be at least 2 characters.')
         
-        items = await OSRSItem.query.where(OSRSItem.name.ilike(f'%{name}%')).gino.all()
+        async with self.bot.async_session() as session:
+            items: Sequence[OSRSItem] = (await session.execute(select(OSRSItem).where(OSRSItem.name.ilike(f'%{item_name}%')))).scalars().all()
         if not items:
-            raise commands.CommandError(message=f'Could not find item: `{name}`.')
+            raise commands.CommandError(message=f'Could not find item: `{item_name}`.')
         items = sorted(items, key=lambda i: len(i.name))
-        item = items[0]
+        item: OSRSItem = items[0]
 
-        name = item.name
-        price = int(item.current.replace(' ', ''))
-        price = f'{price:,}'
-        icon = item.icon_url
-        link = f'http://services.runescape.com/m=itemdb_oldschool/viewitem?obj={item.id}'
-        description = item.description
-        today = int(item.today.replace(' ', ''))
-        today = f'{today:,}'
+        item_name = item.name
+        price: str = f'{int(item.current.replace(' ', '')):,}'
+        link: str = f'http://services.runescape.com/m=itemdb_oldschool/viewitem?obj={item.id}'
+        today: str = f'{int(item.today.replace(' ', '')):,}'
         if not today.startswith('-') and not today.startswith('+'):
             today = '+' + today
-        day30 = item.day30
+        day30: str = item.day30
         if not day30.startswith('-') and not day30.startswith('+'):
             day30 = '+' + day30
-        day90 = item.day90
+        day90: str = item.day90
         if not day90.startswith('-') and not day90.startswith('+'):
             day90 = '+' + day90
-        day180 = item.day180
+        day180: str = item.day180
         if not day180.startswith('-') and not day180.startswith('+'):
             day180 = '+' + day180
 
-        colour = 0x00b2ff
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=link, description=description)
-        embed.set_thumbnail(url=icon)
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=item_name, colour=0x00b2ff, timestamp=timestamp, url=link, description=item.description)
+        embed.set_thumbnail(url=item.icon_url)
 
         embed.add_field(name='Price', value=price, inline=False)
-        change = ''
+        change: str = ''
         if today != '0':
             change = f'**Today**: {today}\n'
         change += f'**30 days**: {day30}\n'
@@ -573,26 +443,27 @@ class Runescape(commands.Cog):
         change += f'**180 days**: {day180}'
         embed.add_field(name='Change', value=change, inline=False)
 
-        daily = item.graph_data['daily']
+        daily: dict = item.graph_data['daily']
 
-        times = []
-        prices = []
+        timestamps: list[int] = []
+        prices: list[int] = []
 
         for ms, price in daily.items():
-            times.append(int(ms)/1000)
+            timestamps.append(round(int(ms) / 1000))
             prices.append(int(price))
 
-        last = times[len(times)-1]
-        remove = []
-        for i, time in enumerate(times):
-            if time >= last - 86400*days:
-                date = timestamp - timedelta(seconds=last-time)
-                times[i] = date
+        times: list[datetime] = []
+
+        last: int = timestamps[len(timestamps)-1]
+        remove: list[int] = []
+        for i, time in enumerate(timestamps):
+            if time >= last - 86400 * days:
+                date: datetime = timestamp - timedelta(seconds=last-time)
+                times.append(date)
             else:
                 remove.append(i)
         remove.sort(reverse=True)
         for i in remove:
-            del times[i]
             del prices[i]
 
         if days <= 60:
@@ -606,7 +477,7 @@ class Runescape(commands.Cog):
 
         fig, ax = plt.subplots()
 
-        dates = date2num(times)
+        dates: np.ndarray = date2num(times)
         plt.plot_date(dates, prices, color='#47a0ff', linestyle='-', ydate=False, xdate=True)
 
         ax.xaxis.set_major_locator(loc)
@@ -618,14 +489,14 @@ class Runescape(commands.Cog):
         ax.spines['right'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-        locs, _ = plt.yticks()
-        ylabels = []
-        for l in locs:
-            lab = str(int(l)).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
+        locs: tuple[list[Tick] | np.ndarray, list[Text]] = plt.yticks()
+        ylabels: list[str] = []
+        for l in locs[1]:
+            lab: str = str(int(l.get_position()[1])).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
             if not ('K' in lab or 'M' in lab):
                 lab = "{:,}".format(int(lab))
             ylabels.append(lab)
-        plt.yticks(locs, ylabels)
+        plt.yticks(locs[0], ylabels) # type: ignore
 
         plt.savefig('images/graph.png', transparent=True)
         plt.close(fig)
@@ -639,64 +510,57 @@ class Runescape(commands.Cog):
         await ctx.send(file=image, embed=embed)
     
     @commands.command(pass_context=True, aliases=['rsprice', 'rs3price'])
-    async def price(self, ctx: commands.Context, days='30', *item_name):
+    async def price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
         '''
         Get the RS3 GE price for an item.
         Argument "days" is optional, default is 30.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if is_int(days):
-            days = int(days)
+        if is_int(days_or_item):
+            days: int = int(days_or_item)
             if days < 1 or days > 180:
                 await ctx.send('Graph period must be between 1 and 180 days. Defaulted to 30.')
-                days =  30
+                days = 30
         else:
-            item_name = list(item_name)
-            item_name.insert(0, days)
+            item_name = days_or_item + (' ' + item_name if item_name else '')
             days = 30
 
-        name = ' '.join(item_name)
-
-        if not name:
+        if not item_name:
             raise commands.CommandError(message=f'Required argument missing: `item_name`.')
-        if len(name) < 2:
+        if len(item_name) < 2:
             raise commands.CommandError(message=f'Invalid argument: `item_name`. Length must be at least 2 characters.')
 
-        items = await RS3Item.query.where(RS3Item.name.ilike(f'%{name}%')).gino.all()
+        async with self.bot.async_session() as session:
+            items: Sequence[RS3Item] = (await session.execute(select(RS3Item).where(RS3Item.name.ilike(f'%{item_name}%')))).scalars().all()
         if not items:
-            raise commands.CommandError(message=f'Could not find item: `{name}`.')
+            raise commands.CommandError(message=f'Could not find item: `{item_name}`.')
         items = sorted(items, key=lambda i: len(i.name))
-        item = items[0]
+        item: RS3Item = items[0]
 
-        name = item.name
-        price = int(item.current.replace(' ', ''))
-        price = f'{price:,}'
-        icon = item.icon_url
-        link = f'http://services.runescape.com/m=itemdb_rs/viewitem?obj={item.id}'
-        description = item.description
-        today = int(item.today.replace(' ', ''))
-        today = f'{today:,}'
+        item_name = item.name
+        price: str = f'{int(item.current.replace(' ', '')):,}'
+        link: str = f'http://services.runescape.com/m=itemdb_rs/viewitem?obj={item.id}'
+        today: str = f'{int(item.today.replace(' ', '')):,}'
         if not today.startswith('-') and not today.startswith('+'):
             today = '+' + today
-        day30 = item.day30
+        day30: str = item.day30
         if not day30.startswith('-') and not day30.startswith('+'):
             day30 = '+' + day30
-        day90 = item.day90
+        day90: str = item.day90
         if not day90.startswith('-') and not day90.startswith('+'):
             day90 = '+' + day90
-        day180 = item.day180
+        day180: str = item.day180
         if not day180.startswith('-') and not day180.startswith('+'):
             day180 = '+' + day180
 
-        colour = 0x00b2ff
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=link, description=description)
-        embed.set_thumbnail(url=icon)
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=item_name, colour=0x00b2ff, timestamp=timestamp, url=link, description=item.description)
+        embed.set_thumbnail(url=item.icon_url)
 
         embed.add_field(name='Price', value=price, inline=False)
-        change = ''
+        change: str = ''
         if today != '0':
             change = f'**Today**: {today}\n'
         change += f'**30 days**: {day30}\n'
@@ -704,26 +568,26 @@ class Runescape(commands.Cog):
         change += f'**180 days**: {day180}'
         embed.add_field(name='Change', value=change, inline=False)
 
-        daily = item.graph_data['daily']
+        daily: dict = item.graph_data['daily']
 
-        times = []
-        prices = []
+        timestamps: list[int] = []
+        prices: list[int] = []
 
         for ms, price in daily.items():
-            times.append(int(ms)/1000)
+            timestamps.append(round(int(ms) / 1000))
             prices.append(int(price))
 
-        last = times[len(times)-1]
-        remove = []
-        for i, time in enumerate(times):
-            if time >= last - 86400*days:
-                date = timestamp - timedelta(seconds=last-time)
-                times[i] = date
+        times: list[datetime] = []
+        last: int = timestamps[len(timestamps)-1]
+        remove: list[int] = []
+        for i, time in enumerate(timestamps):
+            if time >= last - 86400 * days:
+                date: datetime = timestamp - timedelta(seconds=last-time)
+                times.append(date)
             else:
                 remove.append(i)
         remove.sort(reverse=True)
         for i in remove:
-            del times[i]
             del prices[i]
 
         if days <= 60:
@@ -737,7 +601,7 @@ class Runescape(commands.Cog):
 
         fig, ax = plt.subplots()
 
-        dates = date2num(times)
+        dates: np.ndarray = date2num(times)
         plt.plot_date(dates, prices, color='#47a0ff', linestyle='-', ydate=False, xdate=True)
 
         ax.xaxis.set_major_locator(loc)
@@ -749,14 +613,14 @@ class Runescape(commands.Cog):
         ax.spines['right'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-        locs, _ = plt.yticks()
-        ylabels = []
-        for l in locs:
-            lab = str(int(l)).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
+        locs: tuple[list[Tick] | np.ndarray, list[Text]] = plt.yticks()
+        ylabels: list[str] = []
+        for l in locs[1]:
+            lab: str = str(int(l.get_position()[1])).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
             if not ('K' in lab or 'M' in lab):
                 lab = "{:,}".format(int(lab))
             ylabels.append(lab)
-        plt.yticks(locs, ylabels)
+        plt.yticks(locs[0], ylabels) # type: ignore
 
         plt.savefig('images/graph.png', transparent=True)
         plt.close(fig)
@@ -771,65 +635,63 @@ class Runescape(commands.Cog):
     
     @commands.command(name='07stats', pass_context=True, aliases=['osrsstats'])
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def _07stats(self, ctx: commands.Context, *username):
+    async def _07stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get OSRS hiscores info by username.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.osrs_rsn
-        else:
-            name = ' '.join(username)
+        name: str | None = None
+        if isinstance(username, discord.User):
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == username.id))).scalar_one_or_none()
+            name = user.osrs_rsn if user else None
+        elif username:
+            name = username
 
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.osrs_rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
+            async with self.bot.async_session() as session:
+                user = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+            name = user.osrs_rsn if user else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
+        url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         try:
             lines = lines[:len(skills_07)]
         except:
             raise commands.CommandError(message=f'Error accessing hiscores, please try again later.')
 
-        levels = []
+        levels: list[int] = []
 
-        for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
+        for i, _ in enumerate(lines):
+            levels.append(int(lines[i].split(',')[1]))
 
-        stats_interface = imageio.imread('images/stats_interface_empty.png')
+        stats_interface: Array = imageio.imread('images/stats_interface_empty.png')
             
         draw_num(stats_interface, levels[0], 175, 257, yellow, True)
 
-        for i, index in enumerate(indices):
-            level = levels[1:][index]
+        for i, index in enumerate(skill_indices):
+            level: int = levels[1:][index]
             if index == 3:
                 level = max(int(level), 10)
 
-            x = 52 + 63 * (i % 3)
-            y = 21 + 32 * (i // 3)
+            x: int = 52 + 63 * (i % 3)
+            y: int = 21 + 32 * (i // 3)
 
             draw_num(stats_interface, level, x, y, yellow, True)
 
@@ -848,12 +710,11 @@ class Runescape(commands.Cog):
         stats_image = discord.File(stats_image, filename='07stats.png')
         osrs_icon = discord.File(osrs_icon, filename='osrs.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
-        colour = 0x00b2ff
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=hiscore_page_url)
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
+        timestamp: datetime = datetime.now(UTC)
+        embed = discord.Embed(title=name, colour=0x00b2ff, timestamp=timestamp, url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
-       #  player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
+        # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)
 
         embed.set_image(url='attachment://07stats.png')
@@ -862,98 +723,81 @@ class Runescape(commands.Cog):
     
     @commands.command(name='07compare')
     @commands.cooldown(1, 40, commands.BucketType.user)
-    async def _07compare(self, ctx: commands.Context, name_1="", name_2=""):
+    async def _07compare(self, ctx: commands.Context, name_1: discord.User | str = "", name_2: discord.User | str | None = "") -> None:
         '''
         Compare two players on OSRS HiScores
         If either of the user names contain spaces, make sure you surround them by quotation marks.
         E.g.: `-07compare "Player 1" "Player 2"`
         If you have set your username via `-set07rsn`, you can give only 1 username to compare a player to yourself.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if len(ctx.message.mentions) >= 2:
-            name_1 = ctx.message.mentions[0].display_name
-            name_2 = ctx.message.mentions[1].display_name
+        user_1: User | None = None
+        user_2: User | None = None
+        async with self.bot.async_session() as session:
+            if isinstance(name_1, discord.User):
+                user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
+            if isinstance(name_2, discord.User):
+                user_2 = (await session.execute(select(User).where(User.id == name_2.id))).scalar_one_or_none()
 
-            user_1 = await User.get(ctx.message.mentions[0].id)
-            if user_1:
-                name_1 = user_1.osrs_rsn
-            user_2 = await User.get(ctx.message.mentions[1].id)
-            if user_2:
-                name_2 = user_2.osrs_rsn
-        elif ctx.message.mentions:
-            if name_1 == ctx.message.mentions[0].mention:
-                name_1 = ctx.message.mentions[0].display_name
-                user_1 = await User.get(ctx.message.mentions[0].id)
-                if user_1:
-                    name_1 = user_1.osrs_rsn
-            else:
-                name_2 = ctx.message.mentions[0].display_name
-                user_2 = await User.get(ctx.message.mentions[0].id)
-                if user_2:
-                    name_2 = user_2.osrs_rsn
+            username_1: str = user_1.osrs_rsn if user_1 and user_1.osrs_rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
+            username_2: str | None = user_2.osrs_rsn if user_2 and user_2.osrs_rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
 
-        if not name_1:
-            raise commands.CommandError(message=f'Required argument missing: `RSN_1`. Please add a username as argument')
-        elif not name_2:
-            user = await User.get(ctx.author.id)
-            if user:
-                name_2 = name_1
-                name_1 = user.osrs_rsn
-            if not name_2:
-                raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `set07rsn` command, or add a second username as argument.')
+            if not username_2:
+                user_2 = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+                if user_2 and user_2.osrs_rsn:
+                    username_2 = username_1
+                    username_1 = user_2.osrs_rsn
         
-        for name in [name_1, name_2]:
+        if not username_2:
+            raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `set07rsn` command, or add a second username as argument.')
+        
+        for name in [username_1, username_2]:
             if len(name) > 12:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-            if re.match('^[A-z0-9 -]+$', name) is None:
+            if re.match(r'^[A-z0-9 -]+$', name) is None:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         
-        level_list = []
+        level_list: list[list[str]] = []
         
-        for name in [name_1, name_2]:
-            url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
+        for name in [username_1, username_2]:
+            url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
 
-            r = await self.bot.aiohttp.get(url)
+            r: ClientResponse = await self.bot.aiohttp.get(url)
             async with r:
                 if r.status != 200:
                     raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-                data = await r.text()
+                data: str = await r.text()
 
-            lines = data.split('\n')
+            lines: list[str] = data.split('\n')
             lines = lines[:len(skills_07)]
 
-            levels = []
+            levels: list[str] = []
 
-            for i, line in enumerate(lines):
-                lines[i] = line.split(',')
-                levels.append(lines[i][1])
+            for line in lines:
+                levels.append(line.split(',')[1])
             
             level_list.append(levels)
         
-        stats_interface_1 = imageio.imread('images/stats_interface_empty.png')
-        stats_interface_2 = copy.deepcopy(stats_interface_1)
-        interfaces = [stats_interface_1, stats_interface_2]
+        stats_interface_1: Array = imageio.imread('images/stats_interface_empty.png')
+        stats_interface_2: Array = copy.deepcopy(stats_interface_1)
+        interfaces: tuple[Array, Array] = (stats_interface_1, stats_interface_2)
 
         for i, levels in enumerate(level_list):
-            stats_interface = interfaces[i]
-            draw_num(stats_interface, levels[0], 175, 257, yellow, True)
+            stats_interface: Array = interfaces[i]
+            draw_num(stats_interface, int(levels[0]), 175, 257, yellow, True)
 
-            for i, index in enumerate(indices):
-                level = levels[1:][index]
+            for i, index in enumerate(skill_indices):
+                level = int(levels[1:][index])
                 if index == 3:
-                    level = max(int(level), 10)
+                    level: int = max(level, 10)
 
-                x = 52 + 63 * (i % 3)
-                y = 21 + 32 * (i // 3)
-
-                draw_num(stats_interface, level, x, y, yellow, True)
-
-                x += 13
-                y += 13
+                x: int = 52 + 63 * (i % 3)
+                y: int = 21 + 32 * (i // 3)
 
                 draw_num(stats_interface, level, x, y, yellow, True)
+                draw_num(stats_interface, level, x+13, y+13, yellow, True)
         
         if int(level_list[0][0]) > int(level_list[1][0]):
             draw_outline_osrs(stats_interface_1, 8+63*2, 8+32*7, green)
@@ -962,7 +806,7 @@ class Runescape(commands.Cog):
             draw_outline_osrs(stats_interface_1, 8+63*2, 8+32*7, red)
             draw_outline_osrs(stats_interface_2, 8+63*2, 8+32*7, green)
         
-        for i, index in enumerate(indices):
+        for i, index in enumerate(skill_indices):
             level_1 = int(level_list[0][1:][index])
             level_2 = int(level_list[1][1:][index])
 
@@ -976,88 +820,84 @@ class Runescape(commands.Cog):
                 draw_outline_osrs(stats_interface_1, x, y, red)
                 draw_outline_osrs(stats_interface_2, x, y, green)
         
-        compare_image = np.hstack((stats_interface_1, stats_interface_2))
+        compare_image: np.ndarray = np.hstack((stats_interface_1, stats_interface_2))
         imageio.imwrite('images/07compare.png', compare_image)
 
         with open('images/07compare.png', 'rb') as f:
-            compare_image = io.BytesIO(f.read())
+            compare_image_bytes = io.BytesIO(f.read())
         with open('images/osrs.png', 'rb') as f:
             osrs_icon = io.BytesIO(f.read())
         
-        compare_image = discord.File(compare_image, filename='07compare.png')
+        compare_image_file = discord.File(compare_image_bytes, filename='07compare.png')
         osrs_icon = discord.File(osrs_icon, filename='osrs.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name_1}'.replace(' ', '+')
-        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url)
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={username_1}'.replace(' ', '+')
+        embed = discord.Embed(title=f'{username_1}, {username_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='Old School RuneScape HiScores', url='https://secure.runescape.com/m=hiscore_oldschool/overall', icon_url='attachment://osrs.png')
-        # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
+        # player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)
 
         embed.set_image(url='attachment://07compare.png')
 
-        await ctx.send(files=[compare_image, osrs_icon], embed=embed)
+        await ctx.send(files=[compare_image_file, osrs_icon], embed=embed)
 
     @commands.command(name='07gainz', pass_context=True, aliases=['07gains', 'osrsgainz', 'osrsgains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07gainz(self, ctx: commands.Context, *username):
+    async def _07gainz(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get OSRS gains by username.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.osrs_rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.osrs_rsn if user and user.osrs_rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.osrs_rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url_day = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=day'.replace(' ', '-')
-        url_week = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=week'.replace(' ', '-')
+        url_day: str = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=day'.replace(' ', '-')
+        url_week: str = f'https://api.wiseoldman.net/v2/players/{name}/gained?period=week'.replace(' ', '-')
 
-        r = await self.bot.aiohttp.get(url_day, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']})
+        r: ClientResponse = await self.bot.aiohttp.get(url_day, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']})
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
             daily_data = await r.json()
 
-        r = await self.bot.aiohttp.get(url_week, headers={'x-user-agent': config['wom_user_agent'], 'x-api-key': config['wom_api_key']})
+        r = await self.bot.aiohttp.get(url_week, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']})
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not fetch xp gains for: `{name}`.')
             weekly_data = await r.json()
 
-        skills = []
+        skills: list[dict[str, str]] = []
         for i, (skill_name, skill_data) in enumerate(daily_data['data']['skills'].items()):
-            skill = {
-                'xp': float_to_formatted_string(skill_data['experience']['end']), 
-                'today': float_to_formatted_string(skill_data['experience']['gained']), 
-                'week': float_to_formatted_string(weekly_data['data']['skills'][skill_name]['experience']['gained'])
+            skill: dict[str, str] = {
+                'xp': format_float(skill_data['experience']['end']), 
+                'today': format_float(skill_data['experience']['gained']), 
+                'week': format_float(weekly_data['data']['skills'][skill_name]['experience']['gained'])
             }
             skills.append(skill)
 
         skill_chars = 14
-        xp_chars = max(max([len(skill['xp']) for skill in skills]), len('XP'))+1
-        today_chars = max(max([len(skill['today']) for skill in skills]), len('Today'))+1
-        week_chars = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
+        xp_chars: int = max(max([len(skill['xp']) for skill in skills]), len('XP'))+1
+        today_chars: int = max(max([len(skill['today']) for skill in skills]), len('Today'))+1
+        week_chars: int = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
 
-        msg = '.-' + '-'*skill_chars + '--' + '-'*xp_chars + '--' + '-'*today_chars + '--' + '-'*week_chars + '.'
-        width = len(msg)
+        msg: str = '.-' + '-'*skill_chars + '--' + '-'*xp_chars + '--' + '-'*today_chars + '--' + '-'*week_chars + '.'
+        width: int = len(msg)
 
         msg = '.' + '-'*(width-2) + '.\n'
 
@@ -1095,72 +935,68 @@ class Runescape(commands.Cog):
 
         msg = f'```\n{msg}\n```'
 
-        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'))
-        embed.set_author(name=f'Wise Old Man', url=f'https://wiseoldman.net/players/{name}/overview/skilling'.replace(' ', '-'), icon_url='https://wiseoldman.net/img/logo.png')
+        embed = discord.Embed(title=f'OSRS gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.now(UTC), description=msg, url=f'https://wiseoldman.net/players/{name}/gained'.replace(' ', '-'))
+        embed.set_author(name=f'Wise Old Man', url=f'https://wiseoldman.net/players/{name}/gained'.replace(' ', '-'), icon_url='https://wiseoldman.net/img/logo.png')
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['rs3stats'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def stats(self, ctx: commands.Context, *username):
+    async def stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get RS3 hiscores info by username.
         '''
 
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
         
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `setrsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
+        url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         lines = lines[:len(skills_rs3)]
 
-        levels = []
-        xp_list = []
+        levels: list[str] = []
+        xp_list: list[str] = []
 
         for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
-            xp_list.append(lines[i][2])
+            split: list[str] = line.split(',')
+            levels.append(split[1])
+            xp_list.append(split[2])
 
-        stats_interface = imageio.imread('images/stats_interface_empty_rs3.png')
+        stats_interface: Array = imageio.imread('images/stats_interface_empty_rs3.png')
             
-        draw_num(stats_interface, levels[0], 73, 290, white, False)
+        draw_num(stats_interface, int(levels[0]), 73, 290, white, False)
         
         virtual_total_delta = 0
 
-        for i, index in enumerate(indices_rs3):
-            level = max(int(levels[1:][index]), 1)
+        for i, index in enumerate(skill_indices_rs3):
+            level: int = max(int(levels[1:][index]), 1)
             if index == 3:
                 level = max(level, 10)
-            xp = xp_list[1:][index]
+            xp: int = int(xp_list[1:][index])
             if index != 26:
                 virtual_level = max(xp_to_level(xp), level)
                 if virtual_level - level > 0:
@@ -1168,19 +1004,15 @@ class Runescape(commands.Cog):
             else:
                 virtual_level = level
 
-            x = 44 + 62 * (i % 3)
-            y = 14 + 27 * (i // 3)
+            x: int = 44 + 62 * (i % 3)
+            y: int = 14 + 27 * (i // 3)
 
             draw_num(stats_interface, virtual_level, x, y, orange, False)
-
-            x += 15
-            y += 12
-
-            draw_num(stats_interface, virtual_level, x, y, orange, False)
+            draw_num(stats_interface, virtual_level, x+15, y+12, orange, False)
         
         draw_num(stats_interface, int(levels[0]) + virtual_total_delta, 73, 302, green, False)
 
-        combat = combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24]))
+        combat = int(combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24])))
 
         draw_num(stats_interface, combat, 165, 295, white, False)
 
@@ -1194,9 +1026,9 @@ class Runescape(commands.Cog):
         stats_image = discord.File(stats_image, filename='rs3stats.png')
         rs3_icon = discord.File(rs3_icon, filename='rs3.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
         colour = 0x00b2ff
-        timestamp = datetime.utcnow()
+        timestamp: datetime = datetime.now(UTC)
         embed = discord.Embed(title=name, colour=colour, timestamp=timestamp, url=hiscore_page_url)
         embed.set_author(name='RuneScape HiScores', url='https://secure.runescape.com/m=hiscore/ranking', icon_url='attachment://rs3.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
@@ -1208,121 +1040,105 @@ class Runescape(commands.Cog):
     
     @commands.command()
     @commands.cooldown(1, 20, commands.BucketType.user)
-    async def compare(self, ctx: commands.Context, name_1="", name_2=""):
+    async def compare(self, ctx: commands.Context, name_1: discord.User | str = "", name_2: discord.User | str | None = "") -> None:
         '''
         Compare two players on RuneScape HiScores
         If either of the user names contain spaces, make sure you surround them by quotation marks.
         E.g.: `-compare "Player 1" "Player 2"`
         If you have set your username via `-setrsn`, you can give only 1 username to compare a player to yourself.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        if len(ctx.message.mentions) >= 2:
-            name_1 = ctx.message.mentions[0].display_name
-            name_2 = ctx.message.mentions[1].display_name
+        user_1: User | None = None
+        user_2: User | None = None
+        async with self.bot.async_session() as session:
+            if isinstance(name_1, discord.User):
+                user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
+            if isinstance(name_2, discord.User):
+                user_2 = (await session.execute(select(User).where(User.id == name_2.id))).scalar_one_or_none()
 
-            user_1 = await User.get(ctx.message.mentions[0].id)
-            if user_1:
-                name_1 = user_1.rsn
-            user_2 = await User.get(ctx.message.mentions[1].id)
-            if user_2:
-                name_2 = user_2.rsn
-        elif ctx.message.mentions:
-            if name_1 == ctx.message.mentions[0].mention:
-                name_1 = ctx.message.mentions[0].display_name
-                user_1 = await User.get(ctx.message.mentions[0].id)
-                if user_1:
-                    name_1 = user_1.rsn
-            else:
-                name_2 = ctx.message.mentions[0].display_name
-                user_2 = await User.get(ctx.message.mentions[0].id)
-                if user_2:
-                    name_2 = user_2.rsn
+            username_1: str = user_1.rsn if user_1 and user_1.rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
+            username_2: str | None = user_2.rsn if user_2 and user_2.rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
 
-        if not name_1:
-            raise commands.CommandError(message=f'Required argument missing: `RSN_1`. Please add a username as argument')
-        elif not name_2:
-            user = await User.get(ctx.author.id)
-            if user:
-                name_2 = name_1
-                name_1 = user.rsn
-            if not name_2:
-                raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your username using the `setrsn` command, or add a second username as argument.')
+            if not username_2:
+                user_2 = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+                if user_2 and user_2.rsn:
+                    username_2 = username_1
+                    username_1 = user_2.rsn
         
-        for name in [name_1, name_2]:
+        if not username_2:
+            raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `setrsn` command, or add a second username as argument.')
+        
+        for name in [username_1, username_2]:
             if len(name) > 12:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-            if re.match('^[A-z0-9 -]+$', name) is None:
+            if re.match(r'^[A-z0-9 -]+$', name) is None:
                 raise commands.CommandError(message=f'Invalid argument: `{name}`.')
         
-        level_list = []
-        exp_list = []
+        level_list: list[list[str]] = []
+        exp_list: list[list[str]] = []
         
-        for name in [name_1, name_2]:
-            url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
+        for name in [username_1, username_2]:
+            url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
 
-            r = await self.bot.aiohttp.get(url)
+            r: ClientResponse = await self.bot.aiohttp.get(url)
             async with r:
                 if r.status != 200:
                     raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-                data = await r.text()
+                data: str = await r.text()
 
-            lines = data.split('\n')
+            lines: list[str] = data.split('\n')
             lines = lines[:len(skills_rs3)]
 
-            levels = []
-            xp_list = []
+            levels: list[str] = []
+            xp_list: list[str] = []
 
-            for i, line in enumerate(lines):
-                lines[i] = line.split(',')
-                levels.append(lines[i][1])
-                xp_list.append(lines[i][2])
+            for line in lines:
+                split: list[str] = line.split(',')
+                levels.append(split[1])
+                xp_list.append(split[2])
             
             level_list.append(levels)
             exp_list.append(xp_list)
         
-        stats_interface_1 = imageio.imread('images/stats_interface_empty_rs3.png')
-        stats_interface_2 = copy.deepcopy(stats_interface_1)
-        interfaces = [stats_interface_1, stats_interface_2]
+        stats_interface_1: Array = imageio.imread('images/stats_interface_empty_rs3.png')
+        stats_interface_2: Array = copy.deepcopy(stats_interface_1)
+        interfaces: tuple[Array, Array] = (stats_interface_1, stats_interface_2)
 
         for i, levels in enumerate(level_list):
             xp_list = exp_list[i]
-            stats_interface = interfaces[i]
+            stats_interface: Array = interfaces[i]
 
             draw_num(stats_interface, int(levels[0]), 73, 290, white, False)
 
             virtual_total_delta = 0
 
-            for j, index in enumerate(indices_rs3):
-                level = max(int(levels[1:][index]), 1)
+            for j, index in enumerate(skill_indices_rs3):
+                level: int = max(int(levels[1:][index]), 1)
                 if index == 3:
                     level = max(level, 10)
                 xp = int(xp_list[1:][index])
                 if index != 26:
-                    virtual_level = max(xp_to_level(xp), level)
+                    virtual_level: int = max(xp_to_level(xp), level)
                     if virtual_level - level > 0:
                         virtual_total_delta += virtual_level - level
                 else:
                     virtual_level = level
 
-                x = 44 + 62 * (j % 3)
-                y = 14 + 27 * (j // 3)
+                x: int = 44 + 62 * (j % 3)
+                y: int = 14 + 27 * (j // 3)
 
                 draw_num(stats_interface, virtual_level, x, y, orange, False)
-
-                x += 15
-                y += 12
-
-                draw_num(stats_interface, virtual_level, x, y, orange, False)
+                draw_num(stats_interface, virtual_level, x+15, y+12, orange, False)
             
             draw_num(stats_interface, int(levels[0]) + virtual_total_delta, 73, 302, green, False)
 
-            combat = combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24]))
+            combat = int(combat_level(int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24])))
 
             draw_num(stats_interface, combat, 165, 295, white, False)
         
-        for i, index in enumerate(indices_rs3):
+        for i, index in enumerate(skill_indices_rs3):
             xp_1 = int(exp_list[0][1:][index])
             xp_2 = int(exp_list[1][1:][index])
 
@@ -1336,71 +1152,67 @@ class Runescape(commands.Cog):
                 draw_outline_rs3(stats_interface_1, x, y, red)
                 draw_outline_rs3(stats_interface_2, x, y, green)
         
-        compare_image = np.hstack((stats_interface_1, stats_interface_2))
+        compare_image: np.ndarray = np.hstack((stats_interface_1, stats_interface_2))
         imageio.imwrite('images/compare.png', compare_image)
 
         with open('images/compare.png', 'rb') as f:
-            compare_image = io.BytesIO(f.read())
+            compare_image_bytes = io.BytesIO(f.read())
         with open('images/rs3.png', 'rb') as f:
             rs3_icon = io.BytesIO(f.read())
         
-        compare_image = discord.File(compare_image, filename='compare.png')
+        compare_image_file = discord.File(compare_image_bytes, filename='compare.png')
         rs3_icon = discord.File(rs3_icon, filename='rs3.png')
 
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name_1}'.replace(' ', '+')
-        embed = discord.Embed(title=f'{name_1}, {name_2}', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url)
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={username_1}'.replace(' ', '+')
+        embed = discord.Embed(title=f'{username_1}, {username_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
         embed.set_author(name='RuneScape HiScores', url='https://secure.runescape.com/m=hiscore/ranking', icon_url='attachment://rs3.png')
         # player_image_url = f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '+')
         # embed.set_thumbnail(url=player_image_url)
 
         embed.set_image(url='attachment://compare.png')
 
-        await ctx.send(files=[compare_image, rs3_icon], embed=embed)
+        await ctx.send(files=[compare_image_file, rs3_icon], embed=embed)
 
     @commands.command(pass_context=True, aliases=['gains', 'rs3gainz', 'rs3gains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def gainz(self, ctx: commands.Context, *username):
+    async def gainz(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get RS3 gains by username.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'https://api.runepixels.com/players/{name}'.replace(' ', '-')
+        url: str = f'https://api.runepixels.com/players/{name}'.replace(' ', '-')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
-            data = await r.json()
+            data: dict = await r.json()
 
         yday_url = f'https://api.runepixels.com/players/{data["id"]}/xp?timeperiod=1'
         r = await self.bot.aiohttp.get(yday_url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
-            yday_data = await r.json()
+            yday_data: list[dict[str, Any]] = await r.json()
 
         week_url = f'https://api.runepixels.com/players/{data["id"]}/xp?timeperiod=2'
         r = await self.bot.aiohttp.get(week_url)
@@ -1409,19 +1221,19 @@ class Runescape(commands.Cog):
                 raise commands.CommandError(message=f'Could not find xp gains for: `{name}`.')
             week_data = await r.json()
 
-        skills = [data['overall']] + data['skills']
+        skills: list = [data['overall']] + data['skills']
         for i, _ in enumerate(skills):
-            skills[i]['xpDelta'] = float_to_formatted_string(skills[i]['xpDelta'])
-            skills[i]['yday'] = float_to_formatted_string(yday_data[i]['xp'])
-            skills[i]['week'] = float_to_formatted_string(week_data[i]['xp'])
+            skills[i]['xpDelta'] = format_float(skills[i]['xpDelta'])
+            skills[i]['yday'] = format_float(yday_data[i]['xp'])
+            skills[i]['week'] = format_float(week_data[i]['xp'])
 
         skill_chars = 14
-        today_chars = max(max([len(skill['xpDelta']) for skill in skills]), len('Today'))+1
-        yday_chars = max(max([len(skill['yday']) for skill in skills]), len('Yesterday'))+1
-        week_chars = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
+        today_chars: int = max(max([len(skill['xpDelta']) for skill in skills]), len('Today'))+1
+        yday_chars: int = max(max([len(skill['yday']) for skill in skills]), len('Yesterday'))+1
+        week_chars: int = max(max([len(skill['week']) for skill in skills]), len('This Week'))+1
 
-        msg = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
-        width = len(msg)
+        msg: str = '.-' + '-'*skill_chars + '--' + '-'*today_chars + '--' + '-'*yday_chars + '--' + '-'*week_chars + '.'
+        width: int = len(msg)
 
         msg = '.' + '-'*(width-2) + '.\n'
 
@@ -1453,101 +1265,43 @@ class Runescape(commands.Cog):
         msg += '|-' + '-'*skill_chars + '|-' + '-'*today_chars + '|-' + '-'*yday_chars + '|-' + '-'*week_chars + '|\n'
 
         for i, skill in enumerate(skills):
-            msg += '| ' + skills_rs3_gains[i] + ' '*(skill_chars-len(skills_rs3_gains[i])) + '| ' + ' '*(today_chars-len(skill['xpDelta'])-1) + skill['xpDelta'] + ' | ' + ' '*(yday_chars-len(skill['yday'])-1) + skill['yday'] + ' | ' + ' '*(week_chars-len(skill['week'])-1) + skill['week'] + ' |\n'
+            msg += '| ' + skills_rs3[i] + ' '*(skill_chars-len(skills_rs3[i])) + '| ' + ' '*(today_chars-len(skill['xpDelta'])-1) + skill['xpDelta'] + ' | ' + ' '*(yday_chars-len(skill['yday'])-1) + skill['yday'] + ' | ' + ' '*(week_chars-len(skill['week'])-1) + skill['week'] + ' |\n'
 
         msg += "'" + '-'*(width-2) + "'"
 
         msg = f'```\n{msg}\n```'
 
-        embed = discord.Embed(title=f'RS3 gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.utcnow(), description=msg, url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'))
+        embed = discord.Embed(title=f'RS3 gains for {name}', colour=discord.Colour.blue(), timestamp=datetime.now(UTC), description=msg, url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'))
         embed.set_author(name=f'RunePixels', url=f'https://runepixels.com/players/{name}/skills'.replace(' ', '-'), icon_url='https://pbs.twimg.com/profile_images/1579124090958479362/LbR9PDfv_400x400.png')
 
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['gametime'])
-    async def time(self, ctx: commands.Context):
+    async def time(self, ctx: commands.Context) -> None:
         '''
         Get current RuneScape game time.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        time = datetime.utcnow()
-        time = time.strftime('%H:%M')
+        time: datetime = datetime.now(UTC)
+        time_str: str = time.strftime('%H:%M')
 
-        await ctx.send(f'Current game time is: `{time}`.')
-
-    @commands.command(pass_context=True, aliases=['yt', 'rs3youtube', 'rsyoutube', 'rs3yt', 'rsyt'])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def youtube(self, ctx: commands.Context):
-        '''
-        Get latest videos from RuneScape 3 youtube channel.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        try:
-            playlist = Playlist(playlist_from_channel_id('UCGpr8LIrdwrEak3GuZLQPwg'))
-            videos = playlist.videos
-        except:
-            raise commands.CommandError(message=f'Error fetching videos.')
-
-        colour = 0xff0000
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title='RuneScape', colour=colour, timestamp=timestamp, url='https://www.youtube.com/runescape/videos')
-        embed.set_thumbnail(url='https://imgur.com/JvKu58G.png')
-
-        for i, vid in enumerate(videos):
-            if i >= 5:
-                break
-            else:
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
-
-        await ctx.send(embed=embed)
-
-    @commands.command(name='07youtube', pass_context=True, aliases=['07yt', 'osrsyoutube', 'osrsyt'])
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def _07youtube(self, ctx: commands.Context):
-        '''
-        Get latest videos from OSRS youtube channel.
-        '''
-        increment_command_counter()
-        await ctx.channel.typing()
-
-        try:
-            playlist = Playlist(playlist_from_channel_id('UC0j1MpbiTFHYrUjOTwifW_w'))
-            videos = playlist.videos
-        except:
-            raise commands.CommandError(message=f'Error fetching videos.')
-
-        colour = 0xff0000
-        timestamp = datetime.utcnow()
-        embed = discord.Embed(title='Old School RuneScape', colour=colour, timestamp=timestamp, url='https://www.youtube.com/OldSchoolRSCommunity/videos')
-        embed.set_thumbnail(url='https://imgur.com/JvKu58G.png')
-
-        for i, vid in enumerate(videos):
-            if i >= 5:
-                break
-            else:
-                embed.add_field(name=vid['title'], value=vid['link']+'\n'+vid['duration'], inline=False)
-
-        await ctx.send(embed=embed)
+        await ctx.send(f'Current game time is: `{time_str}`.')
     
     @commands.command(aliases=['wax', 'viswax', 'goldberg'])
-    async def vis(self, ctx: commands.Context):
+    async def vis(self, ctx: commands.Context) -> None:
         '''
         Get today's rune combination for the Rune Goldberg machine, used to make vis wax.
         '''
-        increment_command_counter()
-
-        global vis_wax_embed
-        await ctx.send(embed=vis_wax_embed)
+        self.bot.increment_command_counter()
+        await ctx.send(embed=self.vis_wax_embed)
     
     @commands.command(aliases=['lvl'])
-    async def level(self, ctx: commands.Context, lvl=0):
+    async def level(self, ctx: commands.Context, lvl: int | str = 0) -> None:
         '''
         Calculate xp required for given level.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not lvl:
             raise commands.CommandError(message=f'Required argument missing: `level`')
@@ -1557,17 +1311,17 @@ class Runescape(commands.Cog):
         if lvl < 1 or lvl > 126:
             raise commands.CommandError(message=f'Invalid argument level: `{lvl}``. Level must be between 1 and 126.')
 
-        xp = level_to_xp(lvl)
-        xp = f'{xp:,}'
+        xp: int = level_to_xp(lvl)
+        xp_str = f'{xp:,}'
 
-        await ctx.send(f'XP required for level `{lvl}`: `{xp}`')
+        await ctx.send(f'XP required for level `{lvl}`: `{xp_str}`')
     
     @commands.command(aliases=['xp', 'exp'])
-    async def experience(self, ctx: commands.Context, lvl_start_or_xp=0, lvl_end=0):
+    async def experience(self, ctx: commands.Context, lvl_start_or_xp: int | str = 0, lvl_end: int | str = 0) -> None:
         '''
         Calculate level from xp or xp difference between two levels.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not lvl_start_or_xp:
             raise commands.CommandError(message=f'Required argument missing: `level`')
@@ -1581,36 +1335,36 @@ class Runescape(commands.Cog):
             raise commands.CommandError(message=f'Invalid arguments: Start level must be lower than end level.')
 
         if not lvl_end:
-            xp_start = lvl_start_or_xp
-            level = xp_to_level(xp_start)
-            level_xp = level_to_xp(level)
-            xp_start = f'{xp_start:,}'
-            level_xp = f'{level_xp:,}'
-            next_lvl = level+1
-            next_xp = level_to_xp(next_lvl)
-            next_xp = f'{next_xp:,}'
-            await ctx.send(f'At `{xp_start}` XP, you are level `{level}`, which requires `{level_xp}` XP.\nYou will reach level `{next_lvl}` at `{next_xp} XP.`')
+            xp_start: int = lvl_start_or_xp
+            level: int = xp_to_level(xp_start)
+            level_xp: int = level_to_xp(level)
+            xp_start_str: str = f'{xp_start:,}'
+            level_xp_str: str = f'{level_xp:,}'
+            next_lvl: int = level+1
+            next_xp: int = level_to_xp(next_lvl)
+            next_xp_str: str = f'{next_xp:,}'
+            await ctx.send(f'At `{xp_start_str}` XP, you are level `{level}`, which requires `{level_xp_str}` XP.\nYou will reach level `{next_lvl}` at `{next_xp_str} XP.`')
         
         else:
             if lvl_start_or_xp > 126:
                 xp_start = lvl_start_or_xp
             else:
                 xp_start = level_to_xp(lvl_start_or_xp)
-            xp_end = level_to_xp(lvl_end)
-            xp_dif = xp_end - xp_start
-            xp_dif = f'{xp_dif:,}'
+            xp_end: int = level_to_xp(lvl_end)
+            xp_dif: int = xp_end - xp_start
+            xp_dif_str = f'{xp_dif:,}'
             if lvl_start_or_xp > 126:
-                await ctx.send(f'To reach level `{lvl_end}` from `{lvl_start_or_xp}` XP, you will need to gain `{xp_dif}` XP.')
+                await ctx.send(f'To reach level `{lvl_end}` from `{lvl_start_or_xp}` XP, you will need to gain `{xp_dif_str}` XP.')
             else:
-                await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif}` XP.')
+                await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif_str}` XP.')
             
     
     @commands.command(aliases=['actions'])
-    async def xph(self, ctx: commands.Context, lvl_start=0, lvl_end=0, xp_rate=0.0):
+    async def xph(self, ctx: commands.Context, lvl_start: int | str = 0, lvl_end: int | str = 0, xp_rate: float | str = 0.0) -> None:
         '''
         Calculate hours/actions required to reach a level / xp at a certain xp rate.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not lvl_start or not lvl_end or not xp_rate:
             raise commands.CommandError(message=f'Required argument missing.')
@@ -1628,7 +1382,8 @@ class Runescape(commands.Cog):
         if lvl_start < 1 or lvl_end < 1 or xp_rate <= 0:
             raise commands.CommandError(message=f'Invalid argument. Levels must be between 1 and 126 and XP rate must be positive.')
 
-        start_xp, end_xp = False, False
+        start_xp: bool = False
+        end_xp: bool = False
         if lvl_start > 126:
             start_xp = True
         if lvl_end > 126:
@@ -1636,37 +1391,37 @@ class Runescape(commands.Cog):
         if (start_xp or end_xp) and (lvl_start > 200e6 or lvl_end > 200e6):
             raise commands.CommandError(message=f'Invalid argument. Start and End xp values can be at most 200M.')
 
-        xp_start = lvl_start if start_xp else level_to_xp(lvl_start)
-        xp_end = lvl_end if end_xp else level_to_xp(lvl_end)
+        xp_start: int = lvl_start if start_xp else level_to_xp(lvl_start)
+        xp_end: int = lvl_end if end_xp else level_to_xp(lvl_end)
         if xp_start >= xp_end:
             raise commands.CommandError(message=f'Invalid arguments: Start xp must be lower than end xp.')
 
-        xp_dif = xp_end - xp_start
+        xp_dif: int = xp_end - xp_start
 
-        hours_or_actions = math.ceil(xp_dif / xp_rate)
-        hours_or_actions = f'{hours_or_actions:,}'
-        xp_dif = f'{xp_dif:,}'
+        hours_or_actions: int = math.ceil(xp_dif / xp_rate)
+        hours_or_actions_str: str = f'{hours_or_actions:,}'
+        xp_dif_str: str = f'{xp_dif:,}'
         xp_rate = f'{xp_rate:,}'
 
-        await ctx.send(f'To reach {"level " if not end_xp else ""}`{lvl_end}`{" XP" if end_xp else ""} from {"level " if not start_xp else ""}`{lvl_start}`{" XP" if start_xp else ""}, you will need to gain `{xp_dif}` XP. This will take `{hours_or_actions}` hours/actions at an XP rate of `{xp_rate}` per hour/action.')
+        await ctx.send(f'To reach {"level " if not end_xp else ""}`{lvl_end}`{" XP" if end_xp else ""} from {"level " if not start_xp else ""}`{lvl_start}`{" XP" if start_xp else ""}, you will need to gain `{xp_dif_str}` XP. This will take `{hours_or_actions_str}` hours/actions at an XP rate of `{xp_rate}` per hour/action.')
 
     @commands.command()
-    async def pvm(self, ctx: commands.Context):
+    async def pvm(self, ctx: commands.Context) -> None:
         '''
         Calculate rotations for Araxxor, Vorago, and Barrows: Rise Of The Six.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
-        araxxor_rotation, next_araxxor = araxxor(datetime.utcnow())
-        vorago_rotation, next_vorago = vorago(datetime.utcnow())
-        rots_rotation, next_rots = rots(datetime.utcnow())
+        araxxor_rotation, next_araxxor = araxxor(datetime.now(UTC))
+        vorago_rotation, next_vorago = vorago(datetime.now(UTC))
+        rots_rotation, next_rots = rots(datetime.now(UTC))
 
-        embed = discord.Embed(title='PVM Rotations', colour=0xff0000, timestamp=datetime.utcnow())
+        embed = discord.Embed(title='PVM Rotations', colour=0xff0000, timestamp=datetime.now(UTC))
         embed.add_field(name='Araxxor', value=f'Blocked path: **{araxxor_rotation}**\nThe next path will close in `{next_araxxor}`.', inline=False)
         embed.add_field(name='Vorago', value=f'Current rotation: **{vorago_rotation}**\nThe next rotation will start in `{next_vorago}`.', inline=False)
         embed.add_field(name='Barrows: Rise Of The Six', value=f'Current rotation:\nWest: **{", ".join(rots_rotation[0])}**\nEast: **{", ".join(rots_rotation[1])}**\nThe next rotation will start in `{next_rots}`.', inline=False)
 
-        images = ['images/Araxxor.png', 'images/Vorago.png', 'images/Ahrim.png']
+        images: list[str] = ['images/Araxxor.png', 'images/Vorago.png', 'images/Ahrim.png']
 
         with open(random.choice(images), 'rb') as f:
                 file = io.BytesIO(f.read())
@@ -1678,7 +1433,7 @@ class Runescape(commands.Cog):
         await ctx.send(file=image, embed=embed)
     
     @commands.command()
-    async def dry(self, ctx: commands.Context, droprate='', attempts=''):
+    async def dry(self, ctx: commands.Context, droprate: float | int | str, attempts: int | str) -> None:
         '''
         Calculates the probability of going dry.
         Arguments: droprate, attempts
@@ -1688,7 +1443,7 @@ class Runescape(commands.Cog):
         - 0.001
         Formula used: (1-p)^k * 100
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
 
         if not droprate:
             raise commands.CommandError(message=f'Required argument missing: `droprate`')
@@ -1699,8 +1454,8 @@ class Runescape(commands.Cog):
         attempts = int(attempts)
         if attempts <= 0:
             raise commands.CommandError(message=f'Invalid argument: `{attempts}`. Must be greater than 0.')
-        if '1/' in droprate:
-            droprate = droprate.replace('1/', '')
+        if '1/' in str(droprate):
+            droprate = str(droprate).replace('1/', '')
         if is_int(droprate):
             droprate = int(droprate)
             if droprate <= 0:
@@ -1713,69 +1468,71 @@ class Runescape(commands.Cog):
         else:
             raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be int, float, or string of the form `1/x` where x is a positive integer.')
 
-        result = (1-droprate)**attempts
+        result: float = (1-droprate)**attempts
         result *= 100
 
         await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
     @commands.command(aliases=['cb', 'rs3cb', 'rs3combat'])
-    async def combat(self, ctx: commands.Context, *username):
+    async def combat(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Calculate the combat level of a RS3 player.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your username using the `setrsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
+        url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         lines = lines[:len(skills_rs3)]
 
-        levels = []
-        xp_list = []
+        levels: list[str] = []
+        xp_list: list[str] = []
 
-        for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
-            xp_list.append(lines[i][2])
+        for line in lines:
+            levels.append(line.split(',')[1])
+            xp_list.append(line.split(',')[2])
 
-        attack, strength, defence, constitution, magic, ranged, prayer, summoning = int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6]), int(levels[24])
-        combat = combat_level(attack, strength, defence, constitution, magic, ranged, prayer, summoning)
+        attack = int(levels[1])
+        strength = int(levels[3])
+        defence = int(levels[2])
+        constitution = max(int(levels[4]), 10)
+        magic = int(levels[7])
+        ranged = int(levels[5])
+        prayer = int(levels[6])
+        summoning = int(levels[24])
+        combat: float = combat_level(attack, strength, defence, constitution, magic, ranged, prayer, summoning)
 
-        cb_skills = [attack, strength, defence, constitution, magic, ranged, prayer, summoning]
-        original_cb_skills = copy.deepcopy(cb_skills)
-        cb_skill_names = ['Attack', 'Strength', 'Defence', 'Constitution', 'Magic', 'Ranged', 'Prayer', 'Summoning']
-        levels_required = [0, 0, 0, 0, 0, 0, 0, 0]
+        cb_skills: list[int] = [attack, strength, defence, constitution, magic, ranged, prayer, summoning]
+        original_cb_skills: list[int] = copy.deepcopy(cb_skills)
+        cb_skill_names: list[str] = ['Attack', 'Strength', 'Defence', 'Constitution', 'Magic', 'Ranged', 'Prayer', 'Summoning']
+        levels_required: list[int] = [0, 0, 0, 0, 0, 0, 0, 0]
 
-        description = f'**{name}**\'s combat level is: `{combat}`'
+        description: str = f'**{name}**\'s combat level is: `{combat}`'
 
         if combat < 138:
             for i, cb_skill in enumerate(original_cb_skills):
@@ -1790,7 +1547,7 @@ class Runescape(commands.Cog):
         if (any([lvls_required > 0 for lvls_required in levels_required])):
             description += '\nYou can level up by getting any of the following levels:'
 
-        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url, description=description)
+        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url, description=description)
         embed.set_author(name=name, icon_url=f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '%20'))
 
         for i, lvls_required in enumerate(levels_required):
@@ -1800,64 +1557,66 @@ class Runescape(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07combat', aliases=['07cb', 'osrscb', 'osrscombat'])
-    async def _07combat(self, ctx: commands.Context, *username):
+    async def _07combat(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Calculate the combat level of a OSRS player.
         '''
-        increment_command_counter()
+        self.bot.increment_command_counter()
         await ctx.channel.typing()
 
-        name = None
-        if ctx.message.mentions:
-            name = ctx.message.mentions[0].display_name
-            user = await User.get(ctx.message.mentions[0].id)
-            if user:
-                name = user.osrs_rsn
-        else:
-            name = ' '.join(username)
-
+        disc_user: discord.User | None = username if isinstance(username, discord.User) else None
+        if not disc_user and not username:
+            disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
+        if disc_user:
+            async with self.bot.async_session() as session:
+                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            name: str | None = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
-            user = await User.get(ctx.author.id)
-            if user:
-                name = user.osrs_rsn
-            if not name:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
+            name = username if isinstance(username, str) else None
+        if not name:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`. You can set your Old School username using the `set07rsn` command.')
 
         if len(name) > 12:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
-        if re.match('^[A-z0-9 -]+$', name) is None:
+        if re.match(r'^[A-z0-9 -]+$', name) is None:
             raise commands.CommandError(message=f'Invalid argument: `{name}`.')
 
-        url = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
-        hiscore_page_url = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
+        url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
+        hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
 
-        r = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url)
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
-            data = await r.text()
+            data: str = await r.text()
 
-        lines = data.split('\n')
+        lines: list[str] = data.split('\n')
         try:
             lines = lines[:len(skills_07)]
         except:
             raise commands.CommandError(message=f'Error accessing hiscores, please try again later.')
 
-        levels = []
+        levels: list[str] = []
 
-        for i, line in enumerate(lines):
-            lines[i] = line.split(',')
-            levels.append(lines[i][1])
+        for line in lines:
+            levels.append(line.split(',')[1])
 
-        attack, strength, defence, hitpoints, magic, ranged, prayer = int(levels[1]), int(levels[3]), int(levels[2]), max(int(levels[4]), 10), int(levels[7]), int(levels[5]), int(levels[6])
-        combat = osrs_combat_level(attack, strength, defence, hitpoints, magic, ranged, prayer)
+        attack = int(levels[1])
+        strength = int(levels[3])
+        defence = int(levels[2])
+        hitpoints = max(int(levels[4]), 10)
+        magic = int(levels[7])
+        ranged = int(levels[5])
+        prayer = int(levels[6])
+        
+        combat: int = osrs_combat_level(attack, strength, defence, hitpoints, magic, ranged, prayer)
 
-        cb_skills = [attack, strength, defence, hitpoints, magic, ranged, prayer]
-        original_cb_skills = copy.deepcopy(cb_skills)
-        cb_skill_names = ['Attack', 'Strength', 'Defence', 'Hitpoints', 'Magic', 'Ranged', 'Prayer']
-        levels_required = [0, 0, 0, 0, 0, 0, 0]
+        cb_skills: list[int] = [attack, strength, defence, hitpoints, magic, ranged, prayer]
+        original_cb_skills: list[int] = copy.deepcopy(cb_skills)
+        cb_skill_names: list[str] = ['Attack', 'Strength', 'Defence', 'Hitpoints', 'Magic', 'Ranged', 'Prayer']
+        levels_required: list[int] = [0, 0, 0, 0, 0, 0, 0]
 
-        description = f'**{name}**\'s combat level is: `{combat}`'
+        description: str = f'**{name}**\'s combat level is: `{combat}`'
 
         if combat < 126:
             for i, cb_skill in enumerate(original_cb_skills):
@@ -1872,7 +1631,7 @@ class Runescape(commands.Cog):
         if (any([lvls_required > 0 for lvls_required in levels_required])):
             description += '\nYou can level up by getting any of the following levels:'
 
-        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.utcnow(), url=hiscore_page_url, description=description)
+        embed = discord.Embed(title=f'Combat level', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url, description=description)
         embed.set_author(name=name, icon_url=f'https://services.runescape.com/m=avatar-rs/{name}/chat.png'.replace(' ', '%20'))
 
         for i, lvls_required in enumerate(levels_required):
@@ -1881,5 +1640,5 @@ class Runescape(commands.Cog):
 
         await ctx.send(embed=embed)
 
-async def setup(bot):
+async def setup(bot: Bot) -> None:
     await bot.add_cog(Runescape(bot))
