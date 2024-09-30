@@ -246,7 +246,7 @@ class Runescape(Cog):
         embed = discord.Embed(title=f'/r/2007scape', colour=colour, timestamp=timestamp)
 
         for s in submissions:
-            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}')
+            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}', inline=False)
 
         await ctx.send(embed=embed)
 
@@ -267,7 +267,7 @@ class Runescape(Cog):
         embed = discord.Embed(title=f'/r/runescape', colour=colour, timestamp=timestamp)
 
         for s in submissions:
-            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}')
+            embed.add_field(name=s.title, value=f'https://www.reddit.com{s.permalink}', inline=False)
 
         await ctx.send(embed=embed)
 
@@ -464,7 +464,6 @@ class Runescape(Cog):
                 remove.append(i)
         remove.sort(reverse=True)
         for i in remove:
-            del times[i]
             del prices[i]
 
         if days <= 60:
@@ -493,7 +492,7 @@ class Runescape(Cog):
         locs: tuple[list[Tick] | np.ndarray, list[Text]] = plt.yticks()
         ylabels: list[str] = []
         for l in locs[1]:
-            lab: str = str(l).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
+            lab: str = str(int(l.get_position()[1])).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
             if not ('K' in lab or 'M' in lab):
                 lab = "{:,}".format(int(lab))
             ylabels.append(lab)
@@ -575,11 +574,11 @@ class Runescape(Cog):
         prices: list[int] = []
 
         for ms, price in daily.items():
-            timestamps.append(round(int(ms)/1000))
+            timestamps.append(round(int(ms) / 1000))
             prices.append(int(price))
 
         times: list[datetime] = []
-        last: int = timestamps[len(times)-1]
+        last: int = timestamps[len(timestamps)-1]
         remove: list[int] = []
         for i, time in enumerate(timestamps):
             if time >= last - 86400 * days:
@@ -589,7 +588,6 @@ class Runescape(Cog):
                 remove.append(i)
         remove.sort(reverse=True)
         for i in remove:
-            del times[i]
             del prices[i]
 
         if days <= 60:
@@ -618,7 +616,7 @@ class Runescape(Cog):
         locs: tuple[list[Tick] | np.ndarray, list[Text]] = plt.yticks()
         ylabels: list[str] = []
         for l in locs[1]:
-            lab: str = str(l).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
+            lab: str = str(int(l.get_position()[1])).replace('000000000', '000M').replace('00000000', '00M').replace('0000000', '0M').replace('000000', 'M').replace('00000', '00K').replace('0000', '0K').replace('000', 'K')
             if not ('K' in lab or 'M' in lab):
                 lab = "{:,}".format(int(lab))
             ylabels.append(lab)
