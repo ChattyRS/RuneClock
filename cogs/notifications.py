@@ -350,8 +350,7 @@ class Notifications(Cog):
 
             for i, n in enumerate(notifications):
                 n.notification_id = i
-
-            await session.commit()
+                await session.commit()
 
         await ctx.send(f'Removed custom notification: `{id}`')
     

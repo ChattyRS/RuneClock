@@ -312,8 +312,8 @@ class BackgroundTasks(Cog):
                     guild_notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == guild_id))).scalars().all()
                     for i, notification in enumerate(guild_notifications):
                         notification.notification_id = i
-
-                await session.commit()
+                        await session.commit()
+                
         except Exception as e:
             error = f'Encountered the following error in custom notification loop:\n{type(e).__name__}: {e}'
             logging.critical(error)
