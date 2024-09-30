@@ -346,6 +346,8 @@ class Notifications(Cog):
             notifications.remove(notification)
             await session.delete(notification)
 
+            await session.commit()
+
             for i, n in enumerate(notifications):
                 n.notification_id = i
 
