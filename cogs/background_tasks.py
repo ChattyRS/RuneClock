@@ -77,7 +77,7 @@ class BackgroundTasks(Cog):
         today: datetime = now.replace(hour=0, minute=0, second=0)
         
         async with self.bot.async_session() as session:
-            latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today.replace(tzinfo=None)).order_by(Uptime.time.desc()))).scalars().first()
+            latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today).order_by(Uptime.time.desc()))).scalars().first()
             if latest_event_today and latest_event_today.status == 'running':
                 latest_event_today.time = now
             else:
@@ -278,7 +278,7 @@ class BackgroundTasks(Cog):
         try:
             async with self.bot.async_session() as session:
                 deleted_from_guild_ids: list[int] = []
-                notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC).replace(tzinfo=None)))).scalars().all()
+                notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
                 for notification in notifications:
                     guild: discord.Guild | None = self.bot.get_guild(notification.guild_id)
                     if not guild or not notification.message:
@@ -294,7 +294,7 @@ class BackgroundTasks(Cog):
 
                     interval = timedelta(seconds = notification.interval)
                     if interval.total_seconds() != 0:
-                        while notification.time.replace(tzinfo=UTC) < datetime.now(UTC):
+                        while notification.time < datetime.now(UTC):
                             notification.time += interval
                     else:
                         deleted_from_guild_ids.append(notification.guild_id)

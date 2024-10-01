@@ -75,76 +75,59 @@ def uptime_fraction(events: Sequence[Uptime], year: int | None = None, month: in
     Returns:
         float: The fraction of time during which the bot was up in the given time period
     '''
-    # Copy events data into a new list to fix timezone issues
-    _events: list[tuple[datetime, str]] = [(event.time.replace(tzinfo=UTC), event.status) for event in events]
-    return uptime_fraction_utc(_events, year, month, day)
-
-def uptime_fraction_utc(events: list[tuple[datetime, str]], year: int | None = None, month: int | None = None, day: int | None = None) -> float:
-    '''
-    Calculate the fraction of time that the bot was up from a sequence of uptime records.
-
-    Args:
-        events (list[tuple[datetime, str]]): Sequence of uptime sequence
-        year (int, optional): The year during which to measure the uptime (optional). Defaults to None.
-        month (int, optional): The month during which to measure the uptime (optional). Defaults to None.
-        day (int, optional): The day during which to measure the uptime (optional). Defaults to None.
-
-    Returns:
-        float: The fraction of time during which the bot was up in the given time period
-    '''
     if day and month and year:
         today: date = date(year, month, day)
-        if not any(event[0].date() == today for event in events):
+        if not any(event.time.date() == today for event in events):
             return 0
         elapsed = timedelta(hours=24)
         up = timedelta(seconds=0)
         start_time: datetime = datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
         for i, event in enumerate(events):
-            if event[0].year == year and event[0].month == month and event[0].day == day:
-                if event[1] == 'started':
-                    start_time = event[0].replace(tzinfo=UTC)
-                elif event[1] == 'running':
-                    up += event[0].replace(tzinfo=UTC) - start_time
-            elif event[0].replace(tzinfo=UTC) > start_time:
-                last_event: tuple[datetime, str] = events[i-1]
-                elapsed: timedelta = last_event[0].replace(tzinfo=UTC) - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+            if event.time.year == year and event.time.month == month and event.time.day == day:
+                if event.status == 'started':
+                    start_time = event.time
+                elif event.status == 'running':
+                    up += event.time - start_time
+            elif event.time > start_time:
+                last_event: Uptime = events[i-1]
+                elapsed: timedelta = last_event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
                 break
             if i == len(events) - 1:
-                elapsed = event[0].replace(tzinfo=UTC) - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
+                elapsed = event.time - datetime.now(UTC).replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
         return up.total_seconds() / elapsed.total_seconds()
     elif year and month:
         start: datetime | None = None
         end: datetime | None = None
         for i, event in enumerate(events):
-            if event[0].year == year and event[0].month == month:
+            if event.time.year == year and event.time.month == month:
                 if not start:
-                    start = event[0].replace(tzinfo=UTC)
-                end = event[0].replace(tzinfo=UTC)
+                    start = event.time
+                end = event.time
             elif start and end:
                 break
         percentages: list[float] = []
         if start and end:
             for day in range(start.day, end.day+1):
-                percentages.append(uptime_fraction_utc(events, year=year, month=month, day=day))
+                percentages.append(uptime_fraction(events, year=year, month=month, day=day))
         return sum(percentages) / len(percentages)
     elif year:
         months: list[int] = []
         for i, event in enumerate(events):
-            if event[0].year == year:
-                if not event[0].month in months:
-                    months.append(event[0].month)
+            if event.time.year == year:
+                if not event.time.month in months:
+                    months.append(event.time.month)
         percentages = []
         for month in months:
-            percentages.append(uptime_fraction_utc(events, year=year, month=month))
+            percentages.append(uptime_fraction(events, year=year, month=month))
         return sum(percentages) / len(percentages)
     else:
         years: list[int] = []
         for i, event in enumerate(events):
-            if not event[0].year in years:
-                years.append(event[0].year)
+            if not event.time.year in years:
+                years.append(event.time.year)
         percentages = []
         for year in years:
-            percentages.append(uptime_fraction_utc(events, year=year))
+            percentages.append(uptime_fraction(events, year=year))
         return sum(percentages) / len(percentages)
     
 def parse_datetime_string(input: str) -> datetime:

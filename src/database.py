@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession, async_sessionmaker, AsyncAttrs
 from sqlalchemy import PrimaryKeyConstraint, ForeignKey
-from sqlalchemy import BigInteger, Integer, String, Boolean, DateTime
+from sqlalchemy import BigInteger, Integer, String, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import ARRAY, JSON
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, TIMESTAMP
 from typing import Any, Optional
 from datetime import datetime
 
@@ -59,7 +59,7 @@ class Mute(Base):
     )
     guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
     user_id: Mapped[int] = mapped_column(BigInteger)
-    expiration: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expiration: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     reason: Mapped[str] = mapped_column(String)
 
 class Command(Base):
@@ -92,7 +92,7 @@ class Notification(Base):
     guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
     notification_id: Mapped[int] = mapped_column(Integer)
     channel_id: Mapped[int] = mapped_column(BigInteger)
-    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     interval: Mapped[int] = mapped_column(Integer)
     message: Mapped[str] = mapped_column(String)
 
@@ -116,7 +116,7 @@ class Poll(Base):
     author_id: Mapped[int] = mapped_column(BigInteger)
     channel_id: Mapped[int] = mapped_column(BigInteger)
     message_id: Mapped[int] = mapped_column(BigInteger)
-    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))  
+    end_time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))  
 
 class NewsPost(Base):
     __tablename__: str = 'news_posts'
@@ -124,13 +124,13 @@ class NewsPost(Base):
     game: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(String)
-    time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     category: Mapped[str] = mapped_column(String)
     image_url: Mapped[str] = mapped_column(String)
 
 class Uptime(Base):
     __tablename__: str = 'uptime'
-    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), primary_key=True)
     status: Mapped[str] = mapped_column(String)
 
 class RS3Item(Base):
@@ -168,7 +168,7 @@ class ClanBankTransaction(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
     member_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
 

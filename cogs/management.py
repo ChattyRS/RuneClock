@@ -807,7 +807,7 @@ class Management(Cog):
         year_ago: datetime = now.replace(year=now.year-1)
 
         async with self.bot.async_session() as session:
-            events: Sequence[Uptime] = (await session.execute(select(Uptime).where(Uptime.time >= year_ago.replace(tzinfo=None)).order_by(Uptime.time.asc()))).scalars().all()
+            events: Sequence[Uptime] = (await session.execute(select(Uptime).where(Uptime.time >= year_ago).order_by(Uptime.time.asc()))).scalars().all()
 
         uptime_today: float = uptime_fraction(events, now.year, now.month, now.day)
         uptime_today_round: str = '{:.1f}'.format(uptime_today*100)
