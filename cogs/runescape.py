@@ -21,7 +21,7 @@ from src.number_utils import is_int, is_float, format_float
 from src.runescape_utils import xp_to_level, level_to_xp, combat_level, osrs_combat_level
 from src.runescape_utils import skills_07, osrs_skill_emojis, skills_rs3, rs3_skill_emojis
 from src.runescape_utils import skill_indices, skill_indices_rs3, cb_indices_rs3, cb_indices_osrs
-from src.runescape_utils import araxxor, vorago, rots
+from src.runescape_utils import araxxor, vorago, rots, runescape_api_cooldown_key
 from src.graphics import draw_num, draw_outline_osrs, draw_outline_rs3
 import io
 import imageio
@@ -121,7 +121,6 @@ class Runescape(Cog):
             self.vis_wax_embed.add_field(name='Second rune', value=val)
 
             self.vis_wax_embed.set_footer(text='Powered by Warband Tracker')
-
 
     @commands.command(pass_context=True, aliases=['rsn'])
     async def setrsn(self, ctx: commands.Context, *, rsn: str | None) -> None:
@@ -227,7 +226,6 @@ class Runescape(Cog):
         embed.set_thumbnail(url=f'https://services.runescape.com/m=avatar-rs/{username.replace(" ", "%20")}/chat.png')
 
         await ctx.send(embed=embed)
-
 
     @commands.command(name='07reddit', pass_context=True, aliases=['osrsreddit'])
     @commands.cooldown(1, 10, commands.BucketType.user)
@@ -634,7 +632,7 @@ class Runescape(Cog):
         await ctx.send(file=image, embed=embed)
     
     @commands.command(name='07stats', pass_context=True, aliases=['osrsstats'])
-    @commands.cooldown(1, 20, commands.BucketType.user)
+    @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def _07stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get OSRS hiscores info by username.
@@ -722,7 +720,7 @@ class Runescape(Cog):
         await ctx.send(files=[stats_image, osrs_icon], embed=embed)
     
     @commands.command(name='07compare')
-    @commands.cooldown(1, 40, commands.BucketType.user)
+    @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def _07compare(self, ctx: commands.Context, name_1: discord.User | str = "", name_2: discord.User | str | None = "") -> None:
         '''
         Compare two players on OSRS HiScores
@@ -941,12 +939,11 @@ class Runescape(Cog):
         await ctx.send(embed=embed)
 
     @commands.command(pass_context=True, aliases=['rs3stats'])
-    @commands.cooldown(1, 10, commands.BucketType.user)
+    @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Get RS3 hiscores info by username.
         '''
-
         self.bot.increment_command_counter()
         await ctx.channel.typing()
         
@@ -1039,7 +1036,7 @@ class Runescape(Cog):
         await ctx.send(files=[stats_image, rs3_icon], embed=embed)
     
     @commands.command()
-    @commands.cooldown(1, 20, commands.BucketType.user)
+    @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def compare(self, ctx: commands.Context, name_1: discord.User | str = "", name_2: discord.User | str | None = "") -> None:
         '''
         Compare two players on RuneScape HiScores
@@ -1357,7 +1354,6 @@ class Runescape(Cog):
                 await ctx.send(f'To reach level `{lvl_end}` from `{lvl_start_or_xp}` XP, you will need to gain `{xp_dif_str}` XP.')
             else:
                 await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif_str}` XP.')
-            
     
     @commands.command(aliases=['actions'])
     async def xph(self, ctx: commands.Context, lvl_start: int | str = 0, lvl_end: int | str = 0, xp_rate: float | str = 0.0) -> None:
@@ -1474,6 +1470,7 @@ class Runescape(Cog):
         await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
     @commands.command(aliases=['cb', 'rs3cb', 'rs3combat'])
+    @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def combat(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Calculate the combat level of a RS3 player.
@@ -1557,6 +1554,7 @@ class Runescape(Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name='07combat', aliases=['07cb', 'osrscb', 'osrscombat'])
+    @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def _07combat(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
         Calculate the combat level of a OSRS player.

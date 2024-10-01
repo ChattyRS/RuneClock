@@ -1,9 +1,9 @@
 import asyncio
 import logging
-from src.bot import Bot
+from src.runeclock import RuneClock
 
 async def run() -> None:
-    bot: Bot = Bot()
+    bot: RuneClock = RuneClock()
     try:
         await bot.start_bot()
     except KeyboardInterrupt:

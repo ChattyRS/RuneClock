@@ -4,6 +4,7 @@ import math
 from discord import User, Member
 from src.date_utils import timedelta_to_string
 from src.number_utils import is_int
+from discord.ext import commands
 
 max_cash = 2147483647
 
@@ -360,3 +361,12 @@ skill_indices_rs3: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12,
 
 cb_indices_rs3: list[int] = [0, 2, 1, 3, 6, 4, 5, 23]
 cb_indices_osrs: list[int] = [0, 2, 1, 3, 6, 4, 5]
+
+def runescape_api_cooldown_key(_: commands.Context) -> str:
+    '''
+    Returns a cooldown key specific to any commands using the runescape api.
+
+    Returns:
+        str: The runescape api cooldown key
+    '''
+    return 'runescape_api'

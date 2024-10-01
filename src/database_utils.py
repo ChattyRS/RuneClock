@@ -2,7 +2,7 @@ from typing import Sequence
 from discord import Guild as DiscordGuild
 from src.database import ClanBankTransaction, CustomRoleReaction, Guild, Command, Mute, Notification, OSRSItem, OnlineNotification, Poll, RS3Item, Repository, Role
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, select
 from discord.ext.commands import CommandError
 
 async def find_db_guild(async_session: async_sessionmaker[AsyncSession], guild_or_id: DiscordGuild | int | None, session: AsyncSession | None = None) -> Guild | None:

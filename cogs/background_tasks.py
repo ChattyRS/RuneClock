@@ -2,8 +2,7 @@ import discord
 from discord.ext import tasks
 from discord.ext.commands import Cog
 from src.bot import Bot
-import asyncio
-from datetime import datetime, timedelta, UTC, tzinfo
+from datetime import datetime, timedelta, UTC
 import logging
 from typing import Any, NoReturn, Sequence
 from sqlalchemy import select
@@ -11,7 +10,7 @@ from aiohttp import ClientResponse
 import feedparser
 import io
 from src.message_queue import QueueMessage
-from src.database import Guild, Mute, Repository, Notification, Poll, NewsPost, RS3Item, OSRSItem, Uptime
+from src.database import Guild, Mute, Repository, Notification, Poll, NewsPost, Uptime
 from github.Commit import Commit
 from github.Repository import Repository as GitRepository
 from github.AuthenticatedUser import AuthenticatedUser
@@ -47,12 +46,6 @@ class BackgroundTasks(Cog):
         self.test_notification_channel = get_text_channel(bot, bot.config['testNotificationChannel'])
         self.log_channel = get_text_channel(bot, bot.config['testChannel'])
         self.test_channel = get_text_channel(bot, bot.config['testChannel'])
-
-        bot.loop.create_task(self.initialize_notification_state())
-
-        # Price tracking is still done in a while true loop due to more complex scheduling logic to avoid rate limits
-        bot.loop.create_task(self.price_tracking_rs3())
-        bot.loop.create_task(self.price_tracking_osrs())
 
     def cog_load(self) -> None:
         '''
@@ -199,7 +192,7 @@ class BackgroundTasks(Cog):
         Runs every 15 s.
         '''
         if not self.notification_state_initialized:
-            return
+            await self.initialize_notification_state()
         
         try:
             now: datetime = datetime.now(UTC)
@@ -530,155 +523,6 @@ class BackgroundTasks(Cog):
 
         except:
             pass
-    
-    async def price_tracking_rs3(self) -> NoReturn:
-        '''
-        Function to automatically and constantly update item pricing
-        '''
-        while True:
-            try:
-                async with self.bot.async_session() as session:
-                    items: Sequence[RS3Item] = (await session.execute(select(RS3Item))).scalars().all()
-                    items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
-                    for item in items:
-                        graph_url: str = f'http://services.runescape.com/m=itemdb_rs/api/graph/{item.id}.json'
-
-                        graph_data: dict[str, dict[str, str]] = {}
-
-                        exists = True
-                        while True:
-                            r: ClientResponse = await self.bot.aiohttp.get(graph_url)
-                            async with r:
-                                if r.status == 404:
-                                    logging.critical(f'RS3 404 error for item {item.id}: {item.name}')
-                                    self.bot.queue_message(QueueMessage(self.test_channel, f'RS3 404 error for item {item.id}: {item.name}'))
-                                    exists = False
-                                    break
-                                elif r.status != 200:
-                                    await asyncio.sleep(60)
-                                    continue
-                                try:
-                                    graph_data = await r.json(content_type='text/html')
-                                    break
-                                except Exception as e:
-                                    # This should only happen when the API is down
-                                    print(f'Unexpected error in RS3 price tracking for {item.id}: {item.name}\n{e}')
-                                    await asyncio.sleep(300)
-                        
-                        # Graph data may not be returned at times, even with status code 200
-                        # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
-                        if not exists or not graph_data:
-                            continue
-
-                        prices: list[str] = []
-                        for price in graph_data['daily'].values():
-                            prices.append(price)
-                        
-                        current: str = str(prices[len(prices) - 1])
-                        yesterday: str = str(prices[len(prices) - 2])
-                        month_ago: str = str(prices[len(prices) - 31])
-                        three_months_ago: str = str(prices[len(prices) - 91])
-                        half_year_ago: str = str(prices[0])
-
-                        today = str(int(current) - int(yesterday))
-                        day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
-                        day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
-                        day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
-                        
-                        item.current = current
-                        item.today = today
-                        item.day30 = day30
-                        item.day90 = day90
-                        item.day180 = day180
-                        item.graph_data = graph_data
-                        await session.commit()
-
-                        await asyncio.sleep(5)
-            except OSError as e:
-                print(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
-                logging.critical(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
-                await asyncio.sleep(60)
-            except Exception as e:
-                error: str = f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}'
-                print(error)
-                logging.critical(error)
-                self.bot.queue_message(QueueMessage(self.test_channel, error))
-                await asyncio.sleep(600)
-    
-    async def price_tracking_osrs(self) -> NoReturn:
-        '''
-        Function to automatically and constantly update item pricing
-        '''
-        while True:
-            try:
-                async with self.bot.async_session() as session:
-                    items: Sequence[OSRSItem] = (await session.execute(select(OSRSItem))).scalars().all()
-                    items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
-                    for item in items:
-                        graph_url: str = f'http://services.runescape.com/m=itemdb_oldschool/api/graph/{item.id}.json'
-
-                        graph_data: dict[str, dict[str, str]] = {}
-
-                        exists = True
-                        while True:
-                            r: ClientResponse = await self.bot.aiohttp.get(graph_url)
-                            async with r:
-                                if r.status == 404:
-                                    msg: str = f'OSRS 404 error for item {item.id}: {item.name}'
-                                    logging.critical(msg)
-                                    self.bot.queue_message(QueueMessage(self.test_channel, msg))
-                                    exists = False
-                                    break
-                                elif r.status != 200:
-                                    await asyncio.sleep(60)
-                                    continue
-                                try:
-                                    graph_data = await r.json(content_type='text/html')
-                                    break
-                                except Exception as e:
-                                    # This should only happen when the API is down
-                                    print(f'Unexpected error in OSRS price tracking for {item.id}: {item.name}\n{e}')
-                                    await asyncio.sleep(300)
-                        
-                        # Graph data may not be returned at times, even with status code 200
-                        # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
-                        if not exists or not graph_data:
-                            continue
-
-                        prices: list[str] = []
-                        for price in graph_data['daily'].values():
-                            prices.append(price)
-                        
-                        current: str = str(prices[len(prices) - 1])
-                        yesterday: str = str(prices[len(prices) - 2])
-                        month_ago: str = str(prices[len(prices) - 31])
-                        three_months_ago: str = str(prices[len(prices) - 91])
-                        half_year_ago: str = str(prices[0])
-
-                        today = str(int(current) - int(yesterday))
-                        day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
-                        day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
-                        day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
-                        
-                        item.current = current
-                        item.today = today
-                        item.day30 = day30
-                        item.day90 = day90
-                        item.day180 = day180
-                        item.graph_data = graph_data
-                        await session.commit()
-
-                        await asyncio.sleep(5)
-            except OSError as e:
-                print(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')
-                logging.critical(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')
-                await asyncio.sleep(60)
-            except Exception as e:
-                error = f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}'
-                print(error)
-                logging.critical(error)
-                self.bot.queue_message(QueueMessage(self.test_channel, error))
-                await asyncio.sleep(600)
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(BackgroundTasks(bot))
