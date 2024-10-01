@@ -529,7 +529,7 @@ class Management(Cog):
         processed = f'**Commands:** {self.bot.get_command_counter()}\n**Events:** {self.bot.events_logged}\n**Notifications:** {notifications}'
         embed.add_field(name='__Processed__', value=processed)
 
-        embed.set_author(name='@schattie', url='https://github.com/ChattyRS/Portables', icon_url=self.bot.config['profile_picture_url'])
+        embed.set_author(name='@schattie', url='https://github.com/ChattyRS/RuneClock', icon_url=self.bot.config['profile_picture_url'])
 
         embed.set_thumbnail(url=ctx.me.display_avatar.url)
 
