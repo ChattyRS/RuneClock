@@ -77,7 +77,7 @@ class BackgroundTasks(Cog):
         today: datetime = now.replace(hour=0, minute=0, second=0)
         
         async with self.bot.async_session() as session:
-            latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today).order_by(Uptime.time.desc()))).scalars().first()
+            latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today.replace(tzinfo=None)).order_by(Uptime.time.desc()))).scalars().first()
             if latest_event_today and latest_event_today.status == 'running':
                 latest_event_today.time = now
             else:
