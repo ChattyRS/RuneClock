@@ -203,7 +203,7 @@ class Runescape(Cog):
 
         url: str = f'https://apps.runescape.com/runemetrics/profile/profile?user={username}&activities=20'.replace(' ', '%20')
 
-        r: ClientResponse = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url, headers={ 'User-agent': self.bot.config['wiki_user_agent'] })
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Error retrieving data, please try again in a minute.')
@@ -664,7 +664,7 @@ class Runescape(Cog):
 
         url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
 
-        r: ClientResponse = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url, headers={ 'User-agent': self.bot.config['wiki_user_agent'] })
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
@@ -764,7 +764,7 @@ class Runescape(Cog):
         for name in [username_1, username_2]:
             url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
 
-            r: ClientResponse = await self.bot.aiohttp.get(url)
+            r: ClientResponse = await self.bot.aiohttp.get(url, headers={ 'User-agent': self.bot.config['wiki_user_agent'] })
             async with r:
                 if r.status != 200:
                     raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
@@ -969,7 +969,7 @@ class Runescape(Cog):
 
         url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
 
-        r: ClientResponse = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url, headers={ 'User-agent': self.bot.config['wiki_user_agent'] })
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
@@ -1082,7 +1082,7 @@ class Runescape(Cog):
         for name in [username_1, username_2]:
             url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
 
-            r: ClientResponse = await self.bot.aiohttp.get(url)
+            r: ClientResponse = await self.bot.aiohttp.get(url, headers={ 'User-agent': self.bot.config['wiki_user_agent'] })
             async with r:
                 if r.status != 200:
                     raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
@@ -1501,7 +1501,7 @@ class Runescape(Cog):
         url: str = f'http://services.runescape.com/m=hiscore/index_lite.ws?player={name}'.replace(' ', '%20')
         hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
 
-        r: ClientResponse = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url, headers={ 'User-agent': self.bot.config['wiki_user_agent'] })
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
@@ -1584,7 +1584,7 @@ class Runescape(Cog):
         url: str = f'http://services.runescape.com/m=hiscore_oldschool/index_lite.ws?player={name}'.replace(' ', '%20')
         hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
 
-        r: ClientResponse = await self.bot.aiohttp.get(url)
+        r: ClientResponse = await self.bot.aiohttp.get(url, headers={ 'User-agent': self.bot.config['wiki_user_agent'] })
         async with r:
             if r.status != 200:
                 raise commands.CommandError(message=f'Could not find hiscores for: `{name}`.')
