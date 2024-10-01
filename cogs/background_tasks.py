@@ -516,7 +516,7 @@ class BackgroundTasks(Cog):
                     
                     for i, commit in enumerate(reversed(new_commits)):
                         repository.sha = commit.sha
-                        embed = discord.Embed(title=f'{repository.user_name}/{repository.repo_name}', colour=discord.Colour.blue(), timestamp=commit.commit.author.date, description=f'[`{commit.sha[:7]}`]({commit.url}) {commit.raw_data.get("message")}\n{commit.stats.additions} additions, {commit.stats.deletions} deletions', url=repo.url)
+                        embed = discord.Embed(title=f'{repository.user_name}/{repository.repo_name}', colour=discord.Colour.blue(), timestamp=commit.commit.author.date, description=f'[`{commit.sha[:7]}`]({commit.url}) {commit.commit.message}\n{commit.stats.additions} additions, {commit.stats.deletions} deletions', url=repo.url)
                         embed.set_author(name=commit.author.name, url=commit.author.url, icon_url=commit.author.avatar_url)
 
                         for file in commit.files:
