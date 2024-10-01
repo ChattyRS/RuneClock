@@ -4,9 +4,9 @@ from typing import NoReturn, Sequence
 from aiohttp import ClientResponse
 from sqlalchemy import select
 from src.bot import Bot
-from database import OSRSItem, RS3Item
-from discord_utils import get_text_channel
-from message_queue import QueueMessage
+from src.database import OSRSItem, RS3Item
+from src.discord_utils import get_text_channel
+from src.message_queue import QueueMessage
 
 async def price_tracking_rs3(bot: Bot) -> NoReturn:
     '''

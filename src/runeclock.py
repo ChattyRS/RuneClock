@@ -7,7 +7,7 @@ from discord.ext import commands
 from src.bot import Bot
 import string
 import traceback
-from price_tracking import price_tracking_osrs, price_tracking_rs3
+from src.price_tracking import price_tracking_osrs, price_tracking_rs3
 from src.message_queue import QueueMessage
 from src.database import Guild, Uptime
 from src.database import get_db_engine, get_db_session_maker, create_all_database_tables

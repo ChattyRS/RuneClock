@@ -3,8 +3,8 @@ import os
 from typing import Any
 import discord
 from discord.ext import commands
-from database import Guild
-from database_utils import get_db_guild
+from src.database import Guild
+from src.database_utils import get_db_guild
 from src.configuration import get_config
 from src.auth_utils import get_google_sheets_credentials
 from aiohttp import TCPConnector, ClientSession, ClientTimeout
