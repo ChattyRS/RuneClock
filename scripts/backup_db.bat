@@ -5,4 +5,4 @@ for /f "usebackq delims=" %%i in (`
 `) do set _timestamp=%%i
 
 cd "C:/Program Files/PostgreSQL/16/bin"
-pg_dump -U postgres runeclock > Z:/RuneClock/Backups/backup_%_timestamp%.sql
+pg_dump -U postgres runeclock > \\DS1522\Media\RuneClock\Backups\backup_%_timestamp%.sql
