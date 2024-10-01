@@ -512,14 +512,11 @@ class BackgroundTasks(Cog):
                         if commit.sha == repository.sha:
                             commit_index = i
                             break
-                    new_commits: list[Commit] = commits[:commit_index] if commit_index else []
+                    new_commits: list[Commit] = [c for i, c in enumerate(commits) if i < commit_index]
                     
                     for i, commit in enumerate(reversed(new_commits)):
                         repository.sha = commit.sha
-                        author_data: Any = commit.raw_data.get('author')
-                        date: datetime = datetime.strptime(author_data.date, "%Y-%m-%dT%H:%M:%SZ")
-                        
-                        embed = discord.Embed(title=f'{repository.user_name}/{repository.repo_name}', colour=discord.Colour.blue(), timestamp=date, description=f'[`{commit.sha[:7]}`]({commit.url}) {commit.raw_data.get("message")}\n{commit.stats.additions} additions, {commit.stats.deletions} deletions', url=repo.url)
+                        embed = discord.Embed(title=f'{repository.user_name}/{repository.repo_name}', colour=discord.Colour.blue(), timestamp=commit.commit.author.date, description=f'[`{commit.sha[:7]}`]({commit.url}) {commit.raw_data.get("message")}\n{commit.stats.additions} additions, {commit.stats.deletions} deletions', url=repo.url)
                         embed.set_author(name=commit.author.name, url=commit.author.url, icon_url=commit.author.avatar_url)
 
                         for file in commit.files:
