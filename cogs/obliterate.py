@@ -6,7 +6,7 @@ from discord import Member, TextChannel, app_commands, TextStyle
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
-from message_queue import QueueMessage
+from src.message_queue import QueueMessage
 from src.bot import Bot
 from src.database import Guild
 from datetime import datetime, timedelta, UTC
