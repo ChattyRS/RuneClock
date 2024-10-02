@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
 from sqlalchemy import select
+from src.message_queue import QueueMessage
 from src.bot import Bot
 from src.database import Mute, Guild
 from datetime import datetime, timedelta, UTC
@@ -77,15 +78,14 @@ class ModCommands(Cog):
 
             private: discord.TextChannel = get_guild_text_channel(message.guild, guild.modmail_private)
 
+            files: list[discord.File] = []
             if message.attachments:
-                files: list[discord.File] = []
                 for attachment in message.attachments:
                     file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
                     files.append(file)
                 embed.set_image(url=f'attachment://{attachment.filename}')
-                await private.send(embed=embed, files=files)
-            else:
-                await private.send(embed=embed)
+            
+            self.bot.queue_message(QueueMessage(private, None, embed, files))
 
             await message.delete()
 

@@ -496,7 +496,7 @@ class Notifications(Cog):
                 if ((online_notification.type in [1,2,3] and str(after.status) == 'online') or (online_notification.type in [2,3] and str(after.status) == 'idle') 
                     or (online_notification.type == 2 and str(after.status) == 'dnd') or (online_notification.type == 4 and str(after.status) == 'offline')):
                     on_or_offline: str = 'offline' if online_notification.type == 4 else 'online'
-                    await channel.send(f'`{after.display_name}` is {on_or_offline}! {user.mention}')
+                    self.bot.queue_message(QueueMessage(channel, f'`{after.display_name}` is {on_or_offline}! {user.mention}'))
                 else:
                     return
             except:
@@ -525,7 +525,7 @@ class Notifications(Cog):
                 if not channel or not user:
                     raise commands.CommandError('User or channel not found.')
                 if online_notification.type in [1,2,3]:
-                    await channel.send(f'`{message.author.display_name}` is online! {user.mention}')
+                    self.bot.queue_message(QueueMessage(channel, f'`{message.author.display_name}` is online! {user.mention}'))
                 else:
                     return
             except:

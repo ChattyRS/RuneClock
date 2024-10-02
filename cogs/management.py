@@ -429,7 +429,7 @@ class Management(Cog):
         for file in data['files']:
             embed.add_field(name=file['filename'], value=f'{file["additions"]} additions, {file["deletions"]} deletions', inline=False)
         
-        await channel.send(embed=embed)
+        self.bot.queue_message(QueueMessage(channel, None, embed))
     
     @git.command()
     @is_admin()

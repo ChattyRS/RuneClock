@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import select
+from src.message_queue import QueueMessage
 from src.bot import Bot
 from src.database import Guild, Role
 from datetime import datetime, UTC
@@ -48,7 +49,7 @@ class Logs(Cog):
         title: str = f'**Member Joined**'
         colour = 0x00e400
         timestamp: datetime = datetime.now(UTC)
-        id = f'User ID: {member.id}'
+        id: str = f'User ID: {member.id}'
         creation_time: datetime = member.created_at
         min: int | str = creation_time.minute
         if len(str(min)) == 1:
@@ -61,10 +62,7 @@ class Logs(Cog):
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
@@ -91,10 +89,7 @@ class Logs(Cog):
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_member_ban(self, guild: discord.Guild, user: discord.User) -> None:
@@ -116,10 +111,7 @@ class Logs(Cog):
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_member_unban(self, guild: discord.Guild, user: discord.User) -> None:
@@ -141,10 +133,7 @@ class Logs(Cog):
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
         embed.set_thumbnail(url=url)
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
@@ -173,11 +162,7 @@ class Logs(Cog):
         embed.add_field(name='Message', value=msg, inline=False)
         embed.set_footer(text=f'Message ID: {message.id}')
         embed.set_thumbnail(url=message.author.display_avatar.url)
-
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
     
     @Cog.listener()
     async def on_bulk_message_delete(self, messages: list[discord.Message]) -> None:
@@ -195,11 +180,7 @@ class Logs(Cog):
 
         txt: str = f'{len(messages)} messages deleted in {messages[0].channel.mention}'
         embed = discord.Embed(title='**Bulk delete**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
-
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
@@ -243,10 +224,7 @@ class Logs(Cog):
             embed.add_field(name='After', value=afterContent, inline=False)
             embed.set_footer(text=id)
             embed.set_thumbnail(url=url)
-            try:
-                await channel.send(embed=embed)
-            except discord.Forbidden:
-                return
+            self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_guild_channel_delete(self, channel: GuildChannel) -> None:
@@ -269,10 +247,7 @@ class Logs(Cog):
                f'Channel creation: {time}.')
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
-        try:
-            await log_channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(log_channel, None, embed))
 
     @Cog.listener()
     async def on_guild_channel_create(self, channel: GuildChannel) -> None:
@@ -292,10 +267,7 @@ class Logs(Cog):
         txt: str = f'{channel.mention}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
-        try:
-            await log_channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(log_channel, None, embed))
 
     @Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
@@ -326,11 +298,7 @@ class Logs(Cog):
             embed.add_field(name='After', value=after_nick, inline=False)
             embed.set_footer(text=id)
             embed.set_thumbnail(url=url)
-            try:
-                await channel.send(embed=embed)
-                return
-            except discord.Forbidden:
-                return
+            self.bot.queue_message(QueueMessage(channel, None, embed))
         elif set(before.roles) != set(after.roles):
             self.log_event()
             added_roles: list[discord.Role] = []
@@ -368,10 +336,7 @@ class Logs(Cog):
                 embed.add_field(name='Removed', value=removed, inline=False)
             embed.set_footer(text=id)
             embed.set_thumbnail(url=url)
-            try:
-                await channel.send(embed=embed)
-            except discord.Forbidden:
-                return
+            self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild) -> None:
@@ -403,10 +368,7 @@ class Logs(Cog):
             embed.add_field(name='After', value=after_name, inline=False)
             embed.set_footer(text=id)
             embed.set_thumbnail(url=url)
-            try:
-                await channel.send(embed=embed)
-            except discord.Forbidden:
-                return
+            self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_guild_role_create(self, role: discord.Role) -> None:
@@ -426,10 +388,7 @@ class Logs(Cog):
         txt: str = f'{role.mention}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role) -> None:
@@ -454,10 +413,7 @@ class Logs(Cog):
         txt: str = f'{role.name}'
         embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
         embed.set_footer(text=id)
-        try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            return
+        self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_guild_role_update(self, before: discord.Role, after: discord.Role) -> None:
@@ -480,10 +436,7 @@ class Logs(Cog):
             embed.add_field(name='Before', value=before.name, inline=False)
             embed.add_field(name='After', value=after.name, inline=False)
             embed.set_footer(text=id)
-            try:
-                await channel.send(embed=embed)
-            except discord.Forbidden:
-                return
+            self.bot.queue_message(QueueMessage(channel, None, embed))
 
     @Cog.listener()
     async def on_guild_emojis_update(self, guild: discord.Guild, before: Sequence[discord.Emoji], after: Sequence[discord.Emoji]) -> None:
@@ -548,11 +501,8 @@ class Logs(Cog):
 
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             embed.set_footer(text=id)
-            try:
-                await channel.send(embed=embed)
-                return
-            except discord.Forbidden:
-                return
+            self.bot.queue_message(QueueMessage(channel, None, embed))
+            return
         before_names: list[str] = []
         for e in before:
             before_names.append(e.name)
@@ -580,10 +530,7 @@ class Logs(Cog):
             id = f'Server ID: {guild.id}'
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             embed.set_footer(text=id)
-            try:
-                await channel.send(embed=embed)
-            except discord.Forbidden:
-                return
+            self.bot.queue_message(QueueMessage(channel, None, embed))
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Logs(bot))

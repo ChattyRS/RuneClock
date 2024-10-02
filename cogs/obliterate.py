@@ -48,7 +48,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
             return
         anonymous: bool = 'Y' in self.anonymous.value.upper()
 
-        if anonymous and not interaction.channel:
+        if anonymous and not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message(f'Error: anonymous appreciation messages can only be sent in a server channel.', ephemeral=True)
             return
 
@@ -105,8 +105,8 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         member_row[appreciation_col] = str(int(member_row[appreciation_col]) + 1)
 
         # Send an embed to the appreciation station channel
-        if anonymous:
-            await interaction.channel.send(self.member_to_appreciate.mention, embed=embed, file=default_avatar) # type: ignore - interaction.channel is checked earlier for anonymous appreciations
+        if anonymous and isinstance(interaction.channel, discord.TextChannel):
+            self.bot.queue_message(QueueMessage(interaction.channel, self.member_to_appreciate.mention, embed, default_avatar))
             await interaction.response.send_message(f'Your appreciation message for {self.member_to_appreciate.mention} has been sent!', ephemeral=True)
         else:
             await interaction.response.send_message(self.member_to_appreciate.mention, embed=embed)
@@ -316,7 +316,7 @@ class ApplicationView(discord.ui.View):
         await roster.update_cells(cell_list, nowait=True) # type: ignore - nowait is enabled through an odd decorator
 
         # Update member nickname and roles
-        roles = member.roles
+        roles: list[discord.Role] = member.roles
         roles.remove(applicant_role)
         roles.append(bronze_role)
         await member.edit(nick=rsn, roles=roles)
@@ -332,7 +332,7 @@ class ApplicationView(discord.ui.View):
             data = await r.json()
 
         # Send message in promotions channel
-        await channel.send(f'`{rsn}`\'s application was accepted by {interaction.user.mention}. Please invite them to the CC in-game and react to this message once done.')
+        self.bot.queue_message(QueueMessage(channel, f'`{rsn}`\'s application was accepted by {interaction.user.mention}. Please invite them to the CC in-game and react to this message once done.'))
         
         return 'success'
     
@@ -565,12 +565,12 @@ class Obliterate(Cog):
         for i, val in enumerate(values):
             if val[discord_col] == beforeName:
                 await roster.update_cell(i+2, discord_col+1, afterName)
-                await channel.send(f'The roster has been updated with the new username: `{afterName}`.')
+                self.bot.queue_message(QueueMessage(channel, f'The roster has been updated with the new username: `{afterName}`.'))
                 found = True
                 break
         
         if not found:
-            await channel.send(f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.')
+            self.bot.queue_message(QueueMessage(channel, f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.'))
 
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))

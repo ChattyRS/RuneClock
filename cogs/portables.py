@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
+from src.message_queue import QueueMessage
 from src.bot import Bot
 from datetime import datetime, timedelta, UTC
 import re
@@ -251,7 +252,7 @@ class Portables(Cog):
                                     channel_id: int = self.portables_channel_ids[i]
                                     loc_channel: discord.TextChannel = get_guild_text_channel(port_server, channel_id)
                                     if loc_channel:
-                                        await loc_channel.send(f'{role.mention} active at **{format(current_locs)}**')
+                                        self.bot.queue_message(QueueMessage(loc_channel, f'{role.mention} active at **{format(current_locs)}**'))
         except Exception as e:
             error: str = f'Error encountered portable locations tracking: {e}'
             print(error)
@@ -259,7 +260,7 @@ class Portables(Cog):
 
             try:
                 channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['testChannel'])
-                await channel.send(error)
+                self.bot.queue_message(QueueMessage(channel, error))
             except:
                 pass
 
@@ -475,7 +476,7 @@ class Portables(Cog):
 
         await ctx.send(f'**{name}** has been added to the banlist ({str(count)}).')
         admin_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['adminChannel'])
-        await admin_channel.send(f'**{name}** has been added to the banlist with status **Pending**.')
+        self.bot.queue_message(QueueMessage(admin_channel, f'**{name}** has been added to the banlist with status **Pending**.'))
 
     @commands.command(hidden=True)
     @is_rank()
@@ -699,7 +700,7 @@ class Portables(Cog):
         await ctx.send(f'**{name}** has been added to the smileys sheet.')
         if isinstance(ctx.author, discord.Member) and ctx.author.top_role <= leader_role:
             admin_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['adminChannel'])
-            await admin_channel.send(f'**{name}** has been added to the smileys sheet with status **Pending**.')
+            self.bot.queue_message(QueueMessage(admin_channel, f'**{name}** has been added to the smileys sheet with status **Pending**.'))
 
     @commands.command(pass_context=True, hidden=True)
     @portables_leader()

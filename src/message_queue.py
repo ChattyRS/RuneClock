@@ -8,8 +8,9 @@ class QueueMessage:
     channel: discord.TextChannel
     message: str | None
     embed: discord.Embed | None
+    files: list[discord.File] | discord.File | None
 
-    def __init__(self, channel: discord.TextChannel, message: str | None = None, embed: discord.Embed | None = None) -> None:
+    def __init__(self, channel: discord.TextChannel, message: str | None = None, embed: discord.Embed | None = None, files: list[discord.File] | discord.File | None = None) -> None:
         self.channel = channel
 
         if not message and not embed:
@@ -17,6 +18,7 @@ class QueueMessage:
 
         self.message = message
         self.embed = embed
+        self.files = files
 
     async def send(self) -> None:
         '''
@@ -24,10 +26,16 @@ class QueueMessage:
         Safely here means that any exceptions are handled.
         '''
         try:
+            files: list[discord.File] = []
+            if isinstance(self.files, list):
+                files = self.files
+            elif self.files:
+                files.append(self.files)
+
             if self.embed:
-                await self.channel.send(self.message, embed=self.embed)
+                await self.channel.send(self.message, embed=self.embed, files=files)
             else:
-                await self.channel.send(self.message)
+                await self.channel.send(self.message, files=files)
         except discord.Forbidden:
             pass
         except Exception as e:

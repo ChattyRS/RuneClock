@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog
 import asyncio
 from sqlalchemy import select
+from src.message_queue import QueueMessage
 from src.bot import Bot
 from src.database import User
 from datetime import datetime, timedelta, UTC
@@ -26,6 +27,9 @@ class Timer(Cog):
         Don't forget to surround your inputs with "quotation marks" if they contains spaces.
         '''
         self.bot.increment_command_counter()
+
+        if not isinstance(ctx.channel, discord.TextChannel):
+            raise commands.CommandError(message='This command can only be used in a server text channel.')
 
         if not time:
             raise commands.CommandError(message=f'Required argument missing: `time`.')
@@ -87,7 +91,7 @@ class Timer(Cog):
 
         await asyncio.sleep(time_seconds)
 
-        await ctx.send(f'{ctx.author.mention} {msg if msg else "It's time!"}')
+        self.bot.queue_message(QueueMessage(ctx.channel, f'{ctx.author.mention} {msg if msg else "It's time!"}'))
 
     @commands.command(aliases=['timezone'])
     async def tz(self, ctx: commands.Context, timezone: str = 'UTC') -> None:
