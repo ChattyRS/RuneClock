@@ -15,7 +15,7 @@ async def role_setup(bot: Bot) -> None:
     Sets up message and reactions for role management if no message is sent in the channel yet
     Adds messages to cache to track reactions
     '''
-    await asyncio.sleep(10)
+    await bot.wait_until_ready()
     print(f'Initializing role management...')
     logging.info('Initializing role management...')
 
@@ -73,8 +73,7 @@ async def check_guilds(bot: Bot) -> None:
     Checks database for entries of guilds that the bot is no longer a member of
     Adds default prefix entry to prefixes table if guild doesn't have a prefix set
     '''
-    # Ensure guild cache is loaded
-    await asyncio.sleep(20)
+    await bot.wait_until_ready()
 
     logging.info('Checking guilds...')
     print(f'Checking guilds...')
