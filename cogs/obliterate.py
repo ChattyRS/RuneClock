@@ -6,6 +6,7 @@ from discord import Member, TextChannel, app_commands, TextStyle
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
+from message_queue import QueueMessage
 from src.bot import Bot
 from src.database import Guild
 from datetime import datetime, timedelta, UTC
@@ -191,7 +192,7 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
 
         # Send an embed to the name change channel
         channel: discord.TextChannel = get_guild_text_channel(interaction.guild, self.bot.config['obliterate_promotions_channel_id'])
-        await channel.send(embed=embed)
+        self.bot.queue_message(QueueMessage(channel, None, embed))
         await interaction.response.send_message(f'Member renamed from `{self.member_to_rename.display_name}` to `{new_name}`.'
             + f'\nInsufficient permissions to change nickname for user: {self.member_to_rename.mention}.' if not renamed else '', ephemeral=True)
 
