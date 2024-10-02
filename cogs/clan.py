@@ -354,9 +354,6 @@ class Clan(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    def cog_unload(self) -> None:
-        pass
-
     @app_commands.command(name='wom')
     async def wom(self, interaction: discord.Interaction, action: str) -> None:
         '''

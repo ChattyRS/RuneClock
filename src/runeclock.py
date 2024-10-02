@@ -11,8 +11,9 @@ from src.price_tracking import price_tracking_osrs, price_tracking_rs3
 from src.message_queue import QueueMessage
 from src.database import Guild, Uptime
 from src.database import get_db_engine, get_db_session_maker, create_all_database_tables
-from src.discord_utils import find_text_channel
+from src.discord_utils import find_text_channel, get_custom_command
 from src.database_utils import find_or_create_db_guild
+from src.startup_tasks import role_setup, check_guilds
 
 class RuneClock(Bot):
     def __init__(self) -> None:
@@ -24,6 +25,10 @@ class RuneClock(Bot):
         '''
         self.loop.create_task(self.initialize())
         self.loop.create_task(self.message_queue.send_queued_messages())
+
+        # Start fire-and-forget background tasks
+        self.loop.create_task(role_setup(self))
+        self.loop.create_task(check_guilds(self))
 
         # Price tracking is still done in a while true loop due to more complex scheduling logic to avoid rate limits
         self.loop.create_task(price_tracking_rs3(self))
@@ -96,7 +101,12 @@ class RuneClock(Bot):
         for extension in cogs:
             try:
                 print(f'Loading {extension}...')
+
                 await self.load_extension(f'cogs.{extension}')
+
+                if extension == 'custom_commands':
+                    await self.refresh_custom_command_aliases()
+
                 print(f'Loaded extension: {extension}')
                 msg += f'Loaded extension: {extension}\n'
             except commands.ExtensionAlreadyLoaded:
@@ -114,7 +124,12 @@ class RuneClock(Bot):
 
         if 'Failed' in msg and isinstance(channel, discord.TextChannel):
             self.queue_message(QueueMessage(channel, discord_msg))
-            await channel.send(discord_msg)
+
+    async def refresh_custom_command_aliases(self) -> None:
+        custom_command: commands.Command = get_custom_command(self.bot)
+        self.bot.remove_command(custom_command.name)
+        custom_command.aliases = await self.get_custom_command_aliases()
+        self.bot.add_command(custom_command)
 
     async def on_message(self, message: discord.Message) -> None:
         '''

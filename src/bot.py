@@ -1,9 +1,10 @@
 from datetime import datetime, UTC
 import os
-from typing import Any
+from typing import Any, Sequence
 import discord
 from discord.ext import commands
-from src.database import Guild
+from sqlalchemy import select
+from src.database import Command, Guild
 from src.database_utils import get_db_guild
 from src.configuration import get_config
 from src.auth_utils import get_google_sheets_credentials
@@ -127,3 +128,22 @@ class Bot(commands.AutoShardedBot):
             message (QueueMessage): The message to add to the queue
         '''
         self.message_queue.append(message)
+
+    async def get_custom_command_aliases(self) -> list[str]:
+        '''
+        Get the distinct names and aliases for all custom commands.
+
+        Returns:
+            list[str]: List of all custom commmand names and aliases
+        '''
+        aliases: list[str] = []
+        async with self.async_session() as session:
+            custom_commands: Sequence[Command] = (await session.execute(select(Command))).scalars().all()
+            for command in [c for c in custom_commands if c]:
+                if not command.name in aliases:
+                    aliases.append(command.name)
+                if command.aliases:
+                    for alias in command.aliases:
+                        if not alias in aliases:
+                            aliases.append(alias)
+            return aliases

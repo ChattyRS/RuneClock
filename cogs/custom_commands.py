@@ -14,26 +14,6 @@ from src.database_utils import get_custom_db_commands, find_custom_db_command
 class CustomCommands(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
-        self.bot.loop.create_task(self.refresh_custom_command_aliases())
-
-    async def get_aliases(self) -> list[str]:
-        aliases: list[str] = []
-        async with self.bot.async_session() as session:
-            custom_commands: Sequence[Command] = (await session.execute(select(Command))).scalars().all()
-            for command in [c for c in custom_commands if c]:
-                if not command.name in aliases:
-                    aliases.append(command.name)
-                if command.aliases:
-                    for alias in command.aliases:
-                        if not alias in aliases:
-                            aliases.append(alias)
-            return aliases
-    
-    async def refresh_custom_command_aliases(self) -> None:
-        custom_command: commands.Command = get_custom_command(self.bot)
-        self.bot.remove_command(custom_command.name)
-        custom_command.aliases = await self.get_aliases()
-        self.bot.add_command(custom_command)
 
     @commands.command()
     @is_admin()
@@ -71,7 +51,7 @@ class CustomCommands(Cog):
                     await session.commit()
                     custom_command: commands.Command = get_custom_command(self.bot)
                     self.bot.remove_command(custom_command.name)
-                    custom_command.aliases = await self.get_aliases()
+                    custom_command.aliases = await self.bot.get_custom_command_aliases()
                     self.bot.add_command(custom_command)
                     await ctx.send(f'Command `{command}` has been removed.')
                     return
@@ -98,7 +78,7 @@ class CustomCommands(Cog):
         if not cmd: # alias didn't exist yet, so we need to add it
             custom_command = get_custom_command(self.bot)
             self.bot.remove_command(custom_command.name)
-            custom_command.aliases = await self.get_aliases()
+            custom_command.aliases = await self.bot.get_custom_command_aliases()
             self.bot.add_command(custom_command)
 
         if edit:
@@ -387,7 +367,7 @@ class CustomCommands(Cog):
 
             if not cmd:
                 self.bot.remove_command(custom_command.name)
-                custom_command.aliases = await self.get_aliases()
+                custom_command.aliases = await self.bot.get_custom_command_aliases()
                 self.bot.add_command(custom_command)
 
 async def setup(bot: Bot) -> None:

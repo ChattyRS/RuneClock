@@ -1,4 +1,3 @@
-import logging
 from typing import Sequence
 import discord
 from discord.ext import commands
@@ -8,7 +7,7 @@ from src.bot import Bot
 from src.database import Guild, Notification, OnlineNotification
 from datetime import datetime, timedelta, UTC
 from src.database_utils import get_db_guild
-from src.discord_utils import find_text_channel, get_guild_text_channel, get_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
+from src.discord_utils import find_text_channel, get_guild_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
 from src.message_queue import QueueMessage
 from src.number_utils import is_int
 from src.checks import is_admin
@@ -19,68 +18,6 @@ from src.date_utils import parse_datetime_string, parse_timedelta_string
 class Notifications(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
-
-    def cog_load(self) -> None:
-        '''
-        Starts background tasks when the cog is loaded.
-        '''
-        self.bot.loop.create_task(self.role_setup())
-
-    async def role_setup(self) -> None:
-        '''
-        Sets up message and reactions for role management if no message is sent in the channel yet
-        Adds messages to cache to track reactions
-        '''
-        print(f'Initializing role management...')
-        logging.info('Initializing role management...')
-
-        guilds: Sequence[Guild]
-        async with self.bot.async_session() as session:
-            guilds = (await session.execute(select(Guild).where(Guild.role_channel_id.isnot(None)))).scalars().all()
-
-        channels: list[discord.TextChannel] = []
-        for db_guild in guilds:
-            channel: discord.TextChannel | None = find_text_channel(self.bot, db_guild.role_channel_id)
-            if channel:
-                channels.append(channel)
-
-        if not channels:
-            msg: str = f'Sorry, I was unable to retrieve any role management channels. Role management is down.'
-            print(msg)
-            print('-' * 10)
-            logging.critical(msg)
-            logChannel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['testChannel'])
-            self.bot.queue_message(QueueMessage(logChannel, msg))
-            return
-            
-        msg = "React to this message with any of the following emoji to be added to the corresponding role for notifications:\n\n"
-        notif_emojis: list[discord.Emoji] = []
-        for r in dnd_names:
-            emoji_id: int = self.bot.config[f'{r.lower()}EmojiID']
-            emoji: discord.Emoji | None = self.bot.get_emoji(emoji_id)
-            if emoji:
-                notif_emojis.append(emoji)
-                msg += str(emoji) + ' ' + r + '\n'
-        msg += "\nIf you wish to stop receiving notifications, simply remove your reaction. If your reaction isn't there anymore, then you can add a new one and remove it."
-        for c in channels:
-            try:
-                messages = 0
-                async for message in c.history(limit=1):
-                    messages += 1
-                if not messages:
-                    message: discord.Message = await c.send(msg)
-                    try:
-                        for emoji in notif_emojis:
-                            await message.add_reaction(emoji)
-                    except Exception as e:
-                        print(f'Exception: {e}')
-            except discord.Forbidden:
-                continue
-
-        msg = f'Role management ready'
-        print(msg)
-        print('-' * 10)
-        logging.info(msg)
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:

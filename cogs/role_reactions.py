@@ -238,9 +238,6 @@ class RoleReactions(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    def cog_unload(self) -> None:
-        pass
-
     @Cog.listener()
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
         '''

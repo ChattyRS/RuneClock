@@ -12,6 +12,10 @@ async def price_tracking_rs3(bot: Bot) -> NoReturn:
     '''
     Function to automatically and constantly update item pricing
     '''
+    # Only start once the bot has been running for at least 5 minutes. 
+    # This is to avoid exceeding rate limits during frequent successive restarts, e.g. during testing of new features.
+    await asyncio.sleep(300)
+    
     while True:
         try:
             async with bot.async_session() as session:
@@ -91,6 +95,10 @@ async def price_tracking_osrs(bot: Bot) -> NoReturn:
     '''
     Function to automatically and constantly update item pricing
     '''
+    # Only start once the bot has been running for at least 5 minutes. 
+    # This is to avoid exceeding rate limits during frequent successive restarts, e.g. during testing of new features.
+    await asyncio.sleep(300)
+    
     while True:
         try:
             async with bot.async_session() as session:

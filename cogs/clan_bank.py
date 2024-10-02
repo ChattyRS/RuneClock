@@ -217,9 +217,6 @@ class ClanBank(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    def cog_unload(self) -> None:
-        pass
-
     @app_commands.command(name='bank')
     async def bank(self, interaction: discord.Interaction, action: str) -> None:
         '''
