@@ -246,7 +246,7 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'This command can only be used in a server.')
 
         async with self.bot.async_session() as session:
-            notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalars().all()
+            notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.asc()))).scalars().all()
 
         if not notifications:
             raise commands.CommandError(message=f'Error: this server does not have any custom notifications.')

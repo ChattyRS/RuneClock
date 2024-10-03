@@ -30,6 +30,7 @@ import numpy as np
 import random
 from praw.reddit import Subreddit, Submission
 from src.graphics import yellow, orange, white, green, red
+from imageio.core.format import Format
 
 class Runescape(Cog):
     vis_wax_embed = discord.Embed(title='Vis wax combination', colour=0x00b2ff, timestamp=datetime.now(UTC), description='Today\'s vis wax combo has not been released yet.')
@@ -37,10 +38,14 @@ class Runescape(Cog):
     vis_wax_released = False
     vis_wax_check_frequency: int = 60*15 # seconds
     vis_time = 0
+    stats_interface_osrs: Array
+    stats_interface_rs3: Array
 
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
         self.vis_wax.start()
+        self.stats_interface_osrs: Array = imageio.imread('assets/stats_interface_empty_osrs.png')
+        self.stats_interface_rs3: Array = imageio.imread('assets/stats_interface_empty_rs3.png')
 
     def cog_unload(self) -> None:
         self.vis_wax.cancel()
@@ -496,16 +501,15 @@ class Runescape(Cog):
             ylabels.append(lab)
         plt.yticks(locs[0], ylabels) # type: ignore
 
-        plt.savefig('images/graph.png', transparent=True)
+        image = io.BytesIO()
+        plt.savefig(image, transparent=True)
         plt.close(fig)
-
-        with open('images/graph.png', 'rb') as f:
-            file = io.BytesIO(f.read())
+        image.seek(0)
         
-        image = discord.File(file, filename='graph.png')
+        file = discord.File(image, filename='graph.png')
         embed.set_image(url=f'attachment://graph.png')
 
-        await ctx.send(file=image, embed=embed)
+        await ctx.send(file=file, embed=embed)
     
     @commands.command(pass_context=True, aliases=['rsprice', 'rs3price'])
     async def price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
@@ -620,16 +624,15 @@ class Runescape(Cog):
             ylabels.append(lab)
         plt.yticks(locs[0], ylabels) # type: ignore
 
-        plt.savefig('images/graph.png', transparent=True)
+        image = io.BytesIO()
+        plt.savefig(image, transparent=True)
         plt.close(fig)
-
-        with open('images/graph.png', 'rb') as f:
-            file = io.BytesIO(f.read())
+        image.seek(0)
         
-        image = discord.File(file, filename='graph.png')
+        file = discord.File(image, filename='graph.png')
         embed.set_image(url=f'attachment://graph.png')
 
-        await ctx.send(file=image, embed=embed)
+        await ctx.send(file=file, embed=embed)
     
     @commands.command(name='07stats', pass_context=True, aliases=['osrsstats'])
     @commands.cooldown(1, 5, runescape_api_cooldown_key)
@@ -679,7 +682,7 @@ class Runescape(Cog):
         for i, _ in enumerate(lines):
             levels.append(int(lines[i].split(',')[1]))
 
-        stats_interface: Array = imageio.imread('images/stats_interface_empty.png')
+        stats_interface: Array = copy.deepcopy(self.stats_interface_osrs)
             
         draw_num(stats_interface, levels[0], 175, 257, yellow, True)
 
@@ -698,15 +701,16 @@ class Runescape(Cog):
 
             draw_num(stats_interface, level, x, y, yellow, True)
 
-        imageio.imwrite('images/07stats.png', stats_interface)
+        stats_image = io.BytesIO()
+        format: Format = 'PNG-PIL' # type: ignore
+        imageio.imwrite(stats_image, stats_interface, format=format)
+        stats_image.seek(0)
 
-        with open('images/07stats.png', 'rb') as f:
-            stats_image = io.BytesIO(f.read())
-        with open('images/osrs.png', 'rb') as f:
-            osrs_icon = io.BytesIO(f.read())
+        with open('assets/osrs.png', 'rb') as f:
+            osrs_icon_image = io.BytesIO(f.read())
         
-        stats_image = discord.File(stats_image, filename='07stats.png')
-        osrs_icon = discord.File(osrs_icon, filename='osrs.png')
+        stats_file = discord.File(stats_image, filename='07stats.png')
+        osrs_icon_file = discord.File(osrs_icon_image, filename='osrs.png')
 
         hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1={name}'.replace(' ', '+')
         timestamp: datetime = datetime.now(UTC)
@@ -717,7 +721,7 @@ class Runescape(Cog):
 
         embed.set_image(url='attachment://07stats.png')
 
-        await ctx.send(files=[stats_image, osrs_icon], embed=embed)
+        await ctx.send(files=[stats_file, osrs_icon_file], embed=embed)
     
     @commands.command(name='07compare')
     @commands.cooldown(1, 5, runescape_api_cooldown_key)
@@ -778,8 +782,8 @@ class Runescape(Cog):
             
             level_list.append(levels)
         
-        stats_interface_1: Array = imageio.imread('images/stats_interface_empty.png')
-        stats_interface_2: Array = copy.deepcopy(stats_interface_1)
+        stats_interface_1: Array = copy.deepcopy(self.stats_interface_osrs)
+        stats_interface_2: Array = copy.deepcopy(self.stats_interface_osrs)
         interfaces: tuple[Array, Array] = (stats_interface_1, stats_interface_2)
 
         for i, levels in enumerate(level_list):
@@ -819,11 +823,12 @@ class Runescape(Cog):
                 draw_outline_osrs(stats_interface_2, x, y, green)
         
         compare_image: np.ndarray = np.hstack((stats_interface_1, stats_interface_2))
-        imageio.imwrite('images/07compare.png', compare_image)
+        compare_image_bytes = io.BytesIO()
+        format: Format = 'PNG-PIL' # type: ignore
+        imageio.imwrite(compare_image_bytes, compare_image, format=format)
+        compare_image_bytes.seek(0)
 
-        with open('images/07compare.png', 'rb') as f:
-            compare_image_bytes = io.BytesIO(f.read())
-        with open('images/osrs.png', 'rb') as f:
+        with open('assets/osrs.png', 'rb') as f:
             osrs_icon = io.BytesIO(f.read())
         
         compare_image_file = discord.File(compare_image_bytes, filename='07compare.png')
@@ -983,7 +988,7 @@ class Runescape(Cog):
             levels.append(split[1])
             xp_list.append(split[2])
 
-        stats_interface: Array = imageio.imread('images/stats_interface_empty_rs3.png')
+        stats_interface: Array = copy.deepcopy(self.stats_interface_rs3)
             
         draw_num(stats_interface, int(levels[0]), 73, 290, white, False)
         
@@ -1013,15 +1018,16 @@ class Runescape(Cog):
 
         draw_num(stats_interface, combat, 165, 295, white, False)
 
-        imageio.imwrite('images/rs3stats.png', stats_interface)
+        stats_image = io.BytesIO()
+        format: Format = 'PNG-PIL' # type: ignore
+        imageio.imwrite(stats_image, stats_interface, format=format)
+        stats_image.seek(0)
 
-        with open('images/rs3stats.png', 'rb') as f:
-            stats_image = io.BytesIO(f.read())
-        with open('images/rs3.png', 'rb') as f:
-            rs3_icon = io.BytesIO(f.read())
+        with open('assets/rs3.png', 'rb') as f:
+            rs3_icon_image = io.BytesIO(f.read())
         
-        stats_image = discord.File(stats_image, filename='rs3stats.png')
-        rs3_icon = discord.File(rs3_icon, filename='rs3.png')
+        stats_file = discord.File(stats_image, filename='rs3stats.png')
+        rs3_icon_file = discord.File(rs3_icon_image, filename='rs3.png')
 
         hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={name}'.replace(' ', '+')
         colour = 0x00b2ff
@@ -1033,7 +1039,7 @@ class Runescape(Cog):
 
         embed.set_image(url='attachment://rs3stats.png')
 
-        await ctx.send(files=[stats_image, rs3_icon], embed=embed)
+        await ctx.send(files=[stats_file, rs3_icon_file], embed=embed)
     
     @commands.command()
     @commands.cooldown(1, 5, runescape_api_cooldown_key)
@@ -1099,8 +1105,8 @@ class Runescape(Cog):
             level_list.append(levels)
             exp_list.append(xp_list)
         
-        stats_interface_1: Array = imageio.imread('images/stats_interface_empty_rs3.png')
-        stats_interface_2: Array = copy.deepcopy(stats_interface_1)
+        stats_interface_1: Array = copy.deepcopy(self.stats_interface_rs3)
+        stats_interface_2: Array = copy.deepcopy(self.stats_interface_rs3)
         interfaces: tuple[Array, Array] = (stats_interface_1, stats_interface_2)
 
         for i, levels in enumerate(level_list):
@@ -1150,15 +1156,16 @@ class Runescape(Cog):
                 draw_outline_rs3(stats_interface_2, x, y, green)
         
         compare_image: np.ndarray = np.hstack((stats_interface_1, stats_interface_2))
-        imageio.imwrite('images/compare.png', compare_image)
+        compare_image_bytes = io.BytesIO()
+        format: Format = 'PNG-PIL' # type: ignore
+        imageio.imwrite(compare_image_bytes, compare_image, format=format)
+        compare_image_bytes.seek(0)
 
-        with open('images/compare.png', 'rb') as f:
-            compare_image_bytes = io.BytesIO(f.read())
-        with open('images/rs3.png', 'rb') as f:
-            rs3_icon = io.BytesIO(f.read())
+        with open('assets/rs3.png', 'rb') as f:
+            rs3_icon_image = io.BytesIO(f.read())
         
         compare_image_file = discord.File(compare_image_bytes, filename='compare.png')
-        rs3_icon = discord.File(rs3_icon, filename='rs3.png')
+        rs3_icon_file = discord.File(rs3_icon_image, filename='rs3.png')
 
         hiscore_page_url: str = f'https://secure.runescape.com/m=hiscore/compare?user1={username_1}'.replace(' ', '+')
         embed = discord.Embed(title=f'{username_1}, {username_2}', colour=0x00b2ff, timestamp=datetime.now(UTC), url=hiscore_page_url)
@@ -1168,7 +1175,7 @@ class Runescape(Cog):
 
         embed.set_image(url='attachment://compare.png')
 
-        await ctx.send(files=[compare_image_file, rs3_icon], embed=embed)
+        await ctx.send(files=[compare_image_file, rs3_icon_file], embed=embed)
 
     @commands.command(pass_context=True, aliases=['gains', 'rs3gainz', 'rs3gains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
@@ -1417,10 +1424,10 @@ class Runescape(Cog):
         embed.add_field(name='Vorago', value=f'Current rotation: **{vorago_rotation}**\nThe next rotation will start in `{next_vorago}`.', inline=False)
         embed.add_field(name='Barrows: Rise Of The Six', value=f'Current rotation:\nWest: **{", ".join(rots_rotation[0])}**\nEast: **{", ".join(rots_rotation[1])}**\nThe next rotation will start in `{next_rots}`.', inline=False)
 
-        images: list[str] = ['images/Araxxor.png', 'images/Vorago.png', 'images/Ahrim.png']
+        images: list[str] = ['assets/Araxxor.png', 'assets/Vorago.png', 'assets/Ahrim.png']
 
         with open(random.choice(images), 'rb') as f:
-                file = io.BytesIO(f.read())
+            file = io.BytesIO(f.read())
 
         image = discord.File(file, filename='pvm_boss.png')
 

@@ -55,7 +55,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         # Create an embed to send to the appreciation station channel
         embed = discord.Embed(title=f'Appreciation message', description=self.message.value, colour=0x00e400)
         if anonymous:
-            with open('images/default_avatar.png', 'rb') as f:
+            with open('assets/default_avatar.png', 'rb') as f:
                 default_avatar = io.BytesIO(f.read())
             default_avatar = discord.File(default_avatar, filename='default_avatar.png')
             embed.set_author(name='Anonymous', icon_url='attachment://default_avatar.png')

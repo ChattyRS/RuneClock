@@ -843,20 +843,19 @@ class Management(Cog):
         ax.spines['right'].set_visible(False)
         ax.spines['left'].set_visible(False)
 
-        plt.savefig('images/uptime.png', transparent=True)
+        image = io.BytesIO()
+        plt.savefig(image, transparent=True)
         plt.close(fig)
-
-        with open('images/uptime.png', 'rb') as f:
-            file = io.BytesIO(f.read())
+        image.seek(0)
         
         txt: str = f'Today: `{uptime_today_round}%`\nMonthly: `{uptime_month_round}%`'
         
         embed = discord.Embed(title='Uptime', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
         
-        image = discord.File(file, filename='uptime.png')
+        file = discord.File(image, filename='uptime.png')
         embed.set_image(url=f'attachment://uptime.png')
 
-        await ctx.send(file=image, embed=embed)
+        await ctx.send(file=file, embed=embed)
 
     @commands.command()
     async def invite(self, ctx: commands.Context) -> None:

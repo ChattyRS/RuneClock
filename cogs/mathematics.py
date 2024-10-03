@@ -133,19 +133,19 @@ class Mathematics(Cog):
             ax.yaxis.grid()
             ax.xaxis.grid()
             plt.xlim(start, end)
-            plt.savefig('images/math_graph.png', transparent=True)
-            plt.close(fig)
 
-            with open('images/math_graph.png', 'rb') as f:
-                file = io.BytesIO(f.read())
+            image = io.BytesIO()
+            plt.savefig(image, transparent=True)
+            plt.close(fig)
+            image.seek(0)
         
-            image = discord.File(file, filename='math_graph.png')
+            file = discord.File(image, filename='math_graph.png')
 
             formula = prettify_input(formula)
             embed = discord.Embed(title='Graph', description=f'`𝘧(𝓍) = {formula}`')
             embed.set_footer(text='Wrong? Please let me know! DM @schattie')
             embed.set_image(url=f'attachment://math_graph.png')
-            await ctx.send(file=image, embed=embed)
+            await ctx.send(file=file, embed=embed)
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression: \n```{e}```')
 

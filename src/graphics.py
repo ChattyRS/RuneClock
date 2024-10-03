@@ -184,7 +184,7 @@ def get_coins_image_name(amount: int) -> str:
     elif amount >= 1 and amount <= 5:
         return f'Coins_{amount}_detail'
     else:
-         return 'Coins_1_detail'
+        return 'Coins_1_detail'
 
 def draw_digit(im: Array, digit: int, x: int, y: int, c: list[int], osrs: bool) -> tuple[int, int]:
     '''
@@ -393,13 +393,13 @@ def get_coins_image(amount: int) -> File:
         discord.File: The image file
     '''
     # Get base coins image
-    coins: Array = read_image(f'images/{get_coins_image_name(amount)}.png')
+    coins: Array = read_image(f'assets/{get_coins_image_name(amount)}.png')
 
     # Draw amount
     draw_gp(coins, amount)
 
-    write_image('images/coins.png', coins)
-    with open('images/coins.png', 'rb') as f:
-        coins_image = BytesIO(f.read())
-    coins_image = File(coins_image, filename='coins.png')
-    return coins_image
+    coins_image = BytesIO()
+    format: Format = 'PNG-PIL' # type: ignore
+    write_image(coins_image, coins, format=format)
+    coins_image.seek(0)
+    return File(coins_image, filename='coins.png')
