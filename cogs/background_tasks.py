@@ -71,7 +71,7 @@ class BackgroundTasks(Cog):
         self.check_polls.cancel()
         self.git_tracking.cancel()
 
-    @tasks.loop(seconds=60)
+    @tasks.loop(seconds=10)
     async def uptime_tracking(self) -> None:
         now: datetime = datetime.now(UTC).replace(microsecond=0)
         today: datetime = now.replace(hour=0, minute=0, second=0)

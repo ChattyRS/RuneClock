@@ -809,16 +809,16 @@ class Management(Cog):
             events: Sequence[Uptime] = (await session.execute(select(Uptime).order_by(Uptime.time.asc()))).scalars().all()
 
         uptime_today: float = uptime_fraction(events, now.year, now.month, now.day)
-        uptime_today_round: str = '{:.1f}'.format(uptime_today*100)
+        uptime_today_round: str = '{:.2f}'.format(uptime_today*100)
 
         uptime_month: float = uptime_fraction(events, now.year, now.month)
-        uptime_month_round: str = '{:.1f}'.format(uptime_month*100)
+        uptime_month_round: str = '{:.2f}'.format(uptime_month*100)
 
         uptime_year: float = uptime_fraction(events, now.year)
-        uptime_year_round: str = '{:.1f}'.format(uptime_year*100)
+        uptime_year_round: str = '{:.2f}'.format(uptime_year*100)
 
         uptime_lifetime: float = uptime_fraction(events)
-        uptime_lifetime_round: str = '{:.1f}'.format(uptime_lifetime*100)
+        uptime_lifetime_round: str = '{:.2f}'.format(uptime_lifetime*100)
 
         loc = mdates.WeekdayLocator()
 
