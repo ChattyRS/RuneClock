@@ -67,7 +67,7 @@ def uptime_fraction(events: Sequence[Uptime], year: int | None = None, month: in
     Calculate the fraction of time that the bot was up from a sequence of uptime records.
 
     Args:
-        events (Sequence[Uptime]): Sequence of uptime sequence
+        events (Sequence[Uptime]): Sequence of uptime events.
         year (int, optional): The year during which to measure the uptime (optional). Defaults to None.
         month (int, optional): The month during which to measure the uptime (optional). Defaults to None.
         day (int, optional): The day during which to measure the uptime (optional). Defaults to None.

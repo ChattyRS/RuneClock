@@ -815,6 +815,12 @@ class Management(Cog):
         uptime_month: float = uptime_fraction(events, now.year, now.month)
         uptime_month_round: str = '{:.1f}'.format(uptime_month*100)
 
+        uptime_year: float = uptime_fraction(events, now.year)
+        uptime_year_round: str = '{:.1f}'.format(uptime_year*100)
+
+        uptime_lifetime: float = uptime_fraction(events, now.year)
+        uptime_lifetime_round: str = '{:.1f}'.format(uptime_lifetime*100)
+
         loc = mdates.WeekdayLocator()
 
         formatter = DateFormatter('%d %b')
@@ -848,7 +854,7 @@ class Management(Cog):
         plt.close(fig)
         image.seek(0)
         
-        txt: str = f'Today: `{uptime_today_round}%`\nMonthly: `{uptime_month_round}%`'
+        txt: str = f'Today: `{uptime_today_round}%`\nMonthly: `{uptime_month_round}%`\nYearly: `{uptime_year_round}%`\nLifetime: `{uptime_lifetime_round}%`'
         
         embed = discord.Embed(title='Uptime', colour=0x00b2ff, timestamp=datetime.now(UTC), description=txt)
         
