@@ -817,7 +817,7 @@ class Management(Cog):
         uptime_year: float = uptime_fraction(events, now.year)
         uptime_year_round: str = '{:.1f}'.format(uptime_year*100)
 
-        uptime_lifetime: float = uptime_fraction(events, now.year)
+        uptime_lifetime: float = uptime_fraction(events)
         uptime_lifetime_round: str = '{:.1f}'.format(uptime_lifetime*100)
 
         loc = mdates.WeekdayLocator()
