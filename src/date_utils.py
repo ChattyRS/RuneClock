@@ -82,13 +82,13 @@ def uptime_fraction(events: Sequence[Uptime], year: int | None = None, month: in
         now: datetime = datetime.now(UTC)
         start_time: datetime = now.replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0)
         elapsed: timedelta = timedelta(hours=24) if now.year != year or now.month != month or now.day != day else now - start_time
-        up = timedelta(seconds=0)
+        up = timedelta(seconds=10) # start with a 10 second margin because that is the margin of error with which uptime events are tracked
         for event in day_events:
             if event.status == 'started':
                 start_time = event.time
             elif event.status == 'running':
                 up += event.time - start_time
-        return up.total_seconds() / elapsed.total_seconds()
+        return min(1, up.total_seconds() / elapsed.total_seconds())
     elif year and month:
         days: set[int] = set([event.time.day for event in events if event.time.year == year and event.time.month == month])
         percentages: list[float] = [uptime_fraction([event for event in events if event.time.year == year and event.time.month == month and event.time.day == day], year=year, month=month, day=day) for day in days]
