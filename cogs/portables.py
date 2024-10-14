@@ -776,9 +776,7 @@ class Portables(Cog):
         await ctx.channel.typing() # send 'typing...' status
 
         portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
-        if not portables:
-            raise commands.CommandError(message=f'Error: could not find Portables server.')
-        member: discord.Member = await portables.fetch_member(ctx.author.id)
+        member: discord.Member | None = await portables.fetch_member(ctx.author.id) if portables else None
 
         admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
         if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
@@ -790,7 +788,8 @@ class Portables(Cog):
         if ctx.prefix:
             input = input.replace(ctx.prefix.upper(), '', 1)
         if ctx.invoked_with:
-            input = input.replace(ctx.invoked_with.upper(), '', 1).strip()
+            input = input.replace(ctx.invoked_with.upper(), '', 1)
+        input = input.strip()
         if not input: # if there was no input, return
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
@@ -811,8 +810,8 @@ class Portables(Cog):
 
         val: str | None = ports_row[col-1] # get the string corresponding to our portable type
         ports: list[list[tuple[list[int], str]]] = []
-        for i, p in enumerate(ports_row): # for each portable, get the set of portable locations
-            ports[i] = get_ports(p) if p else []
+        for p in ports_row: # for each portable, get the set of portable locations
+            ports.append(get_ports(p) if p else [])
 
         error: str = check_ports(new_ports, ports) # check for errors in the set of portables
         if error: # if there was an error, send the error message and return
@@ -841,8 +840,8 @@ class Portables(Cog):
 
         name: str = '' # initialize empty name of user
         is_helper = False # boolean value representing whether or not the user is a rank
-        helper_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['helperRole'])
-        if helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
+        helper_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['helperRole']) if portables else None
+        if member and helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_helper = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
 
@@ -870,9 +869,7 @@ class Portables(Cog):
         await ctx.channel.typing() # send 'typing...' status
 
         portables: discord.Guild | None = self.bot.get_guild(self.bot.config['portablesServer'])
-        if not portables:
-            raise commands.CommandError(message=f'Error: could not find Portables server.')
-        member: discord.Member = await portables.fetch_member(ctx.author.id)
+        member: discord.Member | None = await portables.fetch_member(ctx.author.id) if portables else None
 
         admin_commands_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['adminCommandsChannel'])
         if (admin_commands_channel and ctx.guild == self.bot.get_guild(self.bot.config['portablesServer']) and
@@ -884,7 +881,8 @@ class Portables(Cog):
         if ctx.prefix:
             input = input.replace(ctx.prefix.upper(), '', 1)
         if ctx.invoked_with:
-            input = input.replace(ctx.invoked_with.upper(), '', 1).strip()
+            input = input.replace(ctx.invoked_with.upper(), '', 1)
+        input = input.strip()
         if not input: # if there was no input, return
             raise commands.CommandError(message=f'Required argument missing: `location`.')
 
@@ -935,8 +933,8 @@ class Portables(Cog):
 
         name: str = '' # initialize empty name of user
         is_helper = False # boolean value representing whether or not the user is a rank
-        helper_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['helperRole'])
-        if helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
+        helper_role: discord.Role | None = discord.utils.get(portables.roles, id=self.bot.config['helperRole']) if portables else None
+        if member and helper_role in member.roles: # if the rank role is in the set of roles corresponding to the user
             is_helper = True # then set isRank to true
             name = get_rsn(member) # and get the name of the user
 
@@ -1077,8 +1075,8 @@ class Portables(Cog):
         ports_row: list[str | None] = await self.get_port_row() # get the row of portable locations from sheets
         old_val: str | None = ports_row[col-1]
         ports: list[list[tuple[list[int], str]]] = []
-        for i, p in enumerate(ports_row): # for each portable, get the set of portable locations
-            ports[i] = get_ports(p) if p else []
+        for p in ports_row: # for each portable, get the set of portable locations
+            ports.append(get_ports(p) if p else [])
 
         error: str = check_ports(new_ports, ports) # check for errors in the set of portables
         if error: # if there was an error, send the error message and return
