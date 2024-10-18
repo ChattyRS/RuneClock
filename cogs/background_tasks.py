@@ -36,7 +36,6 @@ class BackgroundTasks(Cog):
 
     test_notification_channel: discord.TextChannel
     log_channel: discord.TextChannel
-    test_channel: discord.TextChannel
 
     rs3_news_url: str = 'http://services.runescape.com/m=news/latest_news.rss'
     osrs_news_url: str = 'http://services.runescape.com/m=news/latest_news.rss?oldschool=true'
@@ -45,7 +44,6 @@ class BackgroundTasks(Cog):
         self.bot: Bot = bot
         self.test_notification_channel = get_text_channel(bot, bot.config['testNotificationChannel'])
         self.log_channel = get_text_channel(bot, bot.config['testChannel'])
-        self.test_channel = get_text_channel(bot, bot.config['testChannel'])
 
     def cog_load(self) -> None:
         '''
@@ -73,16 +71,23 @@ class BackgroundTasks(Cog):
 
     @tasks.loop(seconds=10)
     async def uptime_tracking(self) -> None:
-        now: datetime = datetime.now(UTC).replace(microsecond=0)
-        today: datetime = now.replace(hour=0, minute=0, second=0)
-        
-        async with self.bot.async_session() as session:
-            latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today).order_by(Uptime.time.desc()))).scalars().first()
-            if latest_event_today and latest_event_today.status == 'running':
-                latest_event_today.time = now
-            else:
-                session.add(Uptime(time=now, status='running'))
-            await session.commit()
+        try:
+            now: datetime = datetime.now(UTC).replace(microsecond=0)
+            today: datetime = now.replace(hour=0, minute=0, second=0)
+            
+            async with self.bot.async_session() as session:
+                latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today).order_by(Uptime.time.desc()))).scalars().first()
+                if latest_event_today and latest_event_today.status == 'running':
+                    latest_event_today.time = now
+                else:
+                    session.add(Uptime(time=now, status='running'))
+                await session.commit()
+        except Exception as e:
+            error: str = f'Error encountered in uptime tracking: {e.__class__.__name__}: {e}'
+            print(error)
+            logging.critical(error)
+            if self.log_channel:
+                self.bot.queue_message(QueueMessage(self.log_channel, error))
     
     async def initialize_notification_state(self) -> None:
         '''
@@ -312,12 +317,8 @@ class BackgroundTasks(Cog):
             error = f'Encountered the following error in custom notification loop:\n{type(e).__name__}: {e}'
             logging.critical(error)
             print(error)
-            try:
-                log_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['testChannel'])
-                if log_channel:
-                    self.bot.queue_message(QueueMessage(log_channel, error))
-            except:
-                pass
+            if self.log_channel:
+                self.bot.queue_message(QueueMessage(self.log_channel, error))
     
     @tasks.loop(minutes=1)
     async def unmute(self) -> NoReturn:
@@ -441,12 +442,8 @@ class BackgroundTasks(Cog):
             error: str = f'Encountered the following error in news loop:\n{type(e).__name__}: {e}'
             logging.critical(error)
             print(error)
-            try:
-                log_channel: discord.TextChannel | None = find_text_channel(self.bot, self.bot.config['testChannel'])
-                if log_channel:
-                    self.bot.queue_message(QueueMessage(log_channel, error))
-            except:
-                pass
+            if self.log_channel:
+                self.bot.queue_message(QueueMessage(self.log_channel, error))
     
     @tasks.loop(minutes=1)
     async def check_polls(self) -> NoReturn:
