@@ -20,66 +20,74 @@ async def price_tracking_rs3(bot: Bot) -> NoReturn:
         try:
             async with bot.async_session() as session:
                 items: Sequence[RS3Item] = (await session.execute(select(RS3Item))).scalars().all()
-                items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
-                for item in items:
-                    graph_url: str = f'http://services.runescape.com/m=itemdb_rs/api/graph/{item.id}.json'
+                
+            items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
 
-                    graph_data: dict[str, dict[str, str]] = {}
+            for item in items:
+                graph_url: str = f'http://services.runescape.com/m=itemdb_rs/api/graph/{item.id}.json'
 
-                    exists = True
-                    while True:
-                        r: ClientResponse = await bot.aiohttp.get(graph_url)
-                        async with r:
-                            if r.status == 404:
-                                logging.critical(f'RS3 404 error for item {item.id}: {item.name}')
-                                bot.queue_message(QueueMessage(get_text_channel(bot, bot.config['testChannel']), f'RS3 404 error for item {item.id}: {item.name}'))
-                                exists = False
-                                break
-                            elif r.status == 429:
-                                msg: str = f'Rate limited in RS3 price tracking'
-                                logging.critical(msg)
-                                await asyncio.sleep(900)
-                                continue
-                            elif r.status != 200:
-                                await asyncio.sleep(60)
-                                continue
-                            try:
-                                graph_data = await r.json(content_type='text/html')
-                                break
-                            except Exception as e:
-                                # This should only happen when the API is down
-                                print(f'Unexpected error in RS3 price tracking for {item.id}: {item.name}\n{e}')
-                                await asyncio.sleep(300)
-                    
-                    # Graph data may not be returned at times, even with status code 200
-                    # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
-                    if not exists or not graph_data:
-                        continue
+                graph_data: dict[str, dict[str, str]] = {}
 
-                    prices: list[str] = []
-                    for price in graph_data['daily'].values():
-                        prices.append(price)
-                    
-                    current: str = str(prices[len(prices) - 1])
-                    yesterday: str = str(prices[len(prices) - 2])
-                    month_ago: str = str(prices[len(prices) - 31])
-                    three_months_ago: str = str(prices[len(prices) - 91])
-                    half_year_ago: str = str(prices[0])
+                exists = True
+                while True:
+                    r: ClientResponse = await bot.aiohttp.get(graph_url)
+                    async with r:
+                        if r.status == 404:
+                            logging.critical(f'RS3 404 error for item {item.id}: {item.name}')
+                            bot.queue_message(QueueMessage(get_text_channel(bot, bot.config['testChannel']), f'RS3 404 error for item {item.id}: {item.name}'))
+                            exists = False
+                            break
+                        elif r.status == 429:
+                            msg: str = f'Rate limited in RS3 price tracking'
+                            logging.critical(msg)
+                            await asyncio.sleep(900)
+                            continue
+                        elif r.status != 200:
+                            await asyncio.sleep(60)
+                            continue
+                        try:
+                            graph_data = await r.json(content_type='text/html')
+                            break
+                        except Exception as e:
+                            # This should only happen when the API is down
+                            print(f'Unexpected error in RS3 price tracking for {item.id}: {item.name}\n{e}')
+                            await asyncio.sleep(300)
+                
+                # Graph data may not be returned at times, even with status code 200
+                # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
+                if not exists or not graph_data:
+                    continue
 
-                    today = str(int(current) - int(yesterday))
-                    day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
-                    day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
-                    day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
-                    
-                    item.current = current
-                    item.today = today
-                    item.day30 = day30
-                    item.day90 = day90
-                    item.day180 = day180
-                    item.graph_data = graph_data
+                prices: list[str] = []
+                for price in graph_data['daily'].values():
+                    prices.append(price)
+                
+                current: str = str(prices[len(prices) - 1])
+                yesterday: str = str(prices[len(prices) - 2])
+                month_ago: str = str(prices[len(prices) - 31])
+                three_months_ago: str = str(prices[len(prices) - 91])
+                half_year_ago: str = str(prices[0])
+
+                today = str(int(current) - int(yesterday))
+                day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
+                day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
+                day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
+
+                # To update the item, we first obtain a new database session
+                # as the original session used to retrieve the item has been disposed.
+                async with bot.async_session() as session:
+                    db_item: RS3Item = (await session.execute(select(RS3Item).where(RS3Item.id == item.id))).scalar_one()
+                
+                    db_item.current = current
+                    db_item.today = today
+                    db_item.day30 = day30
+                    db_item.day90 = day90
+                    db_item.day180 = day180
+                    db_item.graph_data = graph_data
+
                     await session.commit()
 
-                    await asyncio.sleep(6)
+            await asyncio.sleep(6)
         except OSError as e:
             print(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
             logging.critical(f'Error encountered in rs3 price tracking: {e.__class__.__name__}: {e}')
@@ -103,67 +111,74 @@ async def price_tracking_osrs(bot: Bot) -> NoReturn:
         try:
             async with bot.async_session() as session:
                 items: Sequence[OSRSItem] = (await session.execute(select(OSRSItem))).scalars().all()
-                items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
-                for item in items:
-                    graph_url: str = f'http://services.runescape.com/m=itemdb_oldschool/api/graph/{item.id}.json'
 
-                    graph_data: dict[str, dict[str, str]] = {}
+            items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
+            for item in items:
+                graph_url: str = f'http://services.runescape.com/m=itemdb_oldschool/api/graph/{item.id}.json'
 
-                    exists = True
-                    while True:
-                        r: ClientResponse = await bot.aiohttp.get(graph_url)
-                        async with r:
-                            if r.status == 404:
-                                msg: str = f'OSRS 404 error for item {item.id}: {item.name}'
-                                logging.critical(msg)
-                                bot.queue_message(QueueMessage(get_text_channel(bot, bot.config['testChannel']), msg))
-                                exists = False
-                                break
-                            elif r.status == 429:
-                                msg: str = f'Rate limited in OSRS price tracking'
-                                logging.critical(msg)
-                                await asyncio.sleep(900)
-                                continue
-                            elif r.status != 200:
-                                await asyncio.sleep(60)
-                                continue
-                            try:
-                                graph_data = await r.json(content_type='text/html')
-                                break
-                            except Exception as e:
-                                # This should only happen when the API is down
-                                print(f'Unexpected error in OSRS price tracking for {item.id}: {item.name}\n{e}')
-                                await asyncio.sleep(300)
-                    
-                    # Graph data may not be returned at times, even with status code 200
-                    # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
-                    if not exists or not graph_data:
-                        continue
+                graph_data: dict[str, dict[str, str]] = {}
 
-                    prices: list[str] = []
-                    for price in graph_data['daily'].values():
-                        prices.append(price)
-                    
-                    current: str = str(prices[len(prices) - 1])
-                    yesterday: str = str(prices[len(prices) - 2])
-                    month_ago: str = str(prices[len(prices) - 31])
-                    three_months_ago: str = str(prices[len(prices) - 91])
-                    half_year_ago: str = str(prices[0])
+                exists = True
+                while True:
+                    r: ClientResponse = await bot.aiohttp.get(graph_url)
+                    async with r:
+                        if r.status == 404:
+                            msg: str = f'OSRS 404 error for item {item.id}: {item.name}'
+                            logging.critical(msg)
+                            bot.queue_message(QueueMessage(get_text_channel(bot, bot.config['testChannel']), msg))
+                            exists = False
+                            break
+                        elif r.status == 429:
+                            msg: str = f'Rate limited in OSRS price tracking'
+                            logging.critical(msg)
+                            await asyncio.sleep(900)
+                            continue
+                        elif r.status != 200:
+                            await asyncio.sleep(60)
+                            continue
+                        try:
+                            graph_data = await r.json(content_type='text/html')
+                            break
+                        except Exception as e:
+                            # This should only happen when the API is down
+                            print(f'Unexpected error in OSRS price tracking for {item.id}: {item.name}\n{e}')
+                            await asyncio.sleep(300)
+                
+                # Graph data may not be returned at times, even with status code 200
+                # Appears to be a regular occurrence, happening slightly after noon on days when a newspost is created
+                if not exists or not graph_data:
+                    continue
 
-                    today = str(int(current) - int(yesterday))
-                    day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
-                    day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
-                    day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
-                    
-                    item.current = current
-                    item.today = today
-                    item.day30 = day30
-                    item.day90 = day90
-                    item.day180 = day180
-                    item.graph_data = graph_data
+                prices: list[str] = []
+                for price in graph_data['daily'].values():
+                    prices.append(price)
+                
+                current: str = str(prices[len(prices) - 1])
+                yesterday: str = str(prices[len(prices) - 2])
+                month_ago: str = str(prices[len(prices) - 31])
+                three_months_ago: str = str(prices[len(prices) - 91])
+                half_year_ago: str = str(prices[0])
+
+                today = str(int(current) - int(yesterday))
+                day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
+                day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
+                day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
+
+                # To update the item, we first obtain a new database session
+                # as the original session used to retrieve the item has been disposed.
+                async with bot.async_session() as session:
+                    db_item: OSRSItem = (await session.execute(select(OSRSItem).where(OSRSItem.id == item.id))).scalar_one()
+                
+                    db_item.current = current
+                    db_item.today = today
+                    db_item.day30 = day30
+                    db_item.day90 = day90
+                    db_item.day180 = day180
+                    db_item.graph_data = graph_data
+
                     await session.commit()
 
-                    await asyncio.sleep(6)
+            await asyncio.sleep(6)
         except OSError as e:
             print(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')
             logging.critical(f'Error encountered in osrs price tracking: {e.__class__.__name__}: {e}')

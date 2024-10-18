@@ -325,17 +325,21 @@ class BackgroundTasks(Cog):
         Function to unmute members when mutes expire
         '''
         to_unmute: list[tuple[discord.Member, discord.Role, discord.Guild]] = []
+
         async with self.bot.async_session() as session:
             mutes: Sequence[Mute] = (await session.execute(select(Mute).where(Mute.expiration <= datetime.now(UTC)))).scalars().all()
             for mute in mutes:
-                guild: discord.Guild | None = self.bot.get_guild(mute.guild_id)
-                member: discord.Member | None = await guild.fetch_member(mute.user_id) if guild else None
-                mute_role: discord.Role | None = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), guild.roles if guild else [])
                 await session.delete(mute)
-                if not guild or not member or not mute_role or not mute_role in member.roles:
-                    continue
-                to_unmute.append((member, mute_role, guild))
             await session.commit()
+
+        for mute in mutes:
+            guild: discord.Guild | None = self.bot.get_guild(mute.guild_id)
+            member: discord.Member | None = await guild.fetch_member(mute.user_id) if guild else None
+            mute_role: discord.Role | None = discord.utils.find(lambda r: 'MUTE' in r.name.upper(), guild.roles if guild else [])
+            
+            if not guild or not member or not mute_role or not mute_role in member.roles:
+                continue
+            to_unmute.append((member, mute_role, guild))
 
         for member, mute_role, guild in to_unmute:
             try:
@@ -452,32 +456,34 @@ class BackgroundTasks(Cog):
         async with self.bot.async_session() as session:
             polls: Sequence[Poll] = (await session.execute(select(Poll).where(Poll.end_time <= datetime.now(UTC)))).scalars().all()
             for poll in polls:
-                try:
-                    guild: discord.Guild | None = self.bot.get_guild(poll.guild_id)
-                    channel: discord.TextChannel | None = get_guild_text_channel(guild, poll.channel_id) if guild else None
-                    msg: None | discord.Message = None if not channel else await channel.fetch_message(poll.message_id)
-
-                    if not guild or not channel or not msg or not msg.embeds:
-                        raise Exception('Guild channel message was not found for poll.')
-
-                    results: dict[str, int] = {str(reaction.emoji): reaction.count - 1 for reaction in msg.reactions}
-                    votes: int = sum([reaction.count - 1 for reaction in msg.reactions])
-                    
-                    max_score: int = max(results.values())
-                    winners: list[str] = [r for r in results.keys() if results[r] == max_score]
-                    winner: str = ' and '.join(winners)
-                    percentage = int((max_score)/max(1,votes)*100)
-
-                    embed: discord.Embed = msg.embeds[0]
-                    if len(winners) == 1:
-                        embed.add_field(name='Results', value=f'Option {winner} won with {percentage}% of the votes!')
-                    else:
-                        embed.add_field(name='Results', value=f'It\'s a tie! Options {winner} each have {percentage}% of the votes!')
-                    await msg.edit(embed=embed)
-                except:
-                    pass
                 await session.delete(poll)
             await session.commit()
+
+        for poll in polls:
+            try:
+                guild: discord.Guild | None = self.bot.get_guild(poll.guild_id)
+                channel: discord.TextChannel | None = get_guild_text_channel(guild, poll.channel_id) if guild else None
+                msg: None | discord.Message = None if not channel else await channel.fetch_message(poll.message_id)
+
+                if not guild or not channel or not msg or not msg.embeds:
+                    raise Exception('Guild channel message was not found for poll.')
+
+                results: dict[str, int] = {str(reaction.emoji): reaction.count - 1 for reaction in msg.reactions}
+                votes: int = sum([reaction.count - 1 for reaction in msg.reactions])
+                
+                max_score: int = max(results.values())
+                winners: list[str] = [r for r in results.keys() if results[r] == max_score]
+                winner: str = ' and '.join(winners)
+                percentage = int((max_score)/max(1,votes)*100)
+
+                embed: discord.Embed = msg.embeds[0]
+                if len(winners) == 1:
+                    embed.add_field(name='Results', value=f'Option {winner} won with {percentage}% of the votes!')
+                else:
+                    embed.add_field(name='Results', value=f'It\'s a tie! Options {winner} each have {percentage}% of the votes!')
+                await msg.edit(embed=embed)
+            except:
+                pass
 
     @tasks.loop(minutes=1)
     async def git_tracking(self) -> NoReturn:
@@ -487,39 +493,51 @@ class BackgroundTasks(Cog):
         try:
             async with self.bot.async_session() as session:
                 repositories: Sequence[Repository] = (await session.execute(select(Repository))).scalars().all()
-                to_delete: list[Repository] = []
-                for repository in repositories:
-                    guild: discord.Guild | None = self.bot.get_guild(repository.guild_id)
-                    git_user: NamedUser | AuthenticatedUser | None = self.bot.github.get_user(repository.user_name)
-                    repos: list[GitRepository] = [r for r in git_user.get_repos() if r.name.upper() == repository.repo_name.upper()] if git_user else []
-                    repo: GitRepository | None = repos[0] if repos else None
 
-                    if not guild or not git_user or not repos or not repo:
-                        to_delete.append(repository)
-                        continue
+            to_delete: list[Repository] = []
+            modified: list[Repository] = []
 
-                    channel: discord.TextChannel = get_guild_text_channel(guild, repository.channel_id)
+            for repository in repositories:
+                guild: discord.Guild | None = self.bot.get_guild(repository.guild_id)
+                git_user: NamedUser | AuthenticatedUser | None = self.bot.github.get_user(repository.user_name)
+                repos: list[GitRepository] = [r for r in git_user.get_repos() if r.name.upper() == repository.repo_name.upper()] if git_user else []
+                repo: GitRepository | None = repos[0] if repos else None
+
+                if not guild or not git_user or not repos or not repo:
+                    to_delete.append(repository)
+                    continue
+
+                channel: discord.TextChannel = get_guild_text_channel(guild, repository.channel_id)
+                
+                commits: PaginatedList[Commit] = repo.get_commits()
+                commit_index: int = 0
+                for i, commit in enumerate(commits):
+                    if commit.sha == repository.sha:
+                        commit_index = i
+                        break
+                new_commits: list[Commit] = [c for i, c in enumerate(commits) if i < commit_index]
+                
+                for i, commit in enumerate(reversed(new_commits)):
+                    repository.sha = commit.sha
+                    modified.append(repository)
+                    embed = discord.Embed(title=f'{repository.user_name}/{repository.repo_name}', colour=discord.Colour.blue(), timestamp=commit.commit.author.date, description=f'[`{commit.sha[:7]}`]({commit.url}) {commit.commit.message}\n{commit.stats.additions} additions, {commit.stats.deletions} deletions', url=repo.url)
+                    embed.set_author(name=commit.author.name, url=commit.author.url, icon_url=commit.author.avatar_url)
+
+                    for file in commit.files:
+                        embed.add_field(name=file.filename, value=f'{file.additions} additions, {file.deletions} deletions', inline=False)
                     
-                    commits: PaginatedList[Commit] = repo.get_commits()
-                    commit_index: int = 0
-                    for i, commit in enumerate(commits):
-                        if commit.sha == repository.sha:
-                            commit_index = i
-                            break
-                    new_commits: list[Commit] = [c for i, c in enumerate(commits) if i < commit_index]
-                    
-                    for i, commit in enumerate(reversed(new_commits)):
-                        repository.sha = commit.sha
-                        embed = discord.Embed(title=f'{repository.user_name}/{repository.repo_name}', colour=discord.Colour.blue(), timestamp=commit.commit.author.date, description=f'[`{commit.sha[:7]}`]({commit.url}) {commit.commit.message}\n{commit.stats.additions} additions, {commit.stats.deletions} deletions', url=repo.url)
-                        embed.set_author(name=commit.author.name, url=commit.author.url, icon_url=commit.author.avatar_url)
+                    self.bot.queue_message(QueueMessage(channel, None, embed))
 
-                        for file in commit.files:
-                            embed.add_field(name=file.filename, value=f'{file.additions} additions, {file.deletions} deletions', inline=False)
-                        
-                        self.bot.queue_message(QueueMessage(channel, None, embed))
-                for repository in to_delete:
-                    await session.delete(repository)
-                if to_delete or any(session.is_modified(obj) for obj in repositories):
+            if to_delete or modified:
+                async with self.bot.async_session() as session:
+                    # Since the original db session has been disposed, any repositories to be deleted or modified
+                    # must first be re-retrieved from the database using a new session so that they can be modified
+                    for r in to_delete:
+                        db_repository: Repository = (await session.execute(select(Repository).where(Repository.guild_id == r.guild_id, Repository.user_name == r.user_name, Repository.repo_name == r.repo_name))).scalar_one()
+                        await session.delete(db_repository)
+                    for r in modified:
+                        db_repository: Repository = (await session.execute(select(Repository).where(Repository.guild_id == r.guild_id, Repository.user_name == r.user_name, Repository.repo_name == r.repo_name))).scalar_one()
+                        db_repository.sha = r.sha
                     await session.commit()
 
         except:

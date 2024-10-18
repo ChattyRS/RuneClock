@@ -256,7 +256,7 @@ class ModCommands(Cog):
                 raise CommandError(message=f'Missing permissions: `role_management`.')
         
         async with self.bot.async_session() as session:
-            mute: Mute | None = (await session.execute(select(Mute).where(Mute.guild_id == ctx.guild.id).where(Mute.user_id == member.id))).scalar_one_or_none()
+            mute: Mute | None = (await session.execute(select(Mute).where(Mute.guild_id == ctx.guild.id, Mute.user_id == member.id))).scalar_one_or_none()
             if mute:
                 await session.delete(mute)
                 await session.commit()

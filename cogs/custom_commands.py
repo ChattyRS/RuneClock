@@ -45,7 +45,7 @@ class CustomCommands(Cog):
         if ''.join(command.split()) == command:
             custom_db_command: Command | None
             async with self.bot.async_session() as session:
-                custom_db_command = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id).where(Command.name == command))).scalar_one_or_none()
+                custom_db_command = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id, Command.name == command))).scalar_one_or_none()
                 if custom_db_command:
                     await session.delete(custom_db_command)
                     await session.commit()
@@ -66,7 +66,7 @@ class CustomCommands(Cog):
             raise CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
         
         async with self.bot.async_session() as session:
-            custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id).where(Command.name == command))).scalar_one_or_none()
+            custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id, Command.name == command))).scalar_one_or_none()
             if custom_db_command:
                 edit = True
                 custom_db_command.function = command

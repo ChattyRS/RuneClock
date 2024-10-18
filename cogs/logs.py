@@ -393,7 +393,7 @@ class Logs(Cog):
     @Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role) -> None:
         async with self.bot.async_session() as session:
-            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == role.guild.id).where(Role.role_id == role.id))).scalar_one_or_none()
+            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == role.guild.id, Role.role_id == role.id))).scalar_one_or_none()
             if db_role:
                 await session.delete(db_role)
             db_guild: Guild = await get_db_guild(self.bot.async_session, role.guild, session)

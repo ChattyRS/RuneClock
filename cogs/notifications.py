@@ -324,7 +324,7 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'Required argument missing: `value`.')
         
         async with self.bot.async_session() as session:
-            notification: Notification | None = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).where(Notification.notification_id == id))).scalar_one_or_none()
+            notification: Notification | None = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id, Notification.notification_id == id))).scalar_one_or_none()
             if not notification:
                 raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
         
@@ -398,8 +398,8 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already offline.')
         
         async with self.bot.async_session() as session:
-            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == ctx.guild.id)
-                                                                                    .where(OnlineNotification.author_id == ctx.author.id).where(OnlineNotification.member_id == member.id))).scalar_one_or_none()
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
+                .where(OnlineNotification.guild_id == ctx.guild.id, OnlineNotification.author_id == ctx.author.id, OnlineNotification.member_id == member.id))).scalar_one_or_none()
             if online_notification:
                 await session.delete(online_notification)
                 await session.commit()
@@ -421,8 +421,8 @@ class Notifications(Cog):
             return
         
         async with self.bot.async_session() as session:
-            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == after.guild.id)
-                                                                                    .where(OnlineNotification.member_id == after.id))).scalar_one_or_none()
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
+                .where(OnlineNotification.guild_id == after.guild.id, OnlineNotification.member_id == after.id))).scalar_one_or_none()
             if not online_notification:
                 return
             try:
@@ -451,8 +451,8 @@ class Notifications(Cog):
             return
         
         async with self.bot.async_session() as session:
-            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification).where(OnlineNotification.guild_id == message.guild.id)
-                                                                                    .where(OnlineNotification.member_id == message.author.id))).scalar_one_or_none()
+            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
+                .where(OnlineNotification.guild_id == message.guild.id, OnlineNotification.member_id == message.author.id))).scalar_one_or_none()
             if not online_notification:
                 return
             

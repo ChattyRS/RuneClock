@@ -197,7 +197,7 @@ def get_db_engine(config: dict[str, Any]) -> AsyncEngine:
     '''
     connection_string: str = (f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}'
         + f'@{config["postgres_ip"]}:{config["postgres_port"]}/{config["postgres_db_name"]}')
-    return create_async_engine(connection_string, pool_size=40, max_overflow=40)
+    return create_async_engine(connection_string, pool_size=50, max_overflow=40)
 
 def get_db_session_maker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     '''

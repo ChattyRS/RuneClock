@@ -409,7 +409,7 @@ class Management(Cog):
             data: Any = await r.json()
 
         async with self.bot.async_session() as session:
-            if (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id).where(Repository.user_name == user_name).where(Repository.repo_name == repo_name))).scalar_one_or_none():
+            if (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id, Repository.user_name == user_name, Repository.repo_name == repo_name))).scalar_one_or_none():
                 raise commands.CommandError(message=f'The repository `{repo_name}` is already being tracked.')
             
             session.add(Repository(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha))
@@ -452,7 +452,7 @@ class Management(Cog):
             raise commands.CommandError(message=f'Invalid repository URL: `{repo_url}`.')
         
         async with self.bot.async_session() as session:
-            repo: Repository | None = (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id).where(Repository.user_name == user_name).where(Repository.repo_name == repo_name))).scalar_one_or_none()
+            repo: Repository | None = (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id, Repository.user_name == user_name, Repository.repo_name == repo_name))).scalar_one_or_none()
             if repo:
                 await session.delete(repo)
                 await session.commit()

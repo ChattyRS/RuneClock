@@ -268,7 +268,7 @@ class RoleReactions(Cog):
             return
 
         async with self.bot.async_session() as session:
-            role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id).where(CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
+            role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
         if role_reaction:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
             if role:
@@ -307,7 +307,7 @@ class RoleReactions(Cog):
             return
 
         async with self.bot.async_session() as session:
-            role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id).where(CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
+            role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
         if role_reaction:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
             if role:
