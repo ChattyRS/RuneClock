@@ -381,7 +381,6 @@ class Notifications(Cog):
         Type 2: notify when status changes to anything but offline
         Type 3: notify when status changes to idle or online (i.e. type 2 excluding dnd)
         Type 4: notify when member goes offline
-        Type 1-3 also trigger when the member sends a message
         '''
         self.bot.increment_command_counter()
 
@@ -434,35 +433,6 @@ class Notifications(Cog):
                     or (online_notification.type == 2 and str(after.status) == 'dnd') or (online_notification.type == 4 and str(after.status) == 'offline')):
                     on_or_offline: str = 'offline' if online_notification.type == 4 else 'online'
                     self.bot.queue_message(QueueMessage(channel, f'`{after.display_name}` is {on_or_offline}! {user.mention}'))
-                else:
-                    return
-            except:
-                pass
-
-            await session.delete(online_notification)
-            await session.commit()
-    
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message) -> None:
-        '''
-        Notify of online status on activity.
-        '''
-        if message.guild is None:
-            return
-        
-        async with self.bot.async_session() as session:
-            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
-                .where(OnlineNotification.guild_id == message.guild.id, OnlineNotification.member_id == message.author.id))).scalar_one_or_none()
-            if not online_notification:
-                return
-            
-            try:
-                channel: discord.TextChannel = get_guild_text_channel(message.guild, online_notification.channel_id)
-                user: discord.Member | None = discord.utils.get(message.guild.members, id=online_notification.author_id)
-                if not channel or not user:
-                    raise commands.CommandError('User or channel not found.')
-                if online_notification.type in [1,2,3]:
-                    self.bot.queue_message(QueueMessage(channel, f'`{message.author.display_name}` is online! {user.mention}'))
                 else:
                     return
             except:
