@@ -390,50 +390,49 @@ class BackgroundTasks(Cog):
             rs3_feed: Any = feedparser.parse(rs3_data)
             osrs_feed: Any = feedparser.parse(osrs_data)
             
-            news_posts: Sequence[NewsPost]
-            async with self.bot.async_session() as session:
-                news_posts = (await session.execute(select(NewsPost))).scalars().all()
-
             to_send: list[NewsPost] = []
+            async with self.bot.async_session() as session:
+                news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost))).scalars().all()
 
-            for post in reversed(rs3_feed.entries):
-                if not any(post.link == news_post.link for news_post in news_posts):
-                    time = datetime.strptime(post.published, '%a, %d %b %Y %H:%M:%S %Z')
+                for post in reversed(rs3_feed.entries):
+                    if not any(post.link == news_post.link for news_post in news_posts):
+                        time = datetime.strptime(post.published, '%a, %d %b %Y %H:%M:%S %Z')
 
-                    category: Any = None
-                    if post.category:
-                        category = post.category
+                        category: Any = None
+                        if post.category:
+                            category = post.category
 
-                    image_url: Any = None
-                    if post.enclosures:
-                        enclosure: Any = post.enclosures[0]
-                        if any(txt in enclosure.type for txt in ['image', 'jpeg', 'jpg', 'png']):
-                            image_url = enclosure.href
-                    async with self.bot.async_session() as session:
+                        image_url: Any = None
+                        if post.enclosures:
+                            enclosure: Any = post.enclosures[0]
+                            if any(txt in enclosure.type for txt in ['image', 'jpeg', 'jpg', 'png']):
+                                image_url = enclosure.href
+
                         news_post = NewsPost(link=post.link, game='rs3', title=post.title, description=post.description, time=time, category=category, image_url=image_url)
                         session.add(news_post)
                         await session.commit()
-                    to_send.append(news_post)
-        
-            for post in reversed(osrs_feed.entries):
-                if not any(post.link == news_post.link for news_post in news_posts):
-                    time: datetime = datetime.strptime(post.published, '%a, %d %b %Y %H:%M:%S %Z')
+                        
+                        to_send.append(news_post)
+            
+                for post in reversed(osrs_feed.entries):
+                    if not any(post.link == news_post.link for news_post in news_posts):
+                        time: datetime = datetime.strptime(post.published, '%a, %d %b %Y %H:%M:%S %Z')
 
-                    category: Any = None
-                    if post.category:
-                        category = post.category
+                        category: Any = None
+                        if post.category:
+                            category = post.category
 
-                    image_url: Any = None
-                    if post.enclosures:
-                        enclosure: Any = post.enclosures[0]
-                        if any(txt in enclosure.type for txt in ['image', 'jpeg', 'jpg', 'png']):
-                            image_url = enclosure.href
+                        image_url: Any = None
+                        if post.enclosures:
+                            enclosure: Any = post.enclosures[0]
+                            if any(txt in enclosure.type for txt in ['image', 'jpeg', 'jpg', 'png']):
+                                image_url = enclosure.href
 
-                    async with self.bot.async_session() as session:
                         news_post = NewsPost(link=post.link, game='osrs', title=post.title, description=post.description, time=time, category=category, image_url=image_url)
                         session.add(news_post)
                         await session.commit()
-                    to_send.append(news_post)
+
+                        to_send.append(news_post)
 
             for news_post in to_send:
                 await self.send_news(news_post, news_post.game == 'osrs')

@@ -254,17 +254,17 @@ class RoleReactions(Cog):
         emoji: discord.PartialEmoji = payload.emoji
         if not hasattr(emoji, 'id'):
             return
-
-        guild: Guild = await get_db_guild(self.bot.async_session, payload.guild_id)
-        if not guild or not guild.custom_role_reaction_channel_id == channel.id:
-            return
-
+        
         message: discord.Message = await channel.fetch_message(payload.message_id)
         if message.author != self.bot.user:
             return
 
         user: discord.Member = await channel.guild.fetch_member(payload.user_id)
         if not user or user.bot:
+            return
+
+        guild: Guild = await get_db_guild(self.bot.async_session, payload.guild_id)
+        if not guild or not guild.custom_role_reaction_channel_id == channel.id:
             return
 
         async with self.bot.async_session() as session:
@@ -294,16 +294,16 @@ class RoleReactions(Cog):
         if not hasattr(emoji, 'id'):
             return
 
-        guild: Guild = await get_db_guild(self.bot.async_session, payload.guild_id)
-        if not guild or not guild.custom_role_reaction_channel_id == channel.id:
-            return
-
-        message = await channel.fetch_message(payload.message_id)
+        message: discord.Message = await channel.fetch_message(payload.message_id)
         if message.author != self.bot.user:
             return
 
         user: discord.Member = await channel.guild.fetch_member(payload.user_id)
         if not user or user.bot:
+            return
+        
+        guild: Guild = await get_db_guild(self.bot.async_session, payload.guild_id)
+        if not guild or not guild.custom_role_reaction_channel_id == channel.id:
             return
 
         async with self.bot.async_session() as session:
