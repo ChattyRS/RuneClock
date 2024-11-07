@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession, async_sessionmaker, AsyncAttrs
-from sqlalchemy import PrimaryKeyConstraint, ForeignKey
+from sqlalchemy import NullPool, PrimaryKeyConstraint, ForeignKey
 from sqlalchemy import BigInteger, Integer, String, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import ARRAY, JSON, TIMESTAMP
@@ -197,7 +197,7 @@ def get_db_engine(config: dict[str, Any]) -> AsyncEngine:
     '''
     connection_string: str = (f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}'
         + f'@{config["postgres_ip"]}:{config["postgres_port"]}/{config["postgres_db_name"]}')
-    return create_async_engine(connection_string, pool_size=50, max_overflow=40)
+    return create_async_engine(connection_string, poolclass=NullPool)
 
 def get_db_session_maker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     '''
