@@ -436,7 +436,7 @@ class General(Cog):
         for num in range(i):
             await msg.add_reaction(num_emoji[num])
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             session.add(Poll(guild_id=ctx.guild.id, author_id=ctx.author.id, channel_id=ctx.channel.id, message_id=msg.id, end_time = datetime.now(UTC)+timedelta(hours=hours)))
             await session.commit()
 
@@ -456,7 +456,7 @@ class General(Cog):
 
         await ctx.channel.typing()
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             poll: Poll | None = (await session.execute(select(Poll).where(Poll.message_id == msg_id))).scalar_one_or_none()
             if not poll:
                 raise commands.CommandError(message=f'Could not find active poll by ID: `{msg_id}`.')

@@ -18,7 +18,7 @@ async def price_tracking_rs3(bot: Bot) -> NoReturn:
     
     while True:
         try:
-            async with bot.async_session() as session:
+            async with bot.get_session() as session:
                 items: Sequence[RS3Item] = (await session.execute(select(RS3Item))).scalars().all()
                 
             items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
@@ -75,7 +75,7 @@ async def price_tracking_rs3(bot: Bot) -> NoReturn:
 
                 # To update the item, we first obtain a new database session
                 # as the original session used to retrieve the item has been disposed.
-                async with bot.async_session() as session:
+                async with bot.get_session() as session:
                     db_item: RS3Item = (await session.execute(select(RS3Item).where(RS3Item.id == item.id))).scalar_one()
                 
                     db_item.current = current
@@ -109,7 +109,7 @@ async def price_tracking_osrs(bot: Bot) -> NoReturn:
     
     while True:
         try:
-            async with bot.async_session() as session:
+            async with bot.get_session() as session:
                 items: Sequence[OSRSItem] = (await session.execute(select(OSRSItem))).scalars().all()
 
             items = sorted(items, key=lambda i: max([int(x) for x in i.graph_data['daily']]))
@@ -166,7 +166,7 @@ async def price_tracking_osrs(bot: Bot) -> NoReturn:
 
                 # To update the item, we first obtain a new database session
                 # as the original session used to retrieve the item has been disposed.
-                async with bot.async_session() as session:
+                async with bot.get_session() as session:
                     db_item: OSRSItem = (await session.execute(select(OSRSItem).where(OSRSItem.id == item.id))).scalar_one()
                 
                     db_item.current = current

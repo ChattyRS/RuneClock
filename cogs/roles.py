@@ -33,8 +33,8 @@ class Roles(Cog):
             raise CommandError('This command can only be used in a server.')
 
         if not channel:
-            async with self.bot.async_session() as session:
-                guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+            async with self.bot.get_session() as session:
+                guild: Guild = await get_db_guild(session, ctx.guild)
                 if not guild.role_channel_id:
                     raise commands.CommandError(message=f'Required argument missing: `channel`.')
                 guild.role_channel_id = None
@@ -70,8 +70,8 @@ class Roles(Cog):
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `send_message / add_reaction`.')
         
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, ctx.guild)
             guild.role_channel_id = channel.id
             await session.commit()
 
@@ -98,7 +98,7 @@ class Roles(Cog):
                 valid_rank = True
                 break
         if not valid_rank:
-            async with self.bot.async_session() as session:
+            async with self.bot.get_session() as session:
                 db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
             if not db_role:
                 raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
@@ -147,7 +147,7 @@ class Roles(Cog):
             except discord.Forbidden:
                 raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
         
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
             if db_role:
                 raise commands.CommandError(message=f'Rank {rank.lower()} already exists.')
@@ -172,7 +172,7 @@ class Roles(Cog):
         if not rank:
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
         
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
             if not db_role:
                 raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
@@ -192,7 +192,7 @@ class Roles(Cog):
         if not ctx.guild or not isinstance(ctx.author, discord.Member):
             raise CommandError('This command can only be used in a server.')
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             db_roles: Sequence[Role] = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id))).scalars().all()
         if not db_roles:
             raise commands.CommandError(message=f'Error: This server does not have any ranks.')

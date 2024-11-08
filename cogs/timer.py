@@ -147,7 +147,7 @@ class Timer(Cog):
         # US/Pacific = MST, US/Central = EST
         timezones: list[str] = ['US/Pacific', 'US/Central', 'US/Eastern', 'UTC', 'Europe/London', 'CET', 'Australia/ACT']
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
 
         if user and user.timezone and not user.timezone in timezones:
@@ -189,7 +189,7 @@ class Timer(Cog):
             time: datetime = datetime.now(tz)
             time_str: str = time.strftime('%H:%M')
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
             if user:
                 user.timezone = timezone

@@ -67,7 +67,7 @@ class RuneClock(Bot):
 
         await self.setup_database()
 
-        async with self.async_session() as session:
+        async with self.get_session() as session:
             session.add(Uptime(time=self.start_time, status='started'))
             await session.commit()
 
@@ -143,7 +143,8 @@ class RuneClock(Bot):
         if message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
         
-        guild: Guild = await find_or_create_db_guild(self.async_session, message.guild)
+        async with self.get_session() as session:
+            guild: Guild = await find_or_create_db_guild(session, message.guild)
 
         if guild.delete_channel_ids and message.channel.id in guild.delete_channel_ids and not message.author.id == message.guild.me.id:
             await message.delete()

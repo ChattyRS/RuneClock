@@ -1,6 +1,7 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, UTC
 import os
-from typing import Any, Sequence
+from typing import Any, AsyncGenerator, Generator, Sequence
 import discord
 from discord.ext import commands
 from sqlalchemy import select
@@ -76,6 +77,27 @@ class Bot(commands.AutoShardedBot):
             username = self.config['redditName']
         )
         self.bot = self
+
+    @asynccontextmanager
+    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+        '''
+        Gets a managed database session.
+        The session is automatically closed after it has been used.
+
+        Returns:
+            AsyncGenerator[AsyncSession]: AsyncGenerator to generate the AsyncSession
+
+        Yields:
+            Iterator[AsyncGenerator[AsyncSession]]: AsyncSession
+        '''
+        try:
+            async with self.async_session() as session:
+                yield session
+        except:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
     
     async def close_database_connection(self) -> None:
         '''
@@ -96,7 +118,8 @@ class Bot(commands.AutoShardedBot):
         Returns:
             List[str]: list of prefixes
         '''
-        guild: Guild = await get_db_guild(self.async_session, message.guild)
+        async with self.get_session() as session:
+            guild: Guild = await get_db_guild(session, message.guild)
         prefix: str = guild.prefix if guild.prefix else '-'
         return commands.when_mentioned_or(prefix)(bot, message)
     
@@ -137,7 +160,7 @@ class Bot(commands.AutoShardedBot):
             list[str]: List of all custom commmand names and aliases
         '''
         aliases: list[str] = []
-        async with self.async_session() as session:
+        async with self.get_session() as session:
             custom_commands: Sequence[Command] = (await session.execute(select(Command))).scalars().all()
             for command in [c for c in custom_commands if c]:
                 if not command.name in aliases:

@@ -75,7 +75,7 @@ class BackgroundTasks(Cog):
             now: datetime = datetime.now(UTC).replace(microsecond=0)
             today: datetime = now.replace(hour=0, minute=0, second=0)
             
-            async with self.bot.async_session() as session:
+            async with self.bot.get_session() as session:
                 latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today).order_by(Uptime.time.desc()))).scalars().first()
                 if latest_event_today and latest_event_today.status == 'running':
                     latest_event_today.time = now
@@ -146,7 +146,7 @@ class BackgroundTasks(Cog):
             _type_: A list of coroutines which can be awaited to send the notifications.
         '''
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
         
         channels: list[discord.TextChannel] = [channel for channel in [find_text_channel(self.bot, guild.notification_channel_id) for guild in guilds] if channel]
@@ -180,7 +180,7 @@ class BackgroundTasks(Cog):
 
         guilds: Sequence[Guild]
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             if osrs:
                 guilds = (await session.execute(select(Guild).where(Guild.osrs_news_channel_id.is_not(None)))).scalars().all()
             else:
@@ -282,7 +282,7 @@ class BackgroundTasks(Cog):
         Function to send custom notifications
         '''
         try:
-            async with self.bot.async_session() as session:
+            async with self.bot.get_session() as session:
                 deleted_from_guild_ids: list[int] = []
                 notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
                 for notification in notifications:
@@ -327,7 +327,7 @@ class BackgroundTasks(Cog):
         '''
         to_unmute: list[tuple[discord.Member, discord.Role, discord.Guild]] = []
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             mutes: Sequence[Mute] = (await session.execute(select(Mute).where(Mute.expiration <= datetime.now(UTC)))).scalars().all()
             for mute in mutes:
                 await session.delete(mute)
@@ -391,7 +391,7 @@ class BackgroundTasks(Cog):
             osrs_feed: Any = feedparser.parse(osrs_data)
             
             to_send: list[NewsPost] = []
-            async with self.bot.async_session() as session:
+            async with self.bot.get_session() as session:
                 news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost))).scalars().all()
 
                 for post in reversed(rs3_feed.entries):
@@ -449,7 +449,7 @@ class BackgroundTasks(Cog):
         '''
         Function to check if there are any polls that have to be closed.
         '''
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             polls: Sequence[Poll] = (await session.execute(select(Poll).where(Poll.end_time <= datetime.now(UTC)))).scalars().all()
             for poll in polls:
                 await session.delete(poll)
@@ -487,7 +487,7 @@ class BackgroundTasks(Cog):
         Function to check tracked git repositories for new commits.
         '''
         try:
-            async with self.bot.async_session() as session:
+            async with self.bot.get_session() as session:
                 repositories: Sequence[Repository] = (await session.execute(select(Repository))).scalars().all()
 
             to_delete: list[Repository] = []
@@ -525,7 +525,7 @@ class BackgroundTasks(Cog):
                     self.bot.queue_message(QueueMessage(channel, None, embed))
 
             if to_delete or modified:
-                async with self.bot.async_session() as session:
+                async with self.bot.get_session() as session:
                     # Since the original db session has been disposed, any repositories to be deleted or modified
                     # must first be re-retrieved from the database using a new session so that they can be modified
                     for r in to_delete:

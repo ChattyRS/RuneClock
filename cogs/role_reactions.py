@@ -29,8 +29,8 @@ class ManagementRoleDropdown(discord.ui.Select):
         if not role:
             await interaction.response.send_message(f'Role not found.', ephemeral=True)
             return
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, interaction.guild)
             guild.role_reaction_management_role_id = role.id
             await session.commit()
         await interaction.response.send_message(f'The custom role-reactions management role has been set to `{role.name}`', ephemeral=True)
@@ -68,7 +68,8 @@ class AddRoleDropdown(discord.ui.Select):
             await interaction.response.send_message(f'Message not found', ephemeral=True)
             return
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+            async with self.bot.get_session() as session:
+                guild: Guild = await get_db_guild(session, interaction.guild)
             role_reaction_management_role = None
             if guild.role_reaction_management_role_id:
                 role_reaction_management_role: discord.Role | None = interaction.guild.get_role(guild.role_reaction_management_role_id)
@@ -119,9 +120,9 @@ class RemoveRoleReactionDropdown(discord.ui.Select):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-                guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild, session)
+                guild: Guild = await get_db_guild(session, interaction.guild)
                 role_reaction_management_role = None
                 if guild.role_reaction_management_role_id:
                     role_reaction_management_role: discord.Role | None = interaction.guild.get_role(guild.role_reaction_management_role_id)
@@ -169,9 +170,9 @@ class ChannelDropdown(discord.ui.Select):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-                guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild, session)
+                guild: Guild = await get_db_guild(session, interaction.guild)
                 role_reaction_management_role = None
                 if guild.role_reaction_management_role_id:
                     role_reaction_management_role: discord.Role | None = interaction.guild.get_role(guild.role_reaction_management_role_id)
@@ -217,8 +218,8 @@ class SetMessageModal(discord.ui.Modal, title='Role-reactions: message'):
             return
 
         # Set message
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, interaction.guild)
             guild.custom_role_reaction_message = custom_message
             await session.commit()
             
@@ -263,11 +264,12 @@ class RoleReactions(Cog):
         if not user or user.bot:
             return
 
-        guild: Guild = await get_db_guild(self.bot.async_session, payload.guild_id)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, payload.guild_id)
         if not guild or not guild.custom_role_reaction_channel_id == channel.id:
             return
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
         if role_reaction:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
@@ -302,11 +304,12 @@ class RoleReactions(Cog):
         if not user or user.bot:
             return
         
-        guild: Guild = await get_db_guild(self.bot.async_session, payload.guild_id)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, payload.guild_id)
         if not guild or not guild.custom_role_reaction_channel_id == channel.id:
             return
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
         if role_reaction:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
@@ -325,7 +328,8 @@ class RoleReactions(Cog):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+            async with self.bot.get_session() as session:
+                guild: Guild = await get_db_guild(session, interaction.guild)
             role_reaction_management_role = None
             if guild.role_reaction_management_role_id:
                 role_reaction_management_role: discord.Role | None = interaction.guild.get_role(guild.role_reaction_management_role_id)
@@ -373,7 +377,8 @@ class RoleReactions(Cog):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
-        reactions: Sequence[CustomRoleReaction] = await get_role_reactions(self.bot.async_session, interaction.guild.id)
+        async with self.bot.get_session() as session:
+            reactions: Sequence[CustomRoleReaction] = await get_role_reactions(session, interaction.guild.id)
         lines: list[str] = []
         for reaction in reactions:
             emoji: discord.Emoji | int | None = discord.utils.get(interaction.guild.emojis, id=reaction.emoji_id)
@@ -400,7 +405,8 @@ class RoleReactions(Cog):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
-        reactions: Sequence[CustomRoleReaction] = await get_role_reactions(self.bot.async_session, interaction.guild.id)
+        async with self.bot.get_session() as session:
+            reactions: Sequence[CustomRoleReaction] = await get_role_reactions(session, interaction.guild.id)
         if len(reactions) >= 20:
             await interaction.response.send_message('You can only have 20 unique custom role-reactions per guild. You will have to remove one first if you want to add another.', ephemeral=True)
             return
@@ -413,7 +419,8 @@ class RoleReactions(Cog):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
-        reactions: Sequence[CustomRoleReaction] = await get_role_reactions(self.bot.async_session, interaction.guild.id)
+        async with self.bot.get_session() as session:
+            reactions: Sequence[CustomRoleReaction] = await get_role_reactions(session, interaction.guild.id)
         if len(reactions) < 1:
             await interaction.response.send_message('There are no role-reactions to remove.', ephemeral=True)
             return
@@ -438,11 +445,13 @@ class RoleReactions(Cog):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
-        reactions: Sequence[CustomRoleReaction] = await get_role_reactions(self.bot.async_session, interaction.guild.id)
+        async with self.bot.get_session() as session:
+            reactions: Sequence[CustomRoleReaction] = await get_role_reactions(session, interaction.guild.id)
         if len(reactions) < 1:
             await interaction.response.send_message('There are no role-reactions for this server.', ephemeral=True)
             return
-        guild: Guild = await get_db_guild(self.bot.async_session, interaction.guild)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, interaction.guild)
         if not guild or not guild.custom_role_reaction_channel_id:
             await interaction.response.send_message('There is no custom role-reaction channel configured for this server.', ephemeral=True)
             return

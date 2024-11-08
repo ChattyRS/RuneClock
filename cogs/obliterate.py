@@ -525,7 +525,8 @@ class Obliterate(Cog):
         if not after.id in [member.id for member in obliterate.members]:
             return
         
-        guild: Guild | None = await find_db_guild(self.bot.async_session, obliterate)
+        async with self.bot.get_session() as session:
+            guild: Guild | None = await find_db_guild(session, obliterate)
         if not guild or not guild.log_channel_id:
             return
         

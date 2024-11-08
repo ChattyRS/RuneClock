@@ -49,7 +49,8 @@ class Management(Cog):
         '''
         Function to send welcome messages
         '''
-        guild: Guild = await get_db_guild(self.bot.async_session, member.guild)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, member.guild)
 
         if not guild.welcome_message or not guild.welcome_channel_id:
             return
@@ -70,7 +71,8 @@ class Management(Cog):
         Give a command or command category as argument for more specific help.
         '''
         self.bot.increment_command_counter()
-        guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, ctx.guild)
 
         extension: str | None = None
 
@@ -83,7 +85,8 @@ class Management(Cog):
                 else:
                     extension = command
             elif cmd == custom_command:
-                db_cmd: Command | None = await find_custom_db_command(self.bot.async_session, ctx.guild, command)
+                async with self.bot.get_session() as session:
+                    db_cmd: Command | None = await find_custom_db_command(session, ctx.guild, command)
                 if not db_cmd:
                     raise commands.CommandError(message=f'Invalid argument: `{command}`.')
                 alias_str: str = ' | '.join(db_cmd.aliases) if db_cmd.aliases else ''
@@ -203,8 +206,8 @@ class Management(Cog):
         elif channel_name:
             channel = get_text_channel_by_name(ctx.guild, channel_name)
         else:
-            async with self.bot.async_session() as session:
-                guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+            async with self.bot.get_session() as session:
+                guild: Guild = await get_db_guild(session, ctx.guild)
                 if not guild.welcome_channel_id and not guild.welcome_message:
                     await ctx.send(f'Please mention the channel in which you would like to receive welcome messages.')
                     return
@@ -214,8 +217,8 @@ class Management(Cog):
                 await ctx.send(f'I will no longer send welcome messages in server **{ctx.guild.name}**.')
                 return
 
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, ctx.guild)
             guild.welcome_channel_id = channel.id
             guild.welcome_message = msg
             await session.commit()
@@ -249,8 +252,8 @@ class Management(Cog):
         elif channel_name:
             channel = get_text_channel_by_name(ctx.guild, channel_name)
         else:
-            async with self.bot.async_session() as session:
-                guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+            async with self.bot.get_session() as session:
+                guild: Guild = await get_db_guild(session, ctx.guild)
                 if not guild.log_channel_id:
                     await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
                     return
@@ -259,8 +262,8 @@ class Management(Cog):
                 await ctx.send(f'I will no longer send logging messages in server **{ctx.guild.name}**.')
                 return
         
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, ctx.guild)
             guild.log_channel_id = channel.id
             await session.commit()
 
@@ -274,8 +277,8 @@ class Management(Cog):
         '''
         self.bot.increment_command_counter()
 
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, ctx.guild)
             guild.log_bots = False if guild.log_bots else True
             await session.commit()
             await ctx.send(f'Bot message deletion and edit logging {"enabled" if guild.log_bots else "disabled"}.')
@@ -295,8 +298,8 @@ class Management(Cog):
         elif cmd == 'command' or cmd == 'help':
             raise commands.CommandError(message=f'Invalid argument: `{cmd}`.')
         
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, ctx.guild)
 
             if guild.disabled_commands is None:
                 guild.disabled_commands = [cmd]
@@ -323,8 +326,8 @@ class Management(Cog):
         if not ctx.guild:
             raise commands.CommandError(message=f'This command can only be used from a server.')
 
-        async with self.bot.async_session() as session:
-            guild: Guild = await get_db_guild(self.bot.async_session, ctx.guild, session)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, ctx.guild)
             guild.prefix = prefix
             await session.commit()
         
@@ -408,7 +411,7 @@ class Management(Cog):
                 raise commands.CommandError(message=f'Could not fetch commit data.')
             data: Any = await r.json()
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             if (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id, Repository.user_name == user_name, Repository.repo_name == repo_name))).scalar_one_or_none():
                 raise commands.CommandError(message=f'The repository `{repo_name}` is already being tracked.')
             
@@ -451,7 +454,7 @@ class Management(Cog):
         except:
             raise commands.CommandError(message=f'Invalid repository URL: `{repo_url}`.')
         
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             repo: Repository | None = (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id, Repository.user_name == user_name, Repository.repo_name == repo_name))).scalar_one_or_none()
             if repo:
                 await session.delete(repo)
@@ -521,7 +524,7 @@ class Management(Cog):
         connections = f'**Servers:** {len(self.bot.guilds)}\n**Channels:** {channels}\n**Users:** {users}'
         embed.add_field(name='__Connections__', value=connections)
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             notification_channels: int | None = await session.scalar(select(func.count()).select_from(Guild).filter(Guild.notification_channel_id.is_not(None)))
             notification_channels = notification_channels if notification_channels else 0
 
@@ -805,7 +808,7 @@ class Management(Cog):
 
         now: datetime = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             events: Sequence[Uptime] = (await session.execute(select(Uptime).order_by(Uptime.time.asc()))).scalars().all()
 
         uptime_today: float = uptime_fraction(events, now.year, now.month, now.day)
@@ -883,7 +886,8 @@ class Management(Cog):
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        item: OSRSItem | None = await find_osrs_item_by_id(self.bot.async_session, id)
+        async with self.bot.get_session() as session:
+            item: OSRSItem | None = await find_osrs_item_by_id(session, id)
         if item:
             raise commands.CommandError(message=f'Item {item.name} with ID {item.id} is already in the database.')
 
@@ -939,7 +943,7 @@ class Management(Cog):
         day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
         day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             session.add(OSRSItem(id=int(id), name=name, icon_url=icon_url, type=type, description=description, members=members, current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data))
             await session.commit()
 
@@ -957,8 +961,8 @@ class Management(Cog):
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        async with self.bot.async_session() as session:
-            item: OSRSItem = await get_osrs_item_by_id(self.bot.async_session, id, session)
+        async with self.bot.get_session() as session:
+            item: OSRSItem = await get_osrs_item_by_id(session, id)
             await session.delete(item)
             await session.commit()
 
@@ -976,7 +980,8 @@ class Management(Cog):
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        item: RS3Item | None = await find_rs3_item_by_id(self.bot.async_session, id)
+        async with self.bot.get_session() as session:
+            item: RS3Item | None = await find_rs3_item_by_id(session, id)
         if item:
             raise commands.CommandError(message=f'Item {item.name} with ID {item.id} is already in the database.')
 
@@ -1032,7 +1037,7 @@ class Management(Cog):
         day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
         day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
 
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             session.add(RS3Item(id=int(id), name=name, icon_url=icon_url, type=type, description=description, members=members, current=str(current), today=str(today), day30=day30, day90=day90, day180=day180, graph_data=graph_data))
             await session.commit()
 
@@ -1050,8 +1055,8 @@ class Management(Cog):
         if not is_int(id):
             raise commands.CommandError(message=f'Required argument missing: `ID`.')
         id = int(id)
-        async with self.bot.async_session() as session:
-            item: RS3Item = await get_rs3_item_by_id(self.bot.async_session, id, session)
+        async with self.bot.get_session() as session:
+            item: RS3Item = await get_rs3_item_by_id(session, id)
             await session.delete(item)
             await session.commit()
 
@@ -1157,7 +1162,7 @@ class Management(Cog):
         if not guild_id or not is_int(guild_id):
             raise commands.CommandError(message=f'Invalid argument \'guild_id\': `{guild_id}`.')
         guild_id = int(guild_id)
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             banned_guild: BannedGuild | None = (await session.execute(select(BannedGuild).where(BannedGuild.id == guild_id))).scalar_one_or_none()
         if banned_guild:
             raise commands.CommandError(message=f'Guild {banned_guild.name} with ID `{guild_id}` is already banned.')
@@ -1169,7 +1174,7 @@ class Management(Cog):
         if guild:
             await guild.leave()
         
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             session.add(BannedGuild(id=guild_id, name=name, reason=reason))
             await session.commit()
 
@@ -1184,7 +1189,7 @@ class Management(Cog):
         if not guild_id or not is_int(guild_id):
             raise commands.CommandError(message=f'Invalid argument \'guild_id\': `{guild_id}`.')
         guild_id = int(guild_id)
-        async with self.bot.async_session() as session:
+        async with self.bot.get_session() as session:
             banned_guild: BannedGuild | None = (await session.execute(select(BannedGuild).where(BannedGuild.id == guild_id))).scalar_one_or_none()
             if not banned_guild:
                 raise commands.CommandError(message=f'No banned guild found with ID `{guild_id}`.')
