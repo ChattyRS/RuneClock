@@ -364,13 +364,12 @@ class Clan(Cog):
         Manage the clan WOM group
         '''
         # Check permissions
-        
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
             return
-        if interaction.guild and isinstance(interaction.user, discord.Member) and not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            async with self.bot.get_session() as session:
-                guild: Guild = await get_db_guild(session, interaction.guild)
+        async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, interaction.guild)
+        if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
             wom_role: discord.Role | None = None
             if guild.wom_role_id:
                 wom_role = interaction.guild.get_role(guild.wom_role_id)
