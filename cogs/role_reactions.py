@@ -88,7 +88,9 @@ class AddRoleDropdown(discord.ui.Select):
         if isinstance(emoji, str) or not hasattr(emoji, 'guild') or not hasattr(emoji, 'id') or not emoji.guild in self.bot.guilds or not emoji.is_usable(): # type: ignore
             await interaction.response.send_message(f'Please choose a **custom** emoji that is available to this bot, or add me to the server that this emoji is from: {emoji}.')
             return
-        await create_role_reaction(interaction.guild.id, emoji.id, role.id) # type: ignore
+        async with self.bot.get_session() as session:
+            session.add(CustomRoleReaction(guild_id=interaction.guild.id, emoji_id=emoji.id, role_id=role.id))
+            await session.commit()
         await interaction.response.send_message(f'Role-reaction added successfully for emoji {emoji} and role `{role.name}`.')
 
 class SelectAddRoleReactionView(discord.ui.View):
@@ -171,8 +173,8 @@ class ChannelDropdown(discord.ui.Select):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
         async with self.bot.get_session() as session:
+            guild: Guild = await get_db_guild(session, interaction.guild)
             if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-                guild: Guild = await get_db_guild(session, interaction.guild)
                 role_reaction_management_role = None
                 if guild.role_reaction_management_role_id:
                     role_reaction_management_role: discord.Role | None = interaction.guild.get_role(guild.role_reaction_management_role_id)
