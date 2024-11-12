@@ -749,10 +749,11 @@ class Management(Cog):
                 return
 
             executor: Callable = exec
+            code: CodeType | str = ''
             if cleaned.count('\n') == 0:
                 # single statement, potentially 'eval'
                 try:
-                    code: CodeType = compile(cleaned, '<repl session>', 'eval')
+                    code = compile(cleaned, '<repl session>', 'eval')
                 except SyntaxError:
                     pass
                 else:

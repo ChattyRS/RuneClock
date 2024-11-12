@@ -128,13 +128,13 @@ class General(Cog):
             raise commands.CommandError(message=f'This command can only be used from a server.')
         
         member: discord.Member | discord.User | str = ''
+        name: str = ''
         if ctx.message.mentions:
             member = ctx.message.mentions[0]
         else:
             if not member_name:
                 raise commands.CommandError(message=f'Required argument missing: `member`.')
             else:
-                name: str = ''
                 for n in member_name:
                     name += n + ' '
                 name = name.strip()
@@ -295,9 +295,9 @@ class General(Cog):
         input_str = input_str.lower()
 
         output: Any = None
-        output_type: str
+        output_type: str | None = None
         fallback: Any = None
-        fallback_type: str
+        fallback_type: str | None = None
 
         # handle mentions / defaults
         if ctx.message.channel_mentions:
