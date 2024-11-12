@@ -147,7 +147,7 @@ class Sheets(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    @commands.hybrid_command(pass_context=True, aliases=['sheet'])
+    @commands.hybrid_command(pass_context=True)
     async def display_sheet(self, ctx: commands.Context, key: str | None, sheet_name: str | None = None, value_columns: int | None = None) -> None:
         '''
         Displays info from a Google sheet.
