@@ -131,7 +131,7 @@ class RemoveRoleReactionDropdown(discord.ui.Select):
                 if not role_reaction_management_role or not interaction.user.top_role >= role_reaction_management_role:
                     await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
                     return
-            await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.id == self.values[0]))
+            await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.id == int(self.values[0])))
             await session.commit()
         await interaction.response.send_message(f'Role-reaction with ID {int(self.values[0])} deleted successfully.')
 
@@ -318,7 +318,7 @@ class RoleReactions(Cog):
             if role:
                 try:
                     await user.remove_roles(role)
-                except discord.Forbidden as e:
+                except discord.Forbidden:
                     pass
 
     @app_commands.command(name='reactions')
