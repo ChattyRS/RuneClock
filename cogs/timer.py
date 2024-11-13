@@ -34,6 +34,7 @@ class Timer(Cog):
         if not time:
             raise commands.CommandError(message=f'Required argument missing: `time`.')
         count: int = time.count(':')
+        time_seconds: int = 0
         if count:
             if count == 1:
                 index: int = time.index(':')
@@ -184,10 +185,11 @@ class Timer(Cog):
         else:
             timezone = string_to_timezone(input)
 
+        time_str: str = ''
         if timezone:
             tz: pytz._UTCclass | StaticTzInfo | DstTzInfo = pytz.timezone(timezone)
             time: datetime = datetime.now(tz)
-            time_str: str = time.strftime('%H:%M')
+            time_str = time.strftime('%H:%M')
 
         async with self.bot.get_session() as session:
             user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()

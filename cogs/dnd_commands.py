@@ -83,11 +83,11 @@ class DNDCommands(Cog):
         else:
             return next_time - now
     
-    def cog_unload(self) -> None:
+    async def cog_unload(self) -> None:
         self.track_dnds.cancel()
         self.backup_loop.cancel()
 
-    def cog_load(self) -> None:
+    async def cog_load(self) -> None:
         self.track_dnds.start()
         self.backup_loop.start()
 
@@ -156,11 +156,12 @@ class DNDCommands(Cog):
 
             r = await self.bot.aiohttp.get(url, headers=wiki_headers)
             error = False
+            data: Any = None
             async with r:
                 if r.status != 200:
                     error = True
                 else:
-                    data: Any = await r.json()
+                    data = await r.json()
 
             if not error:
                 data = data['parse']['text']['*']

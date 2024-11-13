@@ -40,8 +40,9 @@ class Notifications(Cog):
         emoji: discord.PartialEmoji = payload.emoji
         role_name: str = emoji.name
 
+        role: discord.Role | None = None
         if role_name in dnd_names:
-            role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
+            role = discord.utils.get(channel.guild.roles, name=role_name)
         if not role:
             return
         
@@ -71,8 +72,9 @@ class Notifications(Cog):
         emoji: discord.PartialEmoji = payload.emoji
         role_name: str = emoji.name
         
+        role: discord.Role | None = None
         if role_name in dnd_names:
-            role: discord.Role | None = discord.utils.get(channel.guild.roles, name=role_name)
+            role = discord.utils.get(channel.guild.roles, name=role_name)
         if not role:
             return
         

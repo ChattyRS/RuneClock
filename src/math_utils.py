@@ -98,8 +98,9 @@ def format_input(input: str, style: int) -> str:
     word_list: list[str] = re.sub(r'(?:[0-9]|[^\w])', ' ', input).split()
 
     # Validate for each distinct style if all word occurrences are allowed
+    legal: list[str] = []
     if style == 0:
-        legal: list[str] = legal_math
+        legal = legal_math
     elif style == 1:
         legal = legal_graph
     elif style == 2:
@@ -150,8 +151,9 @@ def format_input(input: str, style: int) -> str:
 
     # Prepend and append multiplication symbols to any strings 
     # matching the pattern depending on the style
+    pattern: str = ''
     if style == 0:
-        pattern: str = pattern_math
+        pattern = pattern_math
     elif style == 1:
         pattern = pattern_graph
     elif style == 2:

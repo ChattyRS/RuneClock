@@ -43,11 +43,13 @@ class Runescape(Cog):
 
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
-        self.vis_wax.start()
         self.stats_interface_osrs: Array = imageio.imread('assets/stats_interface_empty_osrs.png')
         self.stats_interface_rs3: Array = imageio.imread('assets/stats_interface_empty_rs3.png')
 
-    def cog_unload(self) -> None:
+    async def cog_load(self) -> None:
+        self.vis_wax.start()
+
+    async def cog_unload(self) -> None:
         self.vis_wax.cancel()
     
     @tasks.loop(seconds=60)

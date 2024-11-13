@@ -358,6 +358,10 @@ class Clan(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
+    async def cog_load(self) -> None:
+        # Register persistent views
+        self.bot.add_view(RandomMetricView(self.bot))
+
     @app_commands.command(name='wom')
     async def wom(self, interaction: discord.Interaction, action: str) -> None:
         '''

@@ -84,7 +84,7 @@ class ModCommands(Cog):
                 for attachment in message.attachments:
                     file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
                     files.append(file)
-                embed.set_image(url=f'attachment://{attachment.filename}')
+                embed.set_image(url=f'attachment://{message.attachments[0].filename}')
             
             self.bot.queue_message(QueueMessage(private, None, embed, files))
 
@@ -105,10 +105,12 @@ class ModCommands(Cog):
 
         if not member_name or not ctx.guild:
             raise CommandError(message=f'Required argument missing: `member`.')
-
+        
+        member: discord.Member | None = None
+        
         member_mentions: List[discord.Member] = [mention for mention in ctx.message.mentions if isinstance(mention, discord.Member)]
         if member_mentions:
-            member: discord.Member | None = member_mentions[0]
+            member = member_mentions[0]
         if not member:
             if is_int(member_name):
                 member = await ctx.guild.fetch_member(int(member_name))

@@ -138,7 +138,7 @@ class SheetPageView(discord.ui.View):
 
         await interaction.message.edit(embed=embed, view=self)
     
-    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item[Any]) -> None:
+    async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
         await interaction.response.send_message(error, ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
@@ -146,6 +146,10 @@ class SheetPageView(discord.ui.View):
 class Sheets(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
+
+    async def cog_load(self) -> None:
+        # Register persistent views
+        self.bot.add_view(SheetPageView(self.bot))
 
     @commands.hybrid_command(pass_context=True)
     async def display_sheet(self, ctx: commands.Context, key: str | None, sheet_name: str | None = None, value_columns: int | None = None) -> None:

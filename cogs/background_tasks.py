@@ -45,7 +45,7 @@ class BackgroundTasks(Cog):
         self.test_notification_channel = get_text_channel(bot, bot.config['testNotificationChannel'])
         self.log_channel = get_text_channel(bot, bot.config['testChannel'])
 
-    def cog_load(self) -> None:
+    async def cog_load(self) -> None:
         '''
         Starts background tasks when loading the cog
         '''
@@ -57,7 +57,7 @@ class BackgroundTasks(Cog):
         self.check_polls.start()
         self.git_tracking.start()
 
-    def cog_unload(self) -> None:
+    async def cog_unload(self) -> None:
         '''
         Stops background tasks when unloading the cog
         '''

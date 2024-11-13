@@ -54,10 +54,11 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
 
         # Create an embed to send to the appreciation station channel
         embed = discord.Embed(title=f'Appreciation message', description=self.message.value, colour=0x00e400)
+        default_avatar: discord.File | None = None
         if anonymous:
             with open('assets/default_avatar.png', 'rb') as f:
-                default_avatar = io.BytesIO(f.read())
-            default_avatar = discord.File(default_avatar, filename='default_avatar.png')
+                default_avatar_bytes = io.BytesIO(f.read())
+            default_avatar = discord.File(default_avatar_bytes, filename='default_avatar.png')
             embed.set_author(name='Anonymous', icon_url='attachment://default_avatar.png')
         else:
             embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
@@ -336,7 +337,7 @@ class ApplicationView(discord.ui.View):
         
         return 'success'
     
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+    async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
@@ -453,10 +454,10 @@ class Obliterate(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    def cog_unload(self) -> None:
+    async def cog_unload(self) -> None:
         self.track_discord_levels.cancel()
     
-    def cog_load(self) -> None:
+    async def cog_load(self) -> None:
         self.track_discord_levels.start()
         # Register persistent views
         self.bot.add_view(ApplicationView(self.bot))

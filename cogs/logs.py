@@ -465,13 +465,14 @@ class Logs(Cog):
         if len(before) != len(after):
             self.log_event()
             added = False
-            new_emoji: discord.Emoji
+            new_emoji: discord.Emoji | None = None
+            name: str | None = None
             animated = False
             if len(before) > len(after):
                 title: str = f'Emoji Deleted'
                 for e in before:
                     if not e in after:
-                        name: str = e.name
+                        name = e.name
                         animated: bool = e.animated
                         break
                 if animated:
@@ -492,7 +493,7 @@ class Logs(Cog):
             timestamp: datetime = datetime.now(UTC)
             id: str = f'Server ID: {guild.id}'
             txt: str = ''
-            if added:
+            if added and new_emoji:
                 try:
                     new_emoji_fetched: discord.Emoji = await guild.fetch_emoji(new_emoji.id)
                     txt = f'Added by {new_emoji_fetched.user.mention}:\n' if new_emoji_fetched.user else ''
@@ -525,6 +526,7 @@ class Logs(Cog):
             after_names.append(e.name)
         old_name: str = ''
         new_name: str = ''
+        after_emoji: discord.Emoji | None = None
         for name in before_names:
             if not name in after_names:
                 old_name = name
@@ -533,14 +535,14 @@ class Logs(Cog):
                 new_name = name
                 for e in after:
                     if e.name == name:
-                        afterEmoji: discord.Emoji = e
+                        after_emoji = e
                         break
-        if old_name and new_name:
+        if old_name and new_name and after_emoji:
             self.log_event()
             title = f'Emoji name changed'
             colour = 0x00b2ff
             timestamp = datetime.now(UTC)
-            txt = f'Before: {old_name}\nAfter: {new_name}\n{str(afterEmoji)}'
+            txt = f'Before: {old_name}\nAfter: {new_name}\n{str(after_emoji)}'
             id = f'Server ID: {guild.id}'
             embed = discord.Embed(title=title, colour=colour, timestamp=timestamp, description=txt)
             embed.set_footer(text=id)

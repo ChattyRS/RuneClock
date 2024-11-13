@@ -94,10 +94,10 @@ class Bot(commands.AutoShardedBot):
             async with self.async_session() as session:
                 yield session
         except:
-            await session.rollback()
+            await session.rollback() # type: ignore
             raise
         finally:
-            await session.close()
+            await session.close() # type: ignore
     
     async def close_database_connection(self) -> None:
         '''

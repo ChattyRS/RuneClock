@@ -43,9 +43,10 @@ class Portables(Cog):
         self.portables_channel_mentions: list[str] = [f'<#{id}>' for id in self.portables_channel_ids]
         self.portables_channel_mention_string: str = ', '.join(self.portables_channel_mentions[:len(self.portables_channel_mentions) - 1]) + ', or ' + self.portables_channel_mentions[len(self.portables_channel_mentions) - 1]
 
+    async def cog_load(self) -> None:
         self.track_location_updates.start()
 
-    def cog_unload(self) -> None:
+    async def cog_unload(self) -> None:
         self.track_location_updates.cancel()
 
     def get_last_ports(self) -> list[gspread.Cell] | None:
@@ -973,13 +974,14 @@ class Portables(Cog):
         to_remove: list[tuple[list[int], str]] = get_ports(input_str)
         if format(to_remove) == 'N/A':
             to_remove = []
+        index: int = 0
+        port: str = ''
         if not to_remove:
-            port: str = ''
             index = 0
             for i, aliases in enumerate(portable_aliases):
                 if input_str.lower() in aliases:
                     port = aliases[0]
-                    index: int = i
+                    index = i
                     break
             if not port:
                 if ctx.channel.id in self.portables_channel_ids:
@@ -1043,10 +1045,11 @@ class Portables(Cog):
         if not portable: # if there was no portable type in the input, return
             raise commands.CommandError(message=f'Required argument missing: `portable`.')
 
+        col: int = 0
         for i, port_aliases in enumerate(portable_aliases):
             if portable in port_aliases:
                 portable = port_aliases[0]
-                col: int = i + 1
+                col = i + 1
                 break
 
         input: str = ''

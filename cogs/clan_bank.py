@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Any, Sequence
 import discord
 from discord import SelectOption, app_commands, TextStyle
 from discord.ext.commands import Cog
@@ -118,7 +118,7 @@ class ConfirmView(discord.ui.View):
 
         return 'success'
     
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+    async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
         await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
@@ -217,6 +217,10 @@ class ClanBank(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
+    async def cog_load(self) -> None:
+        # Register persistent views
+        self.bot.add_view(ConfirmView(self.bot))
+
     @app_commands.command(name='bank')
     async def bank(self, interaction: discord.Interaction, action: str) -> None:
         '''
@@ -282,8 +286,9 @@ class ClanBank(Cog):
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
 
         # Get an image for the given amount of coins
+        coins_image: discord.File | None = None
         if amount >= -max_cash and amount <= max_cash:
-            coins_image: discord.File = get_coins_image(amount)
+            coins_image = get_coins_image(amount)
             embed.set_thumbnail(url='attachment://coins.png')
 
         # Add fields for each member holding money for the clan bank
@@ -297,8 +302,10 @@ class ClanBank(Cog):
                 member = await interaction.guild.fetch_member(user_id)
             name: str = member.display_name if member else f'Unknown member: {user_id}'
             embed.add_field(name=name, value=f'Amount: `{user_amount:,}`', inline=False)
-
-        await interaction.response.send_message(files=[coins_image], embed=embed)
+        if coins_image:
+            await interaction.response.send_message(files=[coins_image], embed=embed)
+        else:
+            await interaction.response.send_message(embed=embed)
 
     async def add(self, interaction: discord.Interaction) -> None:
         # Add to the clan bank
