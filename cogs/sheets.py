@@ -153,7 +153,7 @@ class Sheets(Cog):
         self.bot.add_view(SheetPageView(self.bot))
 
     @commands.hybrid_command(pass_context=True, aliases=['sheet'])
-    async def display_sheet(self, ctx: commands.Context, key: str | None, sheet_name: str | None = None, value_columns: int | None = None) -> None:
+    async def display_sheet(self, ctx: commands.Context, key: str | None, sheet_name: str | None = None, number_of_value_columns: int | None = None) -> None:
         '''
         Displays info from a Google sheet.
 
@@ -164,6 +164,8 @@ class Sheets(Cog):
         '''
         self.bot.increment_command_counter()
         await ctx.channel.typing()
+
+        value_columns: int | None = int(number_of_value_columns) if number_of_value_columns else None
 
         if not key:
             raise commands.CommandError(message=f'The key to your sheet is required to display any data.')
@@ -201,7 +203,7 @@ class Sheets(Cog):
         data: list[list[str]] = [row[:1+value_columns+1] for row in values[1:rows+1]]
 
         embed = discord.Embed(title=f'**{sheet_name}**', description=f'Page 1 / {math.ceil((len(values)-1)/rows)}', colour=0x00b2ff)
-        for row_num, row in enumerate(data):
+        for row_num, row in enumerate([r[:value_columns+1] for r in data]):
             embed.add_field(name=f'{identity_column_name} {emoji_from_number(row_num+1)}', value=f'**{row[0]}**', inline=False)
             for i, column in enumerate(row[1:]):
                 embed.add_field(name=value_column_names[i], value=column, inline=True)
