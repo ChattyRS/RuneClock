@@ -897,7 +897,7 @@ class Management(Cog):
         item_data: Any = None
         graph_data: Any = None
 
-        while not item_data and not graph_data:
+        while not item_data or not graph_data:
             if not item_data:
                 r: ClientResponse = await self.bot.aiohttp.get(data_url)
                 async with r:
@@ -991,7 +991,7 @@ class Management(Cog):
         item_data: Any = None
         graph_data: Any = None
 
-        while not item_data and not graph_data:
+        while not item_data or not graph_data:
             if not item_data:
                 r: ClientResponse = await self.bot.aiohttp.get(data_url)
                 async with r:
