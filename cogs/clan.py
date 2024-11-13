@@ -40,6 +40,8 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
         if len(verification_code.split('-')) != 3 or any([len(part) != 3 for part in verification_code.split('-')]) or any([not is_int(part) for part in verification_code.split('-')]):
             await interaction.response.send_message(f'Invalid argument: `VERIFICATION CODE: {verification_code}`.', ephemeral=True)
             return
+        
+        await interaction.response.defer()
 
         # Get WOM group
         group = None
@@ -117,6 +119,8 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         if not rsn:
             await interaction.response.send_message(f'Required argument missing: `RSN`.', ephemeral=True)
             return
+        
+        await interaction.response.defer()
 
         # Get WOM group
         group = None
@@ -173,6 +177,8 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         if not rsn:
             await interaction.response.send_message(f'Required argument missing: `RSN`.', ephemeral=True)
             return
+        
+        await interaction.response.defer()
 
         # Get WOM group
         group = None
@@ -237,6 +243,8 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         if not metric in wom_metrics:
             await interaction.response.send_message(f'Invalid argument: `METRIC: {metric}`.', ephemeral=True)
             return
+        
+        await interaction.response.defer()
 
         # Get guild info from database
         async with self.bot.get_session() as session:

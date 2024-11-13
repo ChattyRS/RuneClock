@@ -51,6 +51,8 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         if anonymous and not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message(f'Error: anonymous appreciation messages can only be sent in a server channel.', ephemeral=True)
             return
+        
+        await interaction.response.defer()
 
         # Create an embed to send to the appreciation station channel
         embed = discord.Embed(title=f'Appreciation message', description=self.message.value, colour=0x00e400)
@@ -142,6 +144,8 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
         if new_name == self.member_to_rename.display_name:
             await interaction.response.send_message(f'Error: new name cannot be the same as the previous name: `{new_name}`', ephemeral=True)
             return
+        
+        await interaction.response.defer()
 
         # Create an embed to send to the name change channel
         embed = discord.Embed(title=f'Name change', colour=0x00e400)
@@ -247,6 +251,9 @@ class ApplicationView(discord.ui.View):
         if not interaction.message:
             await interaction.response.send_message('Could not find interaction message.', ephemeral=True)
             return
+        
+        await interaction.response.defer()
+        
         # Handle accept
         status: str = await self.accept_handler(interaction)
         if status != 'success':

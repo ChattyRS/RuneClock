@@ -80,6 +80,9 @@ class AddRoleDropdown(discord.ui.Select):
         if not role:
             await interaction.response.send_message(f'Role not found.', ephemeral=True)
             return
+        
+        await interaction.response.defer()
+        
         interaction.message = await interaction.message.fetch() # This is required to fetch the reactions
         if not interaction.message.reactions:
             await interaction.response.send_message(f'Please react to the message with an emoji before selecting your role.')
