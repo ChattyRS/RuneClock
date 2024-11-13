@@ -2,6 +2,7 @@
 # https://stackoverflow.com/questions/38847690/convert-float-to-string-without-scientific-notation-and-false-precision
 from decimal import Context, Decimal
 from typing import Any
+from discord.ext import commands
 
 decimal_ctx = Context()
 # 20 digits should be enough
@@ -71,3 +72,45 @@ def format_float(input: float) -> str:
         index -= 1
     output += end
     return output
+
+def emoji_from_digit(digit: int) -> str:
+    '''
+    Converts a digit (0-9) to an emoji, e.g. 1 -> 1️⃣
+
+    Args:
+        digit (int): Digit (0-9)
+
+    Returns:
+        str: Emoji
+    '''
+    if digit < 0 or digit > 9:
+        raise commands.CommandError(message=f'Invalid digit: `{digit}`. Digit must be between 0 and 9.')
+    emoji: dict[int, str] = {
+        0: '0️⃣',
+        1: '1️⃣',
+        2: '2️⃣',
+        3: '3️⃣',
+        4: '4️⃣',
+        5: '5️⃣',
+        6: '6️⃣',
+        7: '7️⃣',
+        8: '8️⃣',
+        9: '9️⃣'
+    }
+    return emoji[digit]
+
+def emoji_from_number(num: int) -> str:
+    '''
+    Converts a number to one or more emojis, e.g. 1 -> 1️⃣
+
+    Args:
+        num (int): Number
+
+    Returns:
+        str: Emoji(s)
+    '''
+    num_str: str = str(num)
+    emojis: str = ''
+    for digit in num_str:
+        emojis += emoji_from_digit(int(digit))
+    return emojis

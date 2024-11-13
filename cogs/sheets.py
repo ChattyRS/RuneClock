@@ -6,6 +6,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
 from src.bot import Bot
+from src.number_utils import emoji_from_number
 
 class SheetPageView(discord.ui.View):
     def __init__(self, bot: Bot) -> None:
@@ -68,8 +69,8 @@ class SheetPageView(discord.ui.View):
         data: list[list[str]] = [row[:1+value_columns+1] for row in values[row_start+1:row_end+1]]
 
         embed.clear_fields()
-        for row in data:
-            embed.add_field(name=identity_column_name, value=f'**{row[0]}**', inline=False)
+        for row_num, row in enumerate(data):
+            embed.add_field(name=f'{identity_column_name} {emoji_from_number(row_start+row_num+1)}', value=f'**{row[0]}**', inline=False)
             for i, column in enumerate(row[1:]):
                 embed.add_field(name=value_column_names[i], value=column, inline=True)
 
@@ -131,8 +132,8 @@ class SheetPageView(discord.ui.View):
         data: list[list[str]] = [row[:1+value_columns+1] for row in values[row_start+1:row_end+1]]
 
         embed.clear_fields()
-        for row in data:
-            embed.add_field(name=identity_column_name, value=f'**{row[0]}**', inline=False)
+        for row_num, row in enumerate(data):
+            embed.add_field(name=f'{identity_column_name} {emoji_from_number(row_start+row_num+1)}', value=f'**{row[0]}**', inline=False)
             for i, column in enumerate(row[1:]):
                 embed.add_field(name=value_column_names[i], value=column, inline=True)
 
@@ -151,7 +152,7 @@ class Sheets(Cog):
         # Register persistent views
         self.bot.add_view(SheetPageView(self.bot))
 
-    @commands.hybrid_command(pass_context=True)
+    @commands.hybrid_command(pass_context=True, aliases=['sheet'])
     async def display_sheet(self, ctx: commands.Context, key: str | None, sheet_name: str | None = None, value_columns: int | None = None) -> None:
         '''
         Displays info from a Google sheet.
@@ -200,8 +201,8 @@ class Sheets(Cog):
         data: list[list[str]] = [row[:1+value_columns+1] for row in values[1:rows+1]]
 
         embed = discord.Embed(title=f'**{sheet_name}**', description=f'Page 1 / {math.ceil((len(values)-1)/rows)}', colour=0x00b2ff)
-        for row in data:
-            embed.add_field(name=identity_column_name, value=f'**{row[0]}**', inline=False)
+        for row_num, row in enumerate(data):
+            embed.add_field(name=f'{identity_column_name} {emoji_from_number(row_num+1)}', value=f'**{row[0]}**', inline=False)
             for i, column in enumerate(row[1:]):
                 embed.add_field(name=value_column_names[i], value=column, inline=True)
 
