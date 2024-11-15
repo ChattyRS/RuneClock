@@ -100,7 +100,7 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
                 member_row, member_index = member, i
                 break
         if not member_row:
-            await interaction.response.send_message(f'Could not find member on roster: `{self.member_to_appreciate.name}#{self.member_to_appreciate.discriminator}`')
+            await interaction.followup.send(f'Could not find member on roster: `{self.member_to_appreciate.name}#{self.member_to_appreciate.discriminator}`')
             return
 
         if not is_int(member_row[appreciation_col]):
@@ -110,15 +110,15 @@ class AppreciationModal(discord.ui.Modal, title='Appreciation'):
         # Send an embed to the appreciation station channel
         if anonymous and isinstance(interaction.channel, discord.TextChannel):
             self.bot.queue_message(QueueMessage(interaction.channel, self.member_to_appreciate.mention, embed, default_avatar))
-            await interaction.response.send_message(f'Your appreciation message for {self.member_to_appreciate.mention} has been sent!', ephemeral=True)
+            await interaction.followup.send(f'Your appreciation message for {self.member_to_appreciate.mention} has been sent!', ephemeral=True)
         else:
-            await interaction.response.send_message(self.member_to_appreciate.mention, embed=embed)
+            await interaction.followup.send(self.member_to_appreciate.mention, embed=embed)
 
         await update_row(appreciations, rows+1, new_row)
         await update_row(roster, member_index+2, member_row) # +2 for header row and 1-indexing
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        await interaction.followup.send('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
@@ -180,7 +180,7 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
                 member_row, member_index = member, i
                 break
         if not member_row:
-            await interaction.response.send_message(f'Could not find member on roster: `{self.member_to_rename.name}#{self.member_to_rename.discriminator}`')
+            await interaction.followup.send(f'Could not find member on roster: `{self.member_to_rename.name}#{self.member_to_rename.discriminator}`')
             return
 
         member_row[notes_col] = (member_row[notes_col].strip() + ('.' if member_row[notes_col].strip() and not member_row[notes_col].strip().endswith('.') else '') + f' Formerly known as {member_row[name_col]}.').strip()
@@ -198,11 +198,11 @@ class NameChangeModal(discord.ui.Modal, title='Name change'):
         # Send an embed to the name change channel
         channel: discord.TextChannel = get_guild_text_channel(interaction.guild, self.bot.config['obliterate_promotions_channel_id'])
         self.bot.queue_message(QueueMessage(channel, None, embed))
-        await interaction.response.send_message(f'Member renamed from `{self.member_to_rename.display_name}` to `{new_name}`.'
+        await interaction.followup.send(f'Member renamed from `{self.member_to_rename.display_name}` to `{new_name}`.'
             + f'\nInsufficient permissions to change nickname for user: {self.member_to_rename.mention}.' if not renamed else '', ephemeral=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        await interaction.followup.send('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
@@ -257,13 +257,13 @@ class ApplicationView(discord.ui.View):
         # Handle accept
         status: str = await self.accept_handler(interaction)
         if status != 'success':
-            await interaction.response.send_message(status, ephemeral=True)
+            await interaction.followup.send(status, ephemeral=True)
             return
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
         embed.set_footer(text=f'Accepted by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/check-mark-button_2705.png')
         await interaction.message.edit(embed=embed, view=None)
-        await interaction.response.send_message('Application accepted successfully.', ephemeral=True)
+        await interaction.followup.send('Application accepted successfully.', ephemeral=True)
         self.value = True
 
     async def accept_handler(self, interaction: discord.Interaction) -> str:
@@ -345,7 +345,7 @@ class ApplicationView(discord.ui.View):
         return 'success'
     
     async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        await interaction.followup.send('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 

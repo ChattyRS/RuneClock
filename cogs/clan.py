@@ -48,7 +48,7 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
         url: str = f'https://api.wiseoldman.net/v2/groups/{group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
-                await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
+                await interaction.followup.send(f'An error occurred while trying to retrieve WOM group with ID `{group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
             group: Any = await r.json()
 
@@ -65,10 +65,10 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        await interaction.followup.send('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
     
@@ -129,7 +129,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
-                await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
+                await interaction.followup.send(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
             group = await r.json()
         
@@ -140,7 +140,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 data: Any = await r.json()
-                await interaction.response.send_message(f'An error occurred while trying to add `{rsn}` to WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
+                await interaction.followup.send(f'An error occurred while trying to add `{rsn}` to WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
                 return
             data = await r.json()
             
@@ -156,10 +156,10 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
         player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{formatted_name}/chat.png'
         embed.set_thumbnail(url=player_image_url)
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        await interaction.followup.send('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
@@ -187,7 +187,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
-                await interaction.response.send_message(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
+                await interaction.followup.send(f'An error occurred while trying to retrieve WOM group with ID `{guild.wom_group_id}`. Please try again later and ensure that you have set your group ID correctly.', ephemeral=True)
                 return
             group = await r.json()
         
@@ -198,7 +198,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         async with self.bot.aiohttp.delete(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
                 data: Any = await r.json()
-                await interaction.response.send_message(f'An error occurred while trying to remove `{rsn}` from WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
+                await interaction.followup.send(f'An error occurred while trying to remove `{rsn}` from WOM group with ID `{guild.wom_group_id}`. Please try again later.\n```{r.status}\n\n{data}```', ephemeral=True)
                 return
             data = await r.json()
             
@@ -214,10 +214,10 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
         player_image_url: str = f'https://services.runescape.com/m=avatar-rs/{formatted_name}/chat.png'
         embed.set_thumbnail(url=player_image_url)
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        await interaction.followup.send('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
@@ -267,8 +267,9 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         url = 'https://api.wiseoldman.net/v2/competitions'
         data = None
         async with self.bot.aiohttp.post(url, json=payload, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
-            if r.status != 201:
-                raise CommandError(message=f'Error status: {r.status}.')
+            if r.status < 200 or r.status >= 300:
+                await interaction.followup.send(f'Failed to create competition for netruc: `{metric}`. Please try again later.', ephemeral=True)
+                return
             data: Any = await r.json()
             
         competition: Any = data['competition']
@@ -283,10 +284,10 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        await interaction.followup.send('Error', ephemeral=True)
         print(f'{type(error).__name__}: {error}')
         traceback.print_tb(error.__traceback__)
 

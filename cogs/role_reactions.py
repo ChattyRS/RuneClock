@@ -85,16 +85,16 @@ class AddRoleDropdown(discord.ui.Select):
         
         interaction.message = await interaction.message.fetch() # This is required to fetch the reactions
         if not interaction.message.reactions:
-            await interaction.response.send_message(f'Please react to the message with an emoji before selecting your role.')
+            await interaction.followup.send(f'Please react to the message with an emoji before selecting your role.')
             return
         emoji: discord.PartialEmoji | discord.Emoji | str = interaction.message.reactions[0].emoji
         if isinstance(emoji, str) or not hasattr(emoji, 'guild') or not hasattr(emoji, 'id') or not emoji.guild in self.bot.guilds or not emoji.is_usable(): # type: ignore
-            await interaction.response.send_message(f'Please choose a **custom** emoji that is available to this bot, or add me to the server that this emoji is from: {emoji}.')
+            await interaction.followup.send(f'Please choose a **custom** emoji that is available to this bot, or add me to the server that this emoji is from: {emoji}.')
             return
         async with self.bot.get_session() as session:
             session.add(CustomRoleReaction(guild_id=interaction.guild.id, emoji_id=emoji.id, role_id=role.id))
             await session.commit()
-        await interaction.response.send_message(f'Role-reaction added successfully for emoji {emoji} and role `{role.name}`.')
+        await interaction.followup.send(f'Role-reaction added successfully for emoji {emoji} and role `{role.name}`.')
 
 class SelectAddRoleReactionView(discord.ui.View):
     def __init__(self, bot: Bot, guild: discord.Guild) -> None:

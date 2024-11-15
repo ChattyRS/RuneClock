@@ -54,7 +54,7 @@ class SheetPageView(discord.ui.View):
         row_start: int = (target_page - 1) * num_rows
         row_end: int = row_start + page_rows
         if not values or len(values) <= 1 or len(values) - 1 < row_end:
-            await interaction.response.send_message(f'Could not fetch requested data from sheet (rows {row_start + 2}-{row_end + 2}). Please verify that it is still there.', ephemeral=True)
+            await interaction.followup.send(f'Could not fetch requested data from sheet (rows {row_start + 2}-{row_end + 2}). Please verify that it is still there.', ephemeral=True)
             return
         
         header: list[str] = values[0]
@@ -117,7 +117,7 @@ class SheetPageView(discord.ui.View):
         row_start: int = (target_page - 1) * num_rows
         row_end: int = row_start + page_rows
         if not values or len(values) <= 1 or len(values) - 1 < row_end:
-            await interaction.response.send_message(f'Could not fetch requested data from sheet (rows {row_start + 2}-{row_end + 2}). Please verify that it is still there.', ephemeral=True)
+            await interaction.followup.send(f'Could not fetch requested data from sheet (rows {row_start + 2}-{row_end + 2}). Please verify that it is still there.', ephemeral=True)
             return
         
         header: list[str] = values[0]
@@ -140,7 +140,7 @@ class SheetPageView(discord.ui.View):
         await interaction.message.edit(embed=embed, view=self)
     
     async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
-        await interaction.response.send_message(error, ephemeral=True)
+        await interaction.followup.send(str(error), ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
