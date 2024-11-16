@@ -1,5 +1,8 @@
 from copy import deepcopy
 import random
+from typing import Any
+
+from src.bot import Bot
 
 wom_skills: list[str] = [
     'overall',
@@ -156,3 +159,30 @@ def choose_metric(exclude: list[str] = [], type: str = '') -> str:
         raise Exception('No options to choose from')
 
     return random.choice(options)
+
+async def get_player_details(bot: Bot, username: str):
+    '''
+    Get player details from WOM.
+
+    Args:
+        bot (Bot): The bot
+        username (str): The player username
+
+    Returns:
+        _type_: The player details, or None if not found.
+    '''
+    encoded_username: str = username.replace(' ', '%20')
+    url: str = f'https://api.wiseoldman.net/v2/players/{encoded_username}'
+    async with bot.aiohttp.get(url, headers={'x-user-agent': bot.config['wom_user_agent'], 'x-api-key': bot.config['wom_api_key']}) as r:
+        # If successful, return the data from WOM
+        if r.status >= 200 and r.status < 300:
+            return await r.json()
+
+    return None
+
+async def add_group_member(bot: Bot, verification_code: str, group_id: int, username: str, role_name: str) -> bool:
+    url: str = f'https://api.wiseoldman.net/v2/groups/{group_id}/members'
+    payload: dict[str, Any] = {'verificationCode': verification_code}
+    payload['members'] = [{'username': username, 'role': role_name}]
+    async with bot.aiohttp.post(url, json=payload, headers={'x-user-agent': bot.config['wom_user_agent'], 'x-api-key': bot.config['wom_api_key']}) as r:
+        return r.status >= 200 and r.status < 300

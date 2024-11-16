@@ -370,3 +370,15 @@ def runescape_api_cooldown_key(_: commands.Context) -> str:
         str: The runescape api cooldown key
     '''
     return 'runescape_api'
+
+def is_valid_rsn(input: str) -> bool:
+    '''
+    Returns true iff the input value could be a valid RSN.
+
+    Args:
+        input (str): The input string
+
+    Returns:
+        bool: True iff the input could be a valid RSN.
+    '''
+    return re.match(r'^[A-z0-9 -]+$', input) is None

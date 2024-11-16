@@ -129,3 +129,26 @@ def obliterate_mods() -> Check[Context[Bot]]:
                     return True
         raise CommandError(message='Insufficient permissions: `Obliterate moderator`')
     return check(predicate)
+
+def malignant_only() -> Check[Context[Bot]]:
+    async def predicate(ctx: Context[Bot]) -> bool:
+        if ctx.author.id == ctx.bot.config['owner']:
+            return True
+        if ctx.guild and ctx.guild.id == ctx.bot.config['malignant_guild_id']:
+            return True
+        raise CommandError(message='Insufficient permissions: `Malignant server only`')
+    return check(predicate)
+
+def malignant_mods() -> Check[Context[Bot]]:
+    async def predicate(ctx: Context[Bot]) -> bool:
+        if ctx.author.id == ctx.bot.config['owner']:
+            return True
+        malignant: Guild | None = ctx.bot.get_guild(ctx.bot.config['malignant_guild_id'])
+        if malignant:
+            member: Member | None = await malignant.fetch_member(ctx.author.id)
+            if member:
+                mod_role: Role | None = malignant.get_role(ctx.bot.config['malignant_moderator_role_id'])
+                if mod_role in member.roles:
+                    return True
+        raise CommandError(message='Insufficient permissions: `Malignant moderator`')
+    return check(predicate)

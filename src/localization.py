@@ -243,3 +243,8 @@ countries: list[dict[str, str]] = [
     {"name": "Zambia", "code": "ZM"},
     {"name": "Zimbabwe", "code": "ZW"}
 ]
+
+def get_country_by_code(code: str) -> str | None:
+    country: dict[str, str] | None = next((c for c in countries if c['code'] == code), None)
+    if country:
+        return country['name']
