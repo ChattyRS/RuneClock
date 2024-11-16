@@ -302,11 +302,11 @@ class Malignant(Cog):
             return
         
         # Ignore messages from outside the Malignant server
-        if message.guild.id != self.bot.config['malignant_guild_id']:
+        if not message.guild.id in [self.bot.config['malignant_guild_id'], self.bot.config['test_guild_id']]:
             return
         
         # Ignore messages in channels other than the applications channel
-        if message.channel.id != self.bot.config['malignant_applications_channel_id']:
+        if not message.channel.id in [self.bot.config['malignant_applications_channel_id'], self.bot.config['testChannel']]:
             return
         
         # Ignore messages from ranked players
@@ -324,6 +324,8 @@ class Malignant(Cog):
         # Ignore messages without any image attachments
         if not images:
             return
+        
+        await self.send_requirements_view(message, images)
         
     async def send_requirements_view(self, message: discord.Message, images: list[Attachment]) -> None:
         '''
