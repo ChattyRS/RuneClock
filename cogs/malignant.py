@@ -141,7 +141,7 @@ class ApplicationView(discord.ui.View):
 
         date_str: str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row: list[str | None] = [rsn, 'Bronze', applicant.name, translate_wom_player_type_to_sheet[account_type] if account_type else 'No', date_str, ehb]
+        new_row: list[str | None] = [rsn, 'Bronze', applicant.name, translate_wom_player_type_to_sheet[account_type.lower()] if account_type else 'No', date_str, ehb]
         await update_row(roster, rows+1, new_row)
 
         # Update Discord user
@@ -219,13 +219,13 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
         embed.add_field(name=application_fields['combat'], value=combat, inline=False)
         embed.add_field(name=application_fields['ehb'], value=ehb, inline=False)
         if player_type and player_type != 'unknown':
-            embed.add_field(name=application_fields['type'], value=player_type, inline=False)
+            embed.add_field(name=application_fields['type'], value=player_type.capitalize(), inline=False)
         if player_build:
-            embed.add_field(name=application_fields['build'], value=player_build, inline=False)
+            embed.add_field(name=application_fields['build'], value=player_build.capitalize(), inline=False)
         if country:
             country_name: str | None = get_country_by_code(country)
             if country_name:
-                embed.add_field(name=application_fields['country'], value=country, inline=False)
+                embed.add_field(name=application_fields['country'], value=country_name, inline=False)
 
         # Update the message with the new data and add view with accept / decline buttons for mods
         view = ApplicationView(self.bot)
