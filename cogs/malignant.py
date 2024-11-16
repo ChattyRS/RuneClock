@@ -283,6 +283,7 @@ class Malignant(Cog):
         self.bot.add_view(RequirementsView(self.bot))
         self.bot.add_view(ApplicationView(self.bot))
 
+    @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         '''
         This event triggers on every message received by the bot. Including ones that it sent itself.
@@ -297,7 +298,7 @@ class Malignant(Cog):
             return
 
         # Ignore messages that were not sent from guilds or text channels.
-        if message.guild is None or not isinstance(message.channel, discord.TextChannel):
+        if message.guild is None or not isinstance(message.channel, discord.TextChannel) or not isinstance(message.author, discord.Member):
             return
         
         # Ignore messages from outside the Malignant server
@@ -306,6 +307,11 @@ class Malignant(Cog):
         
         # Ignore messages in channels other than the applications channel
         if message.channel.id != self.bot.config['malignant_applications_channel_id']:
+            return
+        
+        # Ignore messages from ranked players
+        bronze_role: discord.Role | None = message.guild.get_role(self.bot.config['malignant_bronze_role_id'])
+        if bronze_role and message.author.top_role >= bronze_role and (message.author.id != self.bot.config['owner'] or not 'test' in message.content.lower()):
             return
         
         # Ignore messages without image attachments
