@@ -381,4 +381,4 @@ def is_valid_rsn(input: str) -> bool:
     Returns:
         bool: True iff the input could be a valid RSN.
     '''
-    return re.match(r'^[A-z0-9 -]+$', input) is None
+    return re.match(r'^[A-z0-9 -]+$', input) is not None
