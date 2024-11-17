@@ -84,6 +84,9 @@ class ApplicationView(discord.ui.View):
         if not interaction.message or not self.is_malignant_moderator(interaction):
             await interaction.response.send_message('Missing permissions: `Malignant Moderator`', ephemeral=True)
             return
+        if not isinstance(interaction.channel, discord.TextChannel):
+            await interaction.response.send_message('Error: this can only done in a text channel.', ephemeral=True)
+            return
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
         embed.set_footer(text=f'❌ Declined by {interaction.user.display_name}')
@@ -92,11 +95,12 @@ class ApplicationView(discord.ui.View):
         await interaction.response.defer()
 
         files: list[discord.File] = []
-        for attachment in interaction.message.attachments:
+        loaded_message: discord.Message = await interaction.channel.fetch_message(interaction.message.id)
+        for attachment in loaded_message.attachments:
             file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
             files.append(file)
         embed.set_image(url=f'attachment://{files[0].filename}')
-        await interaction.message.edit(embed=embed, attachments=files, view=None)
+        await loaded_message.edit(embed=embed, attachments=files, view=None)
         await interaction.followup.send('Application declined successfully.', ephemeral=True)
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='malignant_app_accept_button')
@@ -108,6 +112,9 @@ class ApplicationView(discord.ui.View):
         embed: discord.Embed = interaction.message.embeds[0]
         if not embed.footer.text:
             await interaction.response.send_message('Interaction message embed footer not found.', ephemeral=True)
+            return
+        if not isinstance(interaction.channel, discord.TextChannel):
+            await interaction.response.send_message('Error: this can only done in a text channel.', ephemeral=True)
             return
         bronze_role: discord.Role | None = interaction.guild.get_role(self.bot.config['malignant_bronze_role_id'])
         if not bronze_role:
@@ -160,11 +167,12 @@ class ApplicationView(discord.ui.View):
         # Update message
         embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
         files: list[discord.File] = []
-        for attachment in interaction.message.attachments:
+        loaded_message: discord.Message = await interaction.channel.fetch_message(interaction.message.id)
+        for attachment in loaded_message.attachments:
             file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
             files.append(file)
         embed.set_image(url=f'attachment://{files[0].filename}')
-        await interaction.message.edit(embed=embed, attachments=files, view=None)
+        await loaded_message.edit(embed=embed, attachments=files, view=None)
         
         if results:
             await interaction.followup.send('\n'.join(results), ephemeral=True)
@@ -187,6 +195,10 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
         # Validation
         if not is_valid_rsn(self.rsn.value):
             await interaction.response.send_message(f'Error: invalid RSN: `{self.rsn.value}`', ephemeral=True)
+            return
+        # Validation
+        if not isinstance(interaction.channel, discord.TextChannel):
+            await interaction.response.send_message(f'Error, this can only be done in a text channel.', ephemeral=True)
             return
         
         # Defer the interaction response, as it will take some time to request data from WOM
@@ -240,12 +252,13 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
 
         # Update the message with the new data and add view with accept / decline buttons for mods
         files: list[discord.File] = []
-        for attachment in self.message.attachments:
+        loaded_message: discord.Message = await interaction.channel.fetch_message(self.message.id)
+        for attachment in loaded_message.attachments:
             file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
             files.append(file)
         embed.set_image(url=f'attachment://{files[0].filename}')
         view = ApplicationView(self.bot)
-        await self.message.edit(embed=embed, attachments=files, view=view)
+        await loaded_message.edit(embed=embed, attachments=files, view=view)
 
         # Send followup message to the applicant notifying them that their application came through successfully
         await interaction.followup.send('Your application was sent successfully!', ephemeral=True)
