@@ -163,7 +163,7 @@ class ApplicationView(discord.ui.View):
             await applicant.add_roles(bronze_role)
             await applicant.edit(nick=rsn)
         except discord.Forbidden:
-            results.append(f'Failed to add `{rsn}` to WOM.')
+            results.append(f'Failed to update roles or nickname for Discord user `{applicant.name}`.')
 
         # Add to WOM
         success: bool = await add_group_member(self.bot, self.bot.config['malignant_wom_verification_code'], self.bot.config['malignant_wom_group_id'], rsn, 'mentor')
