@@ -1,6 +1,6 @@
 from typing import Sequence
 from discord import Guild as DiscordGuild
-from src.database import ClanBankTransaction, CustomRoleReaction, Guild, Command, Mute, Notification, OSRSItem, OnlineNotification, Poll, RS3Item, Repository, Role
+from src.database import ClanBankTransaction, CustomRoleReaction, Guild, Command, Mute, Notification, OSRSItem, OnlineNotification, Poll, RS3Item, Repository, Role, StickyMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select
 from discord.ext.commands import CommandError
@@ -198,6 +198,7 @@ async def purge_guild(session: AsyncSession, guild: Guild) -> None:
     await session.execute(delete(Poll).where(Poll.guild_id == guild.id))
     await session.execute(delete(ClanBankTransaction).where(ClanBankTransaction.guild_id == guild.id))
     await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id))
+    await session.execute(delete(StickyMessage).where(StickyMessage.guild_id == guild.id))
     await session.delete(guild)
 
 async def get_role_reactions(session: AsyncSession, guild_id: int) -> Sequence[CustomRoleReaction]:
@@ -212,3 +213,18 @@ async def get_role_reactions(session: AsyncSession, guild_id: int) -> Sequence[C
         Sequence[CustomRoleReaction]: The custom role reactions for the guild.
     '''
     return (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild_id))).scalars().all()
+
+async def get_sticky_messages(session: AsyncSession, guild_id: int, channel_id: int | None = None) -> Sequence[StickyMessage]:
+    '''
+    Gets all sticky messages for a given guild.
+
+    Args:
+        session (Bot): The async session
+        guild_id (int): The guild id
+
+    Returns:
+        Sequence[StickyMessage]: The sticky messages for the guild.
+    '''
+    if channel_id:
+        return (await session.execute(select(StickyMessage).where(StickyMessage.guild_id == guild_id).where(StickyMessage.channel_id == channel_id))).scalars().all()
+    return (await session.execute(select(StickyMessage).where(StickyMessage.guild_id == guild_id))).scalars().all()

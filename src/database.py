@@ -185,6 +185,16 @@ class BannedGuild(Base):
     name: Mapped[str] = mapped_column(String)
     reason: Mapped[str] = mapped_column(String)
 
+class StickyMessage(Base):
+    __tablename__: str = 'sticky_messages'
+    __table_args__ = (
+        PrimaryKeyConstraint('guild_id', 'channel_id', name='sticky_pkey'),
+    )
+    guild_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('guilds.id'), nullable=False)
+    channel_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message: Mapped[str] = mapped_column(String, nullable=False)
+    message_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+
 def get_db_engine(config: dict[str, Any]) -> AsyncEngine:
     '''
     Get AsyncEngine to connect with the database
