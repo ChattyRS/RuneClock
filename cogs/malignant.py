@@ -72,9 +72,10 @@ class ApplicationView(discord.ui.View):
     A view on Malignant application embed messages.
     There are two buttons, labeled "Accept" and "Decline", that can be user by Moderators to accept to decline the application.
     '''
-    def __init__(self, bot: Bot) -> None:
+    def __init__(self, bot: Bot, files: list[discord.File] | None = None) -> None:
         super().__init__(timeout=None)
         self.bot: Bot = bot
+        self.files: list[discord.File] | None = files
     
     def is_malignant_moderator(self, interaction: discord.Interaction) -> bool:
         '''
@@ -97,8 +98,18 @@ class ApplicationView(discord.ui.View):
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
         embed.set_footer(text=f'❌ Declined by {interaction.user.display_name}')
-        await interaction.message.edit(embed=embed, attachments=interaction.message.attachments, view=None)
-        await interaction.response.send_message('Application declined successfully.', ephemeral=True)
+
+        # Defer interaction response to ensure timeouts cannot occur due to converting of attachments
+        await interaction.response.defer()
+
+        if not self.files:
+            self.files = []
+            for attachment in interaction.message.attachments:
+                file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
+                self.files.append(file)
+
+        await interaction.message.edit(embed=embed, attachments=self.files, view=None)
+        await interaction.followup.send('Application declined successfully.', ephemeral=True)
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='malignant_app_accept_button')
     async def accept(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
@@ -160,7 +171,12 @@ class ApplicationView(discord.ui.View):
         
         # Update message
         embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
-        await interaction.message.edit(embed=embed, attachments=interaction.message.attachments, view=None)
+        if not self.files:
+            self.files = []
+            for attachment in interaction.message.attachments:
+                file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
+                self.files.append(file)
+        await interaction.message.edit(embed=embed, attachments=self.files, view=None)
         
         if results:
             await interaction.followup.send('\n'.join(results), ephemeral=True)
@@ -172,10 +188,11 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
     A trivial application modal, where the applicant only needs to enter their RSN.
     Required info is then pulled from WOM.
     '''
-    def __init__(self, bot: Bot, message: discord.Message) -> None:
+    def __init__(self, bot: Bot, message: discord.Message, files: list[discord.File] | None = None) -> None:
         super().__init__()
         self.bot: Bot = bot
         self.message: discord.Message = message
+        self.files: list[discord.File] | None = files
 
     rsn = discord.ui.TextInput(label=application_fields['rsn'], min_length=1, max_length=12, required=True, style=TextStyle.short)
 
@@ -235,8 +252,13 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
                 embed.add_field(name=application_fields['country'], value=country_name, inline=False)
 
         # Update the message with the new data and add view with accept / decline buttons for mods
-        view = ApplicationView(self.bot)
-        await self.message.edit(embed=embed, attachments=self.message.attachments, view=view)
+        if not self.files:
+            self.files = []
+            for attachment in self.message.attachments:
+                file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
+                self.files.append(file)
+        view = ApplicationView(self.bot, self.files)
+        await self.message.edit(embed=embed, attachments=self.files, view=view)
 
         # Send followup message to the applicant notifying them that their application came through successfully
         await interaction.followup.send('Your application was sent successfully!', ephemeral=True)
@@ -251,9 +273,10 @@ class RequirementsView(discord.ui.View):
     A view on an embed message showing the submitted requirements screenshot(s) from the applicant.
     There is an "Apply" button below the modal allowing the applicant to proceed with their application.
     '''
-    def __init__(self, bot: Bot) -> None:
+    def __init__(self, bot: Bot, files: list[discord.File] | None = None) -> None:
         super().__init__(timeout=None)
         self.bot: Bot = bot
+        self.files: list[discord.File] | None = files
 
     def is_applicant(self, interaction: discord.Interaction) -> bool:
         '''
@@ -273,7 +296,7 @@ class RequirementsView(discord.ui.View):
             return
         
         # Send the application modal
-        modal = ApplicationModal(self.bot, interaction.message)
+        modal = ApplicationModal(self.bot, interaction.message, self.files)
         await interaction.response.send_modal(modal)
     
     async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
@@ -359,7 +382,7 @@ class Malignant(Cog):
         # Set the message author ID as the embed footer for future reference
         embed.set_footer(text=f'User ID: {message.author.id}')
 
-        view: RequirementsView = RequirementsView(self.bot)
+        view: RequirementsView = RequirementsView(self.bot, files)
         await message.channel.send(embed=embed, files=files, view=view)
         await message.delete()
 
