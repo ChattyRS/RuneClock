@@ -68,6 +68,50 @@ class Sticky(Cog):
             sticky_message.message_id = new_message_id
             await session.commit()
 
+    @Cog.listener()
+    async def on_message_delete(self, message: discord.Message) -> None:
+        '''
+        This event triggers whenever a message is deleted.
+        When this message corresponds to any sticky message, we resend it here.
+
+        Args:
+            message (discord.Message): The deleted message
+        '''
+        # Only process sticky message in guild text channels
+        if not message.guild or not isinstance(message.channel, discord.TextChannel):
+            return
+        
+        # Get sticky message for this channel, if any
+        sticky_message: StickyMessage | None = None
+        
+        async with self.bot.get_session() as session:
+            sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, message.guild.id, message.channel.id)
+            sticky_message = sticky_messages[0] if sticky_messages else None
+
+        # If there is no sticky message or it does not correspond to the deleted message, return
+        if not sticky_message or not sticky_message.message_id or sticky_message.message_id != message.id:
+            return
+        
+        # Then resend the message
+        new_message_id: int | None = None
+        try:
+            new_message: discord.Message = await message.channel.send(sticky_message.message)
+            new_message_id = new_message.id
+        except discord.Forbidden:
+            # If we lack permission to send messages in this channel, just remove the sticky message
+            async with self.bot.get_session() as session:
+                sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, message.guild.id, message.channel.id)
+                sticky_message = sticky_messages[0]
+                await session.delete(sticky_message)
+                await session.commit()
+                return
+
+        async with self.bot.get_session() as session:
+            sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, message.guild.id, message.channel.id)
+            sticky_message = sticky_messages[0]
+            sticky_message.message_id = new_message_id
+            await session.commit()
+
     @is_admin()
     @commands.hybrid_command(pass_context=True)
     async def sticky(self, ctx: commands.Context, *, sticky_text: str | None = None) -> None:
