@@ -11,6 +11,7 @@ import traceback
 from src.runescape_utils import is_valid_rsn
 from src.wise_old_man import get_player_details, add_group_member
 from src.localization import get_country_by_code
+from src.discord_utils import get_text_channel
 
 ranks: list[str] = ['Bronze', 'Iron', 'Steel', 'Black', 'Mithril', 'Adamant', 'Rune', 'Dragon']
 
@@ -89,18 +90,23 @@ class ApplicationView(discord.ui.View):
             return
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
-        embed.set_footer(text=f'❌ Declined by {interaction.user.display_name}')
+        if not embed.footer.text:
+            await interaction.response.send_message('Embed footer was unexpectedly empty.', ephemeral=True)
+            return
 
         # Defer interaction response to ensure timeouts cannot occur due to converting of attachments
         await interaction.response.defer()
 
         files: list[discord.File] = []
-        loaded_message: discord.Message = await interaction.channel.fetch_message(interaction.message.id)
-        for attachment in loaded_message.attachments:
+        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
+        attachment_message_id: int = int(embed.footer.text.split(';')[1].replace(' Attachments reference: ', ''))
+        attachment_message: discord.Message = await log_channel.fetch_message(attachment_message_id)
+        for attachment in attachment_message.attachments:
             file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
             files.append(file)
         embed.set_image(url=f'attachment://{files[0].filename}')
-        await loaded_message.edit(embed=embed, attachments=files, view=None)
+        embed.set_footer(text=f'❌ Declined by {interaction.user.display_name}')
+        await interaction.message.edit(embed=embed, attachments=files, view=None)
         await interaction.followup.send('Application declined successfully.', ephemeral=True)
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='malignant_app_accept_button')
@@ -134,7 +140,7 @@ class ApplicationView(discord.ui.View):
         await interaction.response.defer()
 
         # Get applicant discord user 
-        user_id = int(embed.footer.text.replace('User ID: ', ''))
+        user_id = int(embed.footer.text.split(';')[0].replace('User ID: ', ''))
         applicant: discord.Member = await interaction.guild.fetch_member(user_id)
         
         # Update roster
@@ -165,14 +171,16 @@ class ApplicationView(discord.ui.View):
             results.append(f'Failed to add `{rsn}` to WOM.')
         
         # Update message
-        embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
         files: list[discord.File] = []
-        loaded_message: discord.Message = await interaction.channel.fetch_message(interaction.message.id)
-        for attachment in loaded_message.attachments:
+        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
+        attachment_message_id: int = int(embed.footer.text.split(';')[1].replace(' Attachments reference: ', ''))
+        attachment_message: discord.Message = await log_channel.fetch_message(attachment_message_id)
+        for attachment in attachment_message.attachments:
             file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
             files.append(file)
         embed.set_image(url=f'attachment://{files[0].filename}')
-        await loaded_message.edit(embed=embed, attachments=files, view=None)
+        embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
+        await interaction.message.edit(embed=embed, attachments=files, view=None)
         
         if results:
             await interaction.followup.send('\n'.join(results), ephemeral=True)
@@ -196,16 +204,18 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
         if not is_valid_rsn(self.rsn.value):
             await interaction.response.send_message(f'Error: invalid RSN: `{self.rsn.value}`', ephemeral=True)
             return
-        # Validation
         if not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message(f'Error, this can only be done in a text channel.', ephemeral=True)
+            return
+        embed: discord.Embed = self.message.embeds[0]
+        if not embed.footer.text:
+            await interaction.response.send_message('Embed footer was unexpectedly empty.', ephemeral=True)
             return
         
         # Defer the interaction response, as it will take some time to request data from WOM
         await interaction.response.defer()
 
         # Update embed with RSN
-        embed: discord.Embed = self.message.embeds[0]
         embed.title = 'Malignant application'
         embed.colour = 0x00b2ff
         embed.add_field(name=application_fields['rsn'], value=self.rsn.value, inline=False)
@@ -252,13 +262,15 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
 
         # Update the message with the new data and add view with accept / decline buttons for mods
         files: list[discord.File] = []
-        loaded_message: discord.Message = await interaction.channel.fetch_message(self.message.id)
-        for attachment in loaded_message.attachments:
+        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
+        attachment_message_id: int = int(embed.footer.text.split(';')[1].replace(' Attachments reference: ', ''))
+        attachment_message: discord.Message = await log_channel.fetch_message(attachment_message_id)
+        for attachment in attachment_message.attachments:
             file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
             files.append(file)
         embed.set_image(url=f'attachment://{files[0].filename}')
         view = ApplicationView(self.bot)
-        await loaded_message.edit(embed=embed, attachments=files, view=view)
+        await self.message.edit(embed=embed, attachments=files, view=view)
 
         # Send followup message to the applicant notifying them that their application came through successfully
         await interaction.followup.send('Your application was sent successfully!', ephemeral=True)
@@ -285,7 +297,7 @@ class RequirementsView(discord.ui.View):
         if not interaction.message or not interaction.message.embeds or not interaction.message.embeds[0].footer.text:
             return False
         # Return true iff the user is the original applicant
-        return interaction.user.id == int(interaction.message.embeds[0].footer.text.replace('User ID: ', ''))
+        return interaction.user.id == int(interaction.message.embeds[0].footer.text.split(';')[0].replace('User ID: ', ''))
 
     @discord.ui.button(label='Apply', style=discord.ButtonStyle.blurple, custom_id='malignant_req_apply_button')
     async def apply(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
@@ -374,12 +386,23 @@ class Malignant(Cog):
             file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
             files.append(file)
 
+        # Forward the attachments to a separate channel.
+        # This is required to avoid Discord deleting the image files as the original message is deleted
+        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
+        fwd_msg: discord.Message = await log_channel.send(files=files)
+
+        # Reload the attachments from the forwarded message to obtain links that will not expire
+        files = []
+        for attachment in fwd_msg.attachments:
+            file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
+            files.append(file)
+
+        # Set the message author ID and a reference to the forwarded message as the embed footer for future reference
+        embed.set_footer(text=f'User ID: {message.author.id}; Attachments reference: {fwd_msg.id}')
+
         # Set the first image on the embed
         # Subsequent images, if any, will be sent separately below the embed
         embed.set_image(url=f'attachment://{files[0].filename}')
-
-        # Set the message author ID as the embed footer for future reference
-        embed.set_footer(text=f'User ID: {message.author.id}')
 
         view: RequirementsView = RequirementsView(self.bot)
         await message.channel.send(embed=embed, files=files, view=view)
