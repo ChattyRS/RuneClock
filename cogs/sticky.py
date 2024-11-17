@@ -40,11 +40,11 @@ class Sticky(Cog):
         if message.author == self.bot.user and message.content == sticky_message.message:
             return
         
-        # If there is a sticky message for this channel, first delete the old message, if any
+        # If there is a sticky message for this channel, fetch the message
+        old_message: discord.Message | None = None
         if sticky_message.message_id:
             try:
-                old_message: discord.Message = await message.channel.fetch_message(sticky_message.message_id)
-                await old_message.delete()
+                old_message = await message.channel.fetch_message(sticky_message.message_id)
             except discord.Forbidden:
                 pass
         
@@ -67,6 +67,13 @@ class Sticky(Cog):
             sticky_message = sticky_messages[0]
             sticky_message.message_id = new_message_id
             await session.commit()
+
+        # Delete the old message, if any
+        if old_message:
+            try:
+                await old_message.delete()
+            except discord.Forbidden:
+                pass
 
     @Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
