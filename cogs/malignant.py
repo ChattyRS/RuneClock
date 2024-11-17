@@ -389,7 +389,10 @@ class Malignant(Cog):
         # Forward the attachments to a separate channel.
         # This is required to avoid Discord deleting the image files as the original message is deleted
         log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
-        fwd_msg: discord.Message = await log_channel.send(files=files)
+        fwd_msg: discord.Message = await log_channel.send((
+            'This message contains attachments that were sent as part of an application. '
+            'Please do not delete this message, otherwise the images may be removed from Discord and no longer be visible in the application embeds.'
+        ), files=files)
 
         # Reload the attachments from the forwarded message to obtain links that will not expire
         files = []
