@@ -144,21 +144,28 @@ class ApplicationView(discord.ui.View):
         new_row: list[str | None] = [rsn, 'Bronze', applicant.name, translate_wom_player_type_to_sheet[account_type.lower()] if account_type else 'No', date_str, ehb]
         await update_row(roster, rows+1, new_row)
 
+        results: list[str] = []
+
         # Update Discord user
-        await applicant.add_roles(bronze_role)
-        await applicant.edit(nick=rsn)
-        
-        # Update message
-        embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
-        await interaction.message.edit(embed=embed, attachments=interaction.message.attachments, view=None)
+        try:
+            await applicant.add_roles(bronze_role)
+            await applicant.edit(nick=rsn)
+        except discord.Forbidden:
+            results.append(f'Failed to add `{rsn}` to WOM.')
 
         # Add to WOM
         success: bool = await add_group_member(self.bot, self.bot.config['malignant_wom_verification_code'], self.bot.config['malignant_wom_group_id'], rsn, 'mentor')
         if not success:
-            await interaction.followup.send(f'Failed to add `{rsn}` to WOM.', ephemeral=True)
-            return
+            results.append(f'Failed to add `{rsn}` to WOM.')
         
-        await interaction.followup.send('Application accepted successfully.', ephemeral=True)
+        # Update message
+        embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
+        await interaction.message.edit(embed=embed, attachments=interaction.message.attachments, view=None)
+        
+        if results:
+            await interaction.followup.send('\n'.join(results), ephemeral=True)
+        else:
+            await interaction.followup.send('Application accepted successfully.', ephemeral=True)
 
 class ApplicationModal(discord.ui.Modal, title='Malignant application'):
     '''
