@@ -1,23 +1,13 @@
-import io
 from typing import Any
-from aiohttp import ClientResponse
 import discord
-from discord import Attachment, Member, TextChannel, app_commands, TextStyle
-from discord.ext import commands, tasks
+from discord import Attachment, TextStyle
+from discord.ext import commands
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
-from src.message_queue import QueueMessage
 from src.bot import Bot
-from src.database import Guild
-from datetime import datetime, timedelta, UTC
-import re
+from datetime import datetime, UTC
 import gspread
 import traceback
-from src.database_utils import find_db_guild
-from src.discord_utils import find_guild_text_channel, get_guild_text_channel, get_text_channel
-from src.number_utils import is_int
-from src.checks import malignant_only, malignant_mods
-from src.configuration import config
 from src.runescape_utils import is_valid_rsn
 from src.wise_old_man import get_player_details, add_group_member
 from src.localization import get_country_by_code
@@ -176,6 +166,7 @@ class ApplicationView(discord.ui.View):
             for attachment in interaction.message.attachments:
                 file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
                 self.files.append(file)
+        embed.set_image(url=f'attachment://{self.files[0].filename}')
         await interaction.message.edit(embed=embed, attachments=self.files, view=None)
         
         if results:
@@ -257,6 +248,7 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
             for attachment in self.message.attachments:
                 file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
                 self.files.append(file)
+        embed.set_image(url=f'attachment://{self.files[0].filename}')
         view = ApplicationView(self.bot, self.files)
         await self.message.edit(embed=embed, attachments=self.files, view=view)
 
