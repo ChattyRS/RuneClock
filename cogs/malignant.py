@@ -96,7 +96,7 @@ class ApplicationView(discord.ui.View):
             return
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
-        embed.set_footer(text=f'Declined by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/cross-mark_274c.png')
+        embed.set_footer(text=f'❌ Declined by {interaction.user.display_name}')
         await interaction.message.edit(embed=embed, attachments=interaction.message.attachments, view=None)
         await interaction.response.send_message('Application declined successfully.', ephemeral=True)
 
@@ -149,7 +149,7 @@ class ApplicationView(discord.ui.View):
         await applicant.edit(nick=rsn)
         
         # Update message
-        embed.set_footer(text=f'Accepted by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/check-mark-button_2705.png')
+        embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
         await interaction.message.edit(embed=embed, attachments=interaction.message.attachments, view=None)
 
         # Add to WOM
