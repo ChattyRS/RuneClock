@@ -504,7 +504,7 @@ class Malignant(Cog):
         members: list[list[str]] = []
         # Ensure at least expected row length
         for member in raw_members:
-            if not len(member) or not member[0]:
+            if not len(member) or not member[rsn_col]:
                 break
             while len(member) < max(join_date_col, ehb_col) + 1:
                 member.append('')
@@ -517,11 +517,16 @@ class Malignant(Cog):
         if not group_details:
             raise commands.CommandError('Failed to retrieve group details from WOM.')
         player_details: list[Any] = [membership['player'] for membership in group_details['memberships']]
+
+        errors: list[str] = []
         
         # Update EHB stats
         cell_list: list[gspread.Cell] = []
         for i, m in enumerate(members):
-            player: Any = next((p for p in player_details if p['username'].lower() == m[rsn_col]), None)
+            player: Any | None = next((p for p in player_details if p['username'].lower() == m[rsn_col].lower()), None)
+            if not player:
+                errors.append(f'WOM player not found: `{m[rsn_col]}`.')
+                continue
             m[ehb_col] = player['ehb']
             cell_list.append(gspread.Cell(i+2, ehb_col+1, value=m[ehb_col]))
         await roster.update_cells(cell_list, nowait=True) # type: ignore - extra arg nowait is supported via an odd decorator
@@ -550,6 +555,8 @@ class Malignant(Cog):
         msg += '\n```'
 
         embed = discord.Embed(title=f'**Members eligible for a promotion**', colour=0x00b2ff, description=msg)
+        if errors:
+            embed.add_field(name='Errors', value='\n'.join(errors), inline=False)
 
         await ctx.send(embed=embed)
 
