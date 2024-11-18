@@ -4,29 +4,31 @@ from discord import Attachment, TextStyle
 from discord.ext import commands
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
+from src.number_utils import is_float
+from src.checks import malignant_mods, malignant_only
 from src.message_queue import QueueMessage
 from src.database_utils import find_db_guild
 from src.database import Guild
 from src.bot import Bot
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 import gspread
 import traceback
 from src.runescape_utils import is_valid_rsn
-from src.wise_old_man import get_player_details, add_group_member
+from src.wise_old_man import get_group_details, get_player_details, add_group_member
 from src.localization import get_country_by_code
 from src.discord_utils import get_guild_text_channel, get_text_channel
 
 ranks: list[str] = ['Bronze', 'Iron', 'Steel', 'Black', 'Mithril', 'Adamant', 'Rune', 'Dragon']
 
+# Requirements for a promotion from the given rank, i.e. NOT requirements for the rank itself
 reqs: dict[str, dict[str, int]] = {
-    'Bronze': { 'ehb': 50, 'months': 0 },
-    'Iron': { 'ehb': 100, 'months': 1 },
-    'Steel': { 'ehb': 200, 'months': 2 },
-    'Black': { 'ehb': 350, 'months': 3 },
-    'Mithril': { 'ehb': 550, 'months': 4 },
-    'Adamant': { 'ehb': 800, 'months': 5 },
-    'Rune': { 'ehb': 1200, 'months': 6 },
-    'Dragon': { 'ehb': 2000, 'months': 12 },
+    'Bronze': { 'ehb': 100, 'months': 1 },
+    'Iron': { 'ehb': 200, 'months': 2 },
+    'Steel': { 'ehb': 350, 'months': 3 },
+    'Black': { 'ehb': 550, 'months': 4 },
+    'Mithril': { 'ehb': 800, 'months': 5 },
+    'Adamant': { 'ehb': 1200, 'months': 6 },
+    'Rune': { 'ehb': 2000, 'months': 12 },
 }
 
 roster_columns: dict[str, int] = {
@@ -473,6 +475,83 @@ class Malignant(Cog):
         view: RequirementsView = RequirementsView(self.bot)
         await message.channel.send(embed=embed, files=files, view=view)
         await message.delete()
+
+    @malignant_only()
+    @malignant_mods()
+    @commands.command(hidden=True)
+    async def malignant_promotions(self, ctx: commands.Context) -> None:
+        '''
+        Gets a list of members eligible for a promotion (Moderator+ only).
+        Fetches EHB stats from WOM and updates them on the sheet.
+        '''
+        self.bot.increment_command_counter()
+        await ctx.channel.typing()
+
+        # Get roster sheet
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['malignant_roster_key'])
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
+
+        # 0-indexed columns
+        rsn_col: int = 0
+        rank_col: int = 1
+        join_date_col: int = 4
+        ehb_col: int = 5
+
+        # Get clan members from sheet
+        raw_members: list[list[str]] = await roster.get_all_values()
+        raw_members = raw_members[1:]
+        members: list[list[str]] = []
+        # Ensure at least expected row length
+        for member in raw_members:
+            if not len(member) or not member[0]:
+                break
+            while len(member) < max(join_date_col, ehb_col) + 1:
+                member.append('')
+            if len(member) > max(join_date_col, ehb_col) + 1:
+                member: list[str] = member[:max(join_date_col, ehb_col)+1]
+            members.append(member)
+
+        # Get updated EHB stats from WOM
+        group_details: dict[str, Any] | None = await get_group_details(self.bot, self.bot.config['malignant_wom_group_id'])
+        if not group_details:
+            raise commands.CommandError('Failed to retrieve group details from WOM.')
+        player_details: list[Any] = [membership['player'] for membership in group_details['memberships']]
+        
+        # Update EHB stats
+        cell_list: list[gspread.Cell] = []
+        for i, m in enumerate(members):
+            player: Any = next((p for p in player_details if p['username'].lower() == m[rsn_col]), None)
+            m[ehb_col] = player['ehb']
+            cell_list.append(gspread.Cell(i+2, ehb_col+1, value=m[ehb_col]))
+        await roster.update_cells(cell_list, nowait=True) # type: ignore - extra arg nowait is supported via an odd decorator
+
+        # Construct list of members eligible for a promotion
+        eligible: list[list[str]] = []
+        for m in members:
+            rank: str = m[rank_col] # Bronze, Iron, Steel, Black, Mithril, Adamant, Rune, Dragon, Moderator, Owner
+            join_date: datetime
+            try:
+                join_date = datetime.strptime(m[join_date_col], '%d %b %Y').replace(tzinfo=UTC)
+            except:
+                join_date = datetime.now(UTC)
+            ehb: float = float(m[ehb_col]) if is_float(m[ehb_col]) else 0
+            if rank in reqs:
+                req: dict[str, int] = reqs[rank]
+                if ehb >= req['ehb'] and join_date <= datetime.now(UTC) - timedelta(days=req['months']*30):
+                    eligible.append(m)
+        
+        # Send a message listing the eligible members, if any
+        msg = '```'
+        for m in eligible:
+            msg += f'\n{m[rsn_col]}{" "*(12-len(m[rsn_col]))} {m[rank_col]}{" "*(7-len(m[rank_col]))} -> {ranks[ranks.index(m[rank_col])+1]}'
+        if not eligible:
+            msg += '\nNo eligible members found.'
+        msg += '\n```'
+
+        embed = discord.Embed(title=f'**Members eligible for a promotion**', colour=0x00b2ff, description=msg)
+
+        await ctx.send(embed=embed)
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Malignant(bot))

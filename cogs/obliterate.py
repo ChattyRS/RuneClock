@@ -1102,7 +1102,7 @@ class Obliterate(Cog):
     @obliterate_only()
     @obliterate_mods()
     @commands.command(hidden=True)
-    async def promotions(self, ctx: commands.Context) -> None:
+    async def obliterate_promotions(self, ctx: commands.Context) -> None:
         '''
         Gets a list of members eligible for a promotion (Moderator+ only)
         '''

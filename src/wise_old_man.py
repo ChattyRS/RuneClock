@@ -181,8 +181,38 @@ async def get_player_details(bot: Bot, username: str):
     return None
 
 async def add_group_member(bot: Bot, verification_code: str, group_id: int, username: str, role_name: str) -> bool:
+    '''
+    Add a member to a WOM group.
+
+    Args:
+        bot (Bot): The bot
+        verification_code (str): The WOM verification code
+        group_id (int): The group ID
+        username (str): The username to add
+        role_name (str): The role with which the user should be added
+
+    Returns:
+        bool: Boolean indicating whether the request was successful
+    '''
     url: str = f'https://api.wiseoldman.net/v2/groups/{group_id}/members'
     payload: dict[str, Any] = {'verificationCode': verification_code}
     payload['members'] = [{'username': username, 'role': role_name}]
     async with bot.aiohttp.post(url, json=payload, headers={'x-user-agent': bot.config['wom_user_agent'], 'x-api-key': bot.config['wom_api_key']}) as r:
         return r.status >= 200 and r.status < 300
+    
+async def get_group_details(bot: Bot, group_id: int) -> dict[str, Any] | None:
+    '''
+    Get group details from WOM API.
+
+    Args:
+        bot (Bot): The bot
+        group_id (int): The group ID
+
+    Returns:
+        dict[str, Any]: The group details
+    '''
+    url: str = f'https://api.wiseoldman.net/v2/groups/{group_id}'
+    async with bot.aiohttp.get(url, headers={'x-user-agent': bot.config['wom_user_agent'], 'x-api-key': bot.config['wom_api_key']}) as r:
+        if r.status >= 200 and r.status < 300:
+            return await r.json()
+    return None
