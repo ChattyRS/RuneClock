@@ -4,6 +4,9 @@ from discord import Attachment, TextStyle
 from discord.ext import commands
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
+from src.message_queue import QueueMessage
+from src.database_utils import find_db_guild
+from src.database import Guild
 from src.bot import Bot
 from datetime import datetime, UTC
 import gspread
@@ -11,7 +14,7 @@ import traceback
 from src.runescape_utils import is_valid_rsn
 from src.wise_old_man import get_player_details, add_group_member
 from src.localization import get_country_by_code
-from src.discord_utils import get_text_channel
+from src.discord_utils import get_guild_text_channel, get_text_channel
 
 ranks: list[str] = ['Bronze', 'Iron', 'Steel', 'Black', 'Mithril', 'Adamant', 'Rune', 'Dragon']
 
@@ -323,6 +326,66 @@ class Malignant(Cog):
         # Register persistent views
         self.bot.add_view(RequirementsView(self.bot))
         self.bot.add_view(ApplicationView(self.bot))
+
+    @Cog.listener()
+    async def on_user_update(self, before: discord.User, after: discord.User) -> None:
+        '''
+        This method is called when a user updates their profile (avatar, username, discriminator).
+        When a member of the Malignant guild changes their username, we want to update their username on the sheet.
+
+        Args:
+            before (discord.User): Old user data
+            after (discord.User): Updated user data
+        '''
+        # Ignore anything other than username changes
+        if before.global_name == after.name:
+            return
+        
+        # Ignore users who are not a member for the Malignant guild
+        malignant: discord.Guild | None = self.bot.get_guild(self.bot.config['malignant_guild_id'])
+        if not malignant or not after.id in [m.id for m in malignant.members]:
+            return
+        
+        # Get the logging channel
+        async with self.bot.get_session() as session:
+            guild: Guild | None = await find_db_guild(session, malignant)
+        if not guild or not guild.log_channel_id:
+            return
+        channel: discord.TextChannel = get_guild_text_channel(malignant, guild.log_channel_id)
+
+        # Get the guild member
+        member: discord.Member | None = malignant.get_member(after.id)
+        if not member:
+            return
+        
+        # Send embed in the logging channel notifying of the username change
+        embed = discord.Embed(title=f'**Name Changed**', colour=0x00b2ff, timestamp=datetime.now(UTC), description=f'{member.mention} `{after.name}`')
+        embed.add_field(name='Previously', value=f'`{before.name}`', inline=False)
+        embed.set_footer(text=f'User ID: {after.id}')
+        embed.set_thumbnail(url=after.display_avatar.url)
+        try:
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            pass
+
+        # Update the Discord username on the roster sheet
+        agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
+        ss: AsyncioGspreadSpreadsheet = await agc.open_by_key(self.bot.config['malignant_roster_key'])
+        roster: AsyncioGspreadWorksheet = await ss.worksheet('Roster')
+
+        values: list[list[str]] = await roster.get_all_values()
+        values = values[1:]
+
+        discord_col = 2 # zero-indexed
+
+        for i, val in enumerate(values):
+            if val[discord_col] == before.name:
+                await roster.update_cell(i+2, discord_col+1, after.name)
+                self.bot.queue_message(QueueMessage(channel, f'The roster has been updated with the new username: `{after.name}`.'))
+                return
+        
+        # If we did not find a matching row on the sheet, send an error message
+        self.bot.queue_message(QueueMessage(channel, f'The roster has not been updated, because the old value `{before.name}` could not be found.'))
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
