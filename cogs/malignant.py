@@ -479,7 +479,7 @@ class Malignant(Cog):
     @malignant_only()
     @malignant_mods()
     @commands.command(hidden=True)
-    async def malignant_promotions(self, ctx: commands.Context) -> None:
+    async def promos(self, ctx: commands.Context) -> None:
         '''
         Gets a list of members eligible for a promotion (Moderator+ only).
         Fetches EHB stats from WOM and updates them on the sheet.
