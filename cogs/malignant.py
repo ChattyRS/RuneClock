@@ -131,6 +131,7 @@ class ApplicationView(discord.ui.View):
         if not bronze_role:
             await interaction.response.send_message('Bronze role not found.', ephemeral=True)
             return
+        guest_role: discord.Role | None = interaction.guild.get_role(self.bot.config['malignant_guest_role_id'])
         
         # Get applicant info from embed
         rsn: str | None = next((f.value for f in embed.fields if f.name == application_fields['rsn']), None)
@@ -166,6 +167,8 @@ class ApplicationView(discord.ui.View):
         # Update Discord user
         try:
             await applicant.add_roles(bronze_role)
+            if guest_role and guest_role in applicant.roles:
+                await applicant.remove_roles(guest_role)
             await applicant.edit(nick=rsn)
         except discord.Forbidden:
             results.append(f'Failed to update roles or nickname for Discord user `{applicant.name}`.')
