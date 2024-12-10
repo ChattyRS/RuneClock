@@ -27,7 +27,6 @@ class Guild(Base):
     log_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     notification_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     role_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger)
-    delete_channel_ids: Mapped[Optional[list[int]]] = mapped_column(ARRAY(BigInteger))
     disabled_commands: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String))
     log_bots: Mapped[Optional[bool]] = mapped_column(Boolean)
     modmail_public: Mapped[Optional[int]] = mapped_column(BigInteger)

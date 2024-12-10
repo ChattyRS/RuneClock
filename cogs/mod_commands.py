@@ -41,6 +41,7 @@ class ModCommands(Cog):
                 guild.modmail_public = None
                 guild.modmail_private = None
                 await session.commit()
+                self.bot.cache_db_guild(guild)
             await ctx.send(f'Modmail has been disabled for server **{ctx.guild.name}**.')
             return
 
@@ -54,6 +55,7 @@ class ModCommands(Cog):
             guild.modmail_public = public.id
             guild.modmail_private = private.id
             await session.commit()
+            self.bot.cache_db_guild(guild)
 
         await ctx.send(f'Modmail public and private channels for server **{ctx.guild.name}** have been set to {public.mention} and {private.mention}.')
     
@@ -67,12 +69,12 @@ class ModCommands(Cog):
         '''
         if message.author.bot or message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
-        try:
-            async with self.bot.get_session() as session:
-                guild: Guild = await get_db_guild(session, message.guild)
-        except:
+        
+        guild: Guild | None = self.bot.get_cached_db_guild(message.guild)
+        if not guild:
             return
-        if guild and guild.modmail_public and guild.modmail_private and message.channel.id == guild.modmail_public:
+        
+        if guild.modmail_public and guild.modmail_private and message.channel.id == guild.modmail_public:
             embed = discord.Embed(description=f'In: {message.channel.mention}\n“{message.content}”', colour=0x00b2ff, timestamp=message.created_at)
             embed.set_author(name=f'{message.author.display_name} ({message.author.name})', icon_url=message.author.display_avatar.url)
             embed.set_footer(text=f'ID: {message.id}')

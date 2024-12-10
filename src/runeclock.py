@@ -2,8 +2,10 @@ from datetime import datetime, UTC
 import logging
 from pathlib import Path
 import sys
+from typing import Sequence
 import discord
 from discord.ext import commands
+from sqlalchemy import select
 from src.bot import Bot
 import string
 import traceback
@@ -70,6 +72,14 @@ class RuneClock(Bot):
         async with self.get_session() as session:
             session.add(Uptime(time=self.start_time, status='started'))
             await session.commit()
+
+        # Initialize guild cache
+        # This is used to keep track of guild prefixes without needing to perform database requests for each message
+        guilds: Sequence[Guild] = []
+        async with self.get_session() as session:
+            guilds: Sequence[Guild] = (await session.execute(select(Guild))).scalars().all()
+        for g in guilds:
+            self.db_guild_cache[g.id] = g
 
         print(f'Loading Discord...')
 
@@ -143,11 +153,15 @@ class RuneClock(Bot):
         if message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
         
-        async with self.get_session() as session:
-            guild: Guild = await find_or_create_db_guild(session, message.guild)
-
-        if guild.delete_channel_ids and message.channel.id in guild.delete_channel_ids and not message.author.id == message.guild.me.id:
-            await message.delete()
+        # Get guild from cache, or fetch it from the database / create it if it is not cached yet
+        # This can happen e.g. if the bot was added to the guild while it was down, such that it was unable to receive the on_guild_join event
+        guild: Guild
+        if message.guild.id in self.db_guild_cache:
+            guild = self.db_guild_cache[message.guild.id]
+        else:
+            async with self.get_session() as session:
+                guild = await find_or_create_db_guild(session, message.guild)
+                self.db_guild_cache[guild.id] = guild
 
         now: datetime = datetime.now(UTC)
         msg: str = message.content

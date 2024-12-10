@@ -22,8 +22,11 @@ class Servers(Cog):
             if banned_guild:
                 await guild.leave()
                 return
-            session.add(Guild(id=guild.id, prefix='-'))
+            db_guild: Guild = Guild(id=guild.id, prefix='-')
+            session.add(db_guild)
             await session.commit()
+            # Add guild to the cache
+            self.bot.db_guild_cache[guild.id] = db_guild
 
     @Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
@@ -38,6 +41,9 @@ class Servers(Cog):
             if db_guild:
                 await purge_guild(session, db_guild)
                 await session.commit()
+        # Remove guild from cache
+        if guild.id in self.bot.db_guild_cache:
+            del self.bot.db_guild_cache[guild.id]
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Servers(bot))

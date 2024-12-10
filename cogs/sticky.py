@@ -2,7 +2,6 @@ from typing import Sequence
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from sqlalchemy import update
 from src.checks import is_admin
 from src.bot import Bot
 from src.database import StickyMessage
@@ -36,7 +35,7 @@ class Sticky(Cog):
         if not sticky_message:
             return
         
-        # If there is a sticky message for this channel, but the current message is sent by the bot itself and contains the same context, then we should ignore this event
+        # If there is a sticky message for this channel, but the current message is sent by the bot itself and contains the same content, then we should ignore this event
         if message.author == self.bot.user and message.content == sticky_message.message:
             return
         

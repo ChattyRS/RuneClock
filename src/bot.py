@@ -51,6 +51,8 @@ class Bot(commands.AutoShardedBot):
 
     message_queue: MessageQueue = MessageQueue()
 
+    db_guild_cache: dict[int, Guild] = {}
+
     def __init__(self) -> None:
         self.config = get_config()
         self.start_time = datetime.now(UTC).replace(microsecond=0)
@@ -58,7 +60,7 @@ class Bot(commands.AutoShardedBot):
         intents: discord.Intents = discord.Intents.all()
         super().__init__(
             max_messages = 1000000,
-            command_prefix = self.get_prefix_,
+            command_prefix = self.get_command_prefix,
             description = self.config['description'],
             case_insensitive = True,
             intents = intents
@@ -105,7 +107,29 @@ class Bot(commands.AutoShardedBot):
         '''
         await self.engine.dispose()
 
-    async def get_prefix_(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> list[str]:
+    def get_cached_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild | None:
+        '''
+        Get a db guild from the cache.
+
+        Args:
+            guild_id (int): The guild id
+
+        Returns:
+            Guild | None: The guild, if found.
+        '''
+        guild_id: int | None = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
+        return self.db_guild_cache[guild_id] if guild_id and guild_id in self.db_guild_cache else None
+    
+    def cache_db_guild(self, guild: Guild) -> None:
+        '''
+        Cache a db guild.
+
+        Args:
+            guild (Guild): The guild to add to the cache.
+        '''
+        self.db_guild_cache[guild.id] = guild
+
+    async def get_command_prefix(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> list[str]:
         '''
         A coroutine that returns a prefix.
         Looks in database for prefix corresponding to the server the message was sent in
@@ -118,9 +142,8 @@ class Bot(commands.AutoShardedBot):
         Returns:
             List[str]: list of prefixes
         '''
-        async with self.get_session() as session:
-            guild: Guild = await get_db_guild(session, message.guild)
-        prefix: str = guild.prefix if guild.prefix else '-'
+        guild: Guild | None = self.get_cached_db_guild(message.guild.id) if message.guild else None
+        prefix: str = guild.prefix if guild and guild.prefix else '-'
         return commands.when_mentioned_or(prefix)(bot, message)
     
     def restart(self) -> None:

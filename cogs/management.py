@@ -298,12 +298,15 @@ class Management(Cog):
         elif cmd == 'command' or cmd == 'help':
             raise commands.CommandError(message=f'Invalid argument: `{cmd}`.')
         
+        guild: Guild
+        message: str
+
         async with self.bot.get_session() as session:
-            guild: Guild = await get_db_guild(session, ctx.guild)
+            guild = await get_db_guild(session, ctx.guild)
 
             if guild.disabled_commands is None:
                 guild.disabled_commands = [cmd]
-                message: str = f'The command **{cmd}** has been **disabled**.'
+                message = f'The command **{cmd}** has been **disabled**.'
             elif cmd in guild.disabled_commands:
                 guild.disabled_commands = guild.disabled_commands.remove(cmd)
                 message = f'The command **{cmd}** has been **enabled**.'
@@ -312,7 +315,10 @@ class Management(Cog):
                 message = f'The command **{cmd}** has been **disabled**.'
 
             await session.commit()
-            await ctx.send(message)
+        
+        self.bot.cache_db_guild(guild)
+        
+        await ctx.send(message)
 
     @commands.command(pass_context=True, aliases=['setprefix'])
     @is_admin()
@@ -325,11 +331,15 @@ class Management(Cog):
 
         if not ctx.guild:
             raise commands.CommandError(message=f'This command can only be used from a server.')
+        
+        guild: Guild
 
         async with self.bot.get_session() as session:
-            guild: Guild = await get_db_guild(session, ctx.guild)
+            guild = await get_db_guild(session, ctx.guild)
             guild.prefix = prefix
             await session.commit()
+
+        self.bot.cache_db_guild(guild)
         
         await ctx.send(f'The command prefix for server **{ctx.guild.name}** has been set to `{prefix}`.')
 
