@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord.ext import tasks
 from discord.ext.commands import Cog
@@ -198,6 +199,7 @@ class BackgroundTasks(Cog):
         Runs every 15 s.
         '''
         if not self.notification_state_initialized:
+            await asyncio.sleep(60) # wait 60 seconds on first run to ensure DND information is loaded onto the bot
             await self.initialize_notification_state()
         
         try:
