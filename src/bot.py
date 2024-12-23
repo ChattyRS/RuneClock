@@ -1,11 +1,11 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, UTC
 import os
-from typing import Any, AsyncGenerator, Generator, Sequence
+from typing import Any, AsyncGenerator, Sequence
 import discord
 from discord.ext import commands
 from sqlalchemy import select
-from discord_utils import get_text_channel
+from src.discord_utils import get_text_channel
 from src.database import Command, Guild, get_db_engine, get_db_session_maker
 from src.database_utils import get_db_guild
 from src.configuration import get_config
