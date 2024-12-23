@@ -99,9 +99,9 @@ class Bot(commands.AutoShardedBot):
             await session.rollback() # type: ignore
             raise
         finally:
-            await session.close() # type: ignore
             session.expire_all() # type: ignore
             session.expunge_all() # type: ignore
+            await session.close() # type: ignore
     
     async def close_database_connection(self) -> None:
         '''
