@@ -50,8 +50,7 @@ class RuneClock(Bot):
         print('Setting up database connection...')
 
         try:
-            self.engine = get_db_engine(self.config)
-            self.async_session = get_db_session_maker(self.engine)
+            self.create_db_engine()
             await create_all_database_tables(self.engine)
         except Exception as e:
             error: str = f'Error encountered while setting up database: \n{type(e).__name__}: {e}'

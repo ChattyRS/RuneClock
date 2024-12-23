@@ -5,7 +5,8 @@ from typing import Any, AsyncGenerator, Generator, Sequence
 import discord
 from discord.ext import commands
 from sqlalchemy import select
-from src.database import Command, Guild
+from discord_utils import get_text_channel
+from src.database import Command, Guild, get_db_engine, get_db_session_maker
 from src.database_utils import get_db_guild
 from src.configuration import get_config
 from src.auth_utils import get_google_sheets_credentials
@@ -80,6 +81,13 @@ class Bot(commands.AutoShardedBot):
         )
         self.bot = self
 
+    def create_db_engine(self) -> None:
+        '''
+        Creates the database engine and async session maker.
+        '''
+        self.engine = get_db_engine(self.config)
+        self.async_session = get_db_session_maker(self.engine)
+
     @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         '''
@@ -92,16 +100,28 @@ class Bot(commands.AutoShardedBot):
         Yields:
             Iterator[AsyncGenerator[AsyncSession]]: AsyncSession
         '''
+        session: AsyncSession | None = None
         try:
             async with self.async_session() as session:
                 yield session
+        except TimeoutError as e:
+            # In case of timeout error due to QueuePool limit
+            # We close all existing connections to hopefully allow the bot to recover from the error
+            # https://docs.sqlalchemy.org/en/20/errors.html#error-3o7r
+            await self.engine.dispose()
+            self.create_db_engine()
+            error: str = f'Encountered exception while getting db session: {e.__class__.__name__}: {e}'
+            error += '\n\nDatabase engine was disposed and recreated to forcibly close all connections.'
+            self.queue_message(QueueMessage(get_text_channel(self, self.config['testChannel']), error))
         except:
-            await session.rollback() # type: ignore
+            if session:
+                await session.rollback()
             raise
         finally:
-            session.expire_all() # type: ignore
-            session.expunge_all() # type: ignore
-            await session.close() # type: ignore
+            if session:
+                session.expire_all()
+                session.expunge_all()
+                await session.close()
     
     async def close_database_connection(self) -> None:
         '''
