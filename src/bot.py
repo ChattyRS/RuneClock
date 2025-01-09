@@ -7,7 +7,6 @@ from discord.ext import commands
 from sqlalchemy import select
 from src.discord_utils import get_text_channel
 from src.database import Command, Guild, get_db_engine, get_db_session_maker
-from src.database_utils import get_db_guild
 from src.configuration import get_config
 from src.auth_utils import get_google_sheets_credentials
 from aiohttp import TCPConnector, ClientSession, ClientTimeout
@@ -18,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from praw import Reddit
 import certifi
 import ssl
+from sqlalchemy.exc import TimeoutError as SqlTimeoutError
 
 class Bot(commands.AutoShardedBot):
     bot: commands.AutoShardedBot
@@ -104,7 +104,7 @@ class Bot(commands.AutoShardedBot):
         try:
             async with self.async_session() as session:
                 yield session
-        except TimeoutError as e:
+        except SqlTimeoutError as e:
             # In case of timeout error due to QueuePool limit
             # We close all existing connections to hopefully allow the bot to recover from the error
             # https://docs.sqlalchemy.org/en/20/errors.html#error-3o7r
