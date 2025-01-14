@@ -18,6 +18,7 @@ from praw import Reddit
 import certifi
 import ssl
 from sqlalchemy.exc import TimeoutError as SqlTimeoutError
+from asyncpg import TooManyConnectionsError
 
 class Bot(commands.AutoShardedBot):
     bot: commands.AutoShardedBot
@@ -113,6 +114,14 @@ class Bot(commands.AutoShardedBot):
             error: str = f'Encountered exception while getting db session: {e.__class__.__name__}: {e}'
             error += '\n\nDatabase engine was disposed and recreated to forcibly close all connections.'
             self.queue_message(QueueMessage(get_text_channel(self, self.config['testChannel']), error))
+        except TooManyConnectionsError as e:
+            # It seems that even after disposing the entire engine and recreating it as above, some connections are *still* not closed.
+            # Hence, after disposing the engine and recreating it with same pool size limits as the original,
+            # the old unclosed connections together in combination with those from the new engine may exceed the maximum number of connections
+            # allowed by the database server. Hence we can run into this TooManyConnectionsError.
+            # In this case, we simply restart the entire bot. I don't know what else to do at this point.
+            await get_text_channel(self, self.config['testChannel']).send(f'Restarting after TooManyConnectionsError...')
+            self.restart()
         except:
             if session:
                 await session.rollback()
