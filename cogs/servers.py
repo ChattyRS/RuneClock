@@ -17,15 +17,18 @@ class Servers(Cog):
         Args:
             guild (_type_): The guild that was joined
         '''
+        db_guild: Guild | None = None
         async with self.bot.get_session() as session:
             banned_guild: BannedGuild | None = (await session.execute(select(BannedGuild).where(Guild.id == guild.id))).scalar_one_or_none()
-            if banned_guild:
-                await guild.leave()
-                return
-            db_guild: Guild = Guild(id=guild.id, prefix='-')
-            session.add(db_guild)
-            await session.commit()
-            # Add guild to the cache
+            if not banned_guild:
+                db_guild = Guild(id=guild.id, prefix='-')
+                session.add(db_guild)
+                await session.commit()
+        if banned_guild:
+            await guild.leave()
+            return
+        # Add guild to the cache
+        if db_guild:
             self.bot.db_guild_cache[guild.id] = db_guild
 
     @Cog.listener()

@@ -458,14 +458,13 @@ class General(Cog):
 
         async with self.bot.get_session() as session:
             poll: Poll | None = (await session.execute(select(Poll).where(Poll.message_id == msg_id))).scalar_one_or_none()
-            if not poll:
-                raise commands.CommandError(message=f'Could not find active poll by ID: `{msg_id}`.')
-
-            if poll.author_id != ctx.message.author.id:
-                raise commands.CommandError(message=f'Insufficient permissions: only the creator of the poll can close it prematurely.')
-
-            await session.delete(poll)
-            await session.commit()
+            if poll and poll.author_id == ctx.message.author.id:
+                await session.delete(poll)
+                await session.commit()
+        if not poll:
+            raise commands.CommandError(message=f'Could not find active poll by ID: `{msg_id}`.')
+        if poll.author_id != ctx.message.author.id:
+            raise commands.CommandError(message=f'Insufficient permissions: only the creator of the poll can close it prematurely.')
 
         try: 
             channel: discord.TextChannel = get_guild_text_channel(ctx.guild, poll.channel_id)

@@ -125,17 +125,20 @@ class RemoveRoleReactionDropdown(discord.ui.Select):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
+        perm: bool = interaction.user.guild_permissions.administrator or interaction.user.id != self.bot.config['owner']
         async with self.bot.get_session() as session:
-            if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
+            if not perm:
                 guild: Guild = await get_db_guild(session, interaction.guild)
                 role_reaction_management_role = None
                 if guild.role_reaction_management_role_id:
                     role_reaction_management_role: discord.Role | None = interaction.guild.get_role(guild.role_reaction_management_role_id)
-                if not role_reaction_management_role or not interaction.user.top_role >= role_reaction_management_role:
-                    await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
-                    return
-            await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.id == int(self.values[0])))
-            await session.commit()
+                perm = role_reaction_management_role is not None and interaction.user.top_role >= role_reaction_management_role
+                if perm:
+                    await session.execute(delete(CustomRoleReaction).where(CustomRoleReaction.id == int(self.values[0])))
+                    await session.commit()
+        if not perm:
+            await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
+            return
         await interaction.response.send_message(f'Role-reaction with ID {int(self.values[0])} deleted successfully.')
 
 class SelectRemoveRoleReactionView(discord.ui.View):
@@ -175,19 +178,21 @@ class ChannelDropdown(discord.ui.Select):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'This dropdown can only be used in a server.', ephemeral=True)
             return
+        channel: discord.TextChannel = get_guild_text_channel(interaction.guild, int(self.values[0]))
+        perm: bool = interaction.user.guild_permissions.administrator or interaction.user.id != self.bot.config['owner']
         async with self.bot.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
-            if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-                role_reaction_management_role = None
+            if not perm:
+                role_reaction_management_role: discord.Role | None = None
                 if guild.role_reaction_management_role_id:
-                    role_reaction_management_role: discord.Role | None = interaction.guild.get_role(guild.role_reaction_management_role_id)
-                if not role_reaction_management_role or not interaction.user.top_role >= role_reaction_management_role:
-                    await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
-                    return
-            channel: discord.TextChannel = get_guild_text_channel(interaction.guild, int(self.values[0]))
-
-            guild.custom_role_reaction_channel_id = channel.id
-            await session.commit()
+                    role_reaction_management_role = interaction.guild.get_role(guild.role_reaction_management_role_id)
+                perm = role_reaction_management_role is not None and interaction.user.top_role >= role_reaction_management_role
+            if perm:
+                guild.custom_role_reaction_channel_id = channel.id
+                await session.commit()
+        if not perm:
+            await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
+            return
         await interaction.response.send_message(f'The role-reaction channel was set to {channel.mention}.')
 
 class SelectChannelView(discord.ui.View):
@@ -269,13 +274,14 @@ class RoleReactions(Cog):
         if not user or user.bot:
             return
 
+        role_reaction: CustomRoleReaction | None = None
         async with self.bot.get_session() as session:
             guild: Guild = await get_db_guild(session, payload.guild_id)
+            if guild and guild.custom_role_reaction_channel_id == channel.id:
+                role_reaction = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
         if not guild or not guild.custom_role_reaction_channel_id == channel.id:
             return
-
-        async with self.bot.get_session() as session:
-            role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
+            
         if role_reaction:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
             if role:
@@ -309,13 +315,14 @@ class RoleReactions(Cog):
         if not user or user.bot:
             return
         
+        role_reaction: CustomRoleReaction | None = None
         async with self.bot.get_session() as session:
             guild: Guild = await get_db_guild(session, payload.guild_id)
+            if guild and guild.custom_role_reaction_channel_id == channel.id:
+                role_reaction = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
         if not guild or not guild.custom_role_reaction_channel_id == channel.id:
             return
-
-        async with self.bot.get_session() as session:
-            role_reaction: CustomRoleReaction | None = (await session.execute(select(CustomRoleReaction).where(CustomRoleReaction.guild_id == guild.id, CustomRoleReaction.emoji_id == emoji.id))).scalar_one_or_none()
+            
         if role_reaction:
             role: discord.Role | None = discord.utils.get(channel.guild.roles, id=role_reaction.role_id)
             if role:

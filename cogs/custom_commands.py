@@ -49,12 +49,13 @@ class CustomCommands(Cog):
                 if custom_db_command:
                     await session.delete(custom_db_command)
                     await session.commit()
-                    custom_command: commands.Command = get_custom_command(self.bot)
-                    self.bot.remove_command(custom_command.name)
-                    custom_command.aliases = await self.bot.get_custom_command_aliases()
-                    self.bot.add_command(custom_command)
-                    await ctx.send(f'Command `{command}` has been removed.')
-                    return
+            if custom_db_command:
+                custom_command: commands.Command = get_custom_command(self.bot)
+                self.bot.remove_command(custom_command.name)
+                custom_command.aliases = await self.bot.get_custom_command_aliases()
+                self.bot.add_command(custom_command)
+                await ctx.send(f'Command `{command}` has been removed.')
+                return
             raise CommandError(message=f'Please specify what your command should do. See `help custom`.')
         else:
             name: str = command.split()[0].lower()
@@ -322,11 +323,13 @@ class CustomCommands(Cog):
 
         async with self.bot.get_session() as session:
             custom_command: Command | None = await find_custom_db_command(session, ctx.guild, command)
-            if not custom_command:
-                raise CommandError(message=f'Error: no such command: `{command}`.')
+            
+            if custom_command:
+                custom_command.description = description_str
+                await session.commit()
 
-            custom_command.description = description_str
-            await session.commit()
+        if not custom_command:
+            raise CommandError(message=f'Error: no such command: `{command}`.')
 
         await ctx.send(f'Your discription has been added to `{command}`.')
 
@@ -349,28 +352,29 @@ class CustomCommands(Cog):
         msg: str = ''
         async with self.bot.get_session() as session:
             custom_db_command: Command | None = await find_custom_db_command(session, ctx.guild, command)
-            if not custom_db_command:
-                raise CommandError(message=f'Error: no such command: `{command}`.')
-
-            if custom_db_command.aliases:
-                if alias in custom_db_command.aliases:
-                    custom_db_command.aliases.remove(alias)
-                    msg = f'The alias `{alias}` has been removed from `{command}`.'
-                else:
-                    custom_db_command.aliases = custom_db_command.aliases + [alias]
+            
+            if custom_db_command:
+                if custom_db_command.aliases:
+                    if alias in custom_db_command.aliases:
+                        custom_db_command.aliases.remove(alias)
+                        msg = f'The alias `{alias}` has been removed from `{command}`.'
+                    else:
+                        custom_db_command.aliases = custom_db_command.aliases + [alias]
+                        msg = f'The alias `{alias}` has been added to `{command}`.'
+                elif custom_db_command:
+                    custom_db_command.aliases = [alias]
                     msg = f'The alias `{alias}` has been added to `{command}`.'
-            else:
-                custom_db_command.aliases = [alias]
-                msg = f'The alias `{alias}` has been added to `{command}`.'
+                await session.commit()
+        
+        if not custom_db_command:
+            raise CommandError(message=f'Error: no such command: `{command}`.')
 
-            await session.commit()
+        await ctx.send(msg)
 
-            await ctx.send(msg)
-
-            if not cmd:
-                self.bot.remove_command(custom_command.name)
-                custom_command.aliases = await self.bot.get_custom_command_aliases()
-                self.bot.add_command(custom_command)
+        if not cmd:
+            self.bot.remove_command(custom_command.name)
+            custom_command.aliases = await self.bot.get_custom_command_aliases()
+            self.bot.add_command(custom_command)
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(CustomCommands(bot))

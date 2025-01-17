@@ -33,12 +33,14 @@ class Roles(Cog):
             raise CommandError('This command can only be used in a server.')
 
         if not channel:
+            old_role_channel_id: int | None = None
             async with self.bot.get_session() as session:
                 guild: Guild = await get_db_guild(session, ctx.guild)
-                if not guild.role_channel_id:
-                    raise commands.CommandError(message=f'Required argument missing: `channel`.')
+                old_role_channel_id = guild.role_channel_id
                 guild.role_channel_id = None
                 await session.commit()
+            if not old_role_channel_id:
+                raise commands.CommandError(message=f'Required argument missing: `channel`.')
             await ctx.send(f'I will no longer manage roles on server **{ctx.guild.name}**.')
             return
 
@@ -149,10 +151,11 @@ class Roles(Cog):
         
         async with self.bot.get_session() as session:
             db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
-            if db_role:
-                raise commands.CommandError(message=f'Rank {rank.lower()} already exists.')
-            session.add(Role(guild_id=ctx.guild.id, name=rank.lower(), role_id=role.id))
-            await session.commit()
+            if not db_role:
+                session.add(Role(guild_id=ctx.guild.id, name=rank.lower(), role_id=role.id))
+                await session.commit()
+        if db_role:
+            raise commands.CommandError(message=f'Rank {rank.lower()} already exists.')
         
         await ctx.send(f'Added rank **{rank}**.')
 
@@ -174,11 +177,11 @@ class Roles(Cog):
         
         async with self.bot.get_session() as session:
             db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
-            if not db_role:
-                raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
-            
-            await session.delete(db_role)
-            await session.commit()
+            if db_role:
+                await session.delete(db_role)
+                await session.commit()
+        if not db_role:
+            raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
         
         await ctx.send(f'Removed rank **{rank}**.')
 

@@ -143,14 +143,11 @@ class Runescape(Cog):
 
         async with self.bot.get_session() as session:
             user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
-
-            if not user and not rsn:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`.')
-            
             if user:
                 user.rsn = rsn
-            
-            await session.commit()
+                await session.commit()
+        if not user and not rsn:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`.')
         
         if rsn:
             await ctx.send(f'{ctx.author.mention} Your RSN has been set to **{rsn}**.')
@@ -171,14 +168,11 @@ class Runescape(Cog):
 
         async with self.bot.get_session() as session:
             user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
-
-            if not user and not rsn:
-                raise commands.CommandError(message=f'Required argument missing: `RSN`.')
-            
             if user:
                 user.osrs_rsn = rsn
-            
-            await session.commit()
+                await session.commit()
+        if not user and not rsn:
+            raise commands.CommandError(message=f'Required argument missing: `RSN`.')
         
         if rsn:
             await ctx.send(f'{ctx.author.mention} Your Old School RSN has been set to **{rsn}**.')

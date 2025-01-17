@@ -208,14 +208,16 @@ class Management(Cog):
         else:
             async with self.bot.get_session() as session:
                 guild: Guild = await get_db_guild(session, ctx.guild)
-                if not guild.welcome_channel_id and not guild.welcome_message:
-                    await ctx.send(f'Please mention the channel in which you would like to receive welcome messages.')
-                    return
-                guild.welcome_channel_id = None
-                guild.welcome_message = None
-                await session.commit()
-                await ctx.send(f'I will no longer send welcome messages in server **{ctx.guild.name}**.')
+                
+                if guild.welcome_channel_id or guild.welcome_message:
+                    guild.welcome_channel_id = None
+                    guild.welcome_message = None
+                    await session.commit()
+            if not guild.welcome_channel_id and not guild.welcome_message:
+                await ctx.send(f'Please mention the channel in which you would like to receive welcome messages.')
                 return
+            await ctx.send(f'I will no longer send welcome messages in server **{ctx.guild.name}**.')
+            return
 
         async with self.bot.get_session() as session:
             guild: Guild = await get_db_guild(session, ctx.guild)
@@ -254,13 +256,15 @@ class Management(Cog):
         else:
             async with self.bot.get_session() as session:
                 guild: Guild = await get_db_guild(session, ctx.guild)
-                if not guild.log_channel_id:
-                    await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
-                    return
-                guild.log_channel_id = None
-                await session.commit()
-                await ctx.send(f'I will no longer send logging messages in server **{ctx.guild.name}**.')
+                
+                if guild.log_channel_id:
+                    guild.log_channel_id = None
+                    await session.commit()
+            if not guild.log_channel_id:
+                await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
                 return
+            await ctx.send(f'I will no longer send logging messages in server **{ctx.guild.name}**.')
+            return
         
         async with self.bot.get_session() as session:
             guild: Guild = await get_db_guild(session, ctx.guild)
@@ -281,8 +285,7 @@ class Management(Cog):
             guild: Guild = await get_db_guild(session, ctx.guild)
             guild.log_bots = False if guild.log_bots else True
             await session.commit()
-            await ctx.send(f'Bot message deletion and edit logging {"enabled" if guild.log_bots else "disabled"}.')
-
+        await ctx.send(f'Bot message deletion and edit logging {"enabled" if guild.log_bots else "disabled"}.')
 
     @commands.command(pass_context=True)
     @is_admin()
@@ -422,11 +425,13 @@ class Management(Cog):
             data: Any = await r.json()
 
         async with self.bot.get_session() as session:
-            if (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id, Repository.user_name == user_name, Repository.repo_name == repo_name))).scalar_one_or_none():
-                raise commands.CommandError(message=f'The repository `{repo_name}` is already being tracked.')
+            existing_repo: Repository | None = (await session.execute(select(Repository).where(Repository.guild_id == ctx.guild.id, Repository.user_name == user_name, Repository.repo_name == repo_name))).scalar_one_or_none()
             
-            session.add(Repository(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha))
-            await session.commit()
+            if not existing_repo:
+                session.add(Repository(guild_id=ctx.guild.id, channel_id=channel.id, user_name=user_name, repo_name=repo_name, sha=commit.sha))
+                await session.commit()
+        if existing_repo:
+            raise commands.CommandError(message=f'The repository `{repo_name}` is already being tracked.')
 
         await ctx.send(f'The repository `{repo_name}` is now being tracked. Notifications for new commits will be sent to {channel.mention}.')
 
@@ -469,9 +474,9 @@ class Management(Cog):
             if repo:
                 await session.delete(repo)
                 await session.commit()
-                await ctx.send(f'No longer tracking repository: `{repo_name}`.')
-            else:
-                raise commands.CommandError(message=f'Could not find any active trackers for the repository: `{repo_name}`.')
+        if not repo:
+            raise commands.CommandError(message=f'Could not find any active trackers for the repository: `{repo_name}`.')
+        await ctx.send(f'No longer tracking repository: `{repo_name}`.')
 
     @commands.command(aliases=['info'])
     @commands.cooldown(1, 5, commands.BucketType.user)
@@ -1202,10 +1207,11 @@ class Management(Cog):
         guild_id = int(guild_id)
         async with self.bot.get_session() as session:
             banned_guild: BannedGuild | None = (await session.execute(select(BannedGuild).where(BannedGuild.id == guild_id))).scalar_one_or_none()
-            if not banned_guild:
-                raise commands.CommandError(message=f'No banned guild found with ID `{guild_id}`.')
-            await session.delete(banned_guild)
-            await session.commit()
+            if banned_guild:
+                await session.delete(banned_guild)
+                await session.commit()
+        if not banned_guild:
+            raise commands.CommandError(message=f'No banned guild found with ID `{guild_id}`.')
         
         await ctx.send(f'Guild `{banned_guild.name}` with ID `{guild_id}` has been unbanned.')
 

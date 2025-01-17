@@ -128,8 +128,6 @@ class Bot(commands.AutoShardedBot):
             raise
         finally:
             if session:
-                session.expire_all()
-                session.expunge_all()
                 await session.close()
     
     async def close_database_connection(self) -> None:
@@ -214,13 +212,15 @@ class Bot(commands.AutoShardedBot):
             list[str]: List of all custom commmand names and aliases
         '''
         aliases: list[str] = []
+
         async with self.get_session() as session:
             custom_commands: Sequence[Command] = (await session.execute(select(Command))).scalars().all()
-            for command in [c for c in custom_commands if c]:
-                if not command.name in aliases:
-                    aliases.append(command.name)
-                if command.aliases:
-                    for alias in command.aliases:
-                        if not alias in aliases:
-                            aliases.append(alias)
-            return aliases
+
+        for command in [c for c in custom_commands if c]:
+            if not command.name in aliases:
+                aliases.append(command.name)
+            if command.aliases:
+                for alias in command.aliases:
+                    if not alias in aliases:
+                        aliases.append(alias)
+        return aliases

@@ -160,7 +160,7 @@ class RuneClock(Bot):
         else:
             async with self.get_session() as session:
                 guild = await find_or_create_db_guild(session, message.guild)
-                self.db_guild_cache[guild.id] = guild
+            self.db_guild_cache[guild.id] = guild
 
         now: datetime = datetime.now(UTC)
         msg: str = message.content

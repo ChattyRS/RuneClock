@@ -41,7 +41,7 @@ class ModCommands(Cog):
                 guild.modmail_public = None
                 guild.modmail_private = None
                 await session.commit()
-                self.bot.cache_db_guild(guild)
+            self.bot.cache_db_guild(guild)
             await ctx.send(f'Modmail has been disabled for server **{ctx.guild.name}**.')
             return
 
@@ -55,7 +55,7 @@ class ModCommands(Cog):
             guild.modmail_public = public.id
             guild.modmail_private = private.id
             await session.commit()
-            self.bot.cache_db_guild(guild)
+        self.bot.cache_db_guild(guild)
 
         await ctx.send(f'Modmail public and private channels for server **{ctx.guild.name}** have been set to {public.mention} and {private.mention}.')
     
