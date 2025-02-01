@@ -296,12 +296,14 @@ class Notifications(Cog):
             if notification:
                 notification = notification[0]
 
+                # Each operation here needs to be committed directly to avoid conflicting primary key values
                 notifications.remove(notification)
                 await session.delete(notification)
+                await session.commit()
 
                 for i, n in enumerate(notifications):
                     n.notification_id = i
-                await session.commit()
+                    await session.commit()
         if not notification:
             raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
 
