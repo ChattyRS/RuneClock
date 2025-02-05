@@ -81,6 +81,7 @@ wom_bosses: list[str] = [
     'the_corrupted_gauntlet',
     'the_hueycoatl',
     'the_leviathan',
+    'the_royal_titans',
     'the_whisperer',
     'theatre_of_blood',
     'theatre_of_blood_hard_mode',
