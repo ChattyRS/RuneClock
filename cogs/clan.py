@@ -3,7 +3,7 @@ import traceback
 from typing import Any
 import discord
 from discord import SelectOption, TextStyle, app_commands
-from discord.ext.commands import Cog, CommandError
+from discord.ext.commands import Cog
 from src.bot import Bot
 from src.database import Guild
 import re

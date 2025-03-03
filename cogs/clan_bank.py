@@ -276,6 +276,8 @@ class ClanBank(Cog):
             await interaction.response.send_message(f'This command can only be used in a server', ephemeral=True)
             return
         
+        await interaction.response.defer()
+        
         # Get the clan bank transactions
         async with self.bot.get_session() as session:
             tx: Sequence[ClanBankTransaction] = (await session.execute(select(ClanBankTransaction).where(ClanBankTransaction.guild_id == interaction.guild.id))).scalars().all()
@@ -298,14 +300,12 @@ class ClanBank(Cog):
             user_amounts[user_id] = sum([t.amount for t in tx if t.member_id == user_id])
         for user_id, user_amount in sorted(user_amounts.items(), key=lambda item: item[1]):
             member: discord.Member | None = interaction.guild.get_member(user_id)
-            if not member:
-                member = await interaction.guild.fetch_member(user_id)
             name: str = member.display_name if member else f'Unknown member: {user_id}'
             embed.add_field(name=name, value=f'Amount: `{user_amount:,}`', inline=False)
         if coins_image:
-            await interaction.response.send_message(files=[coins_image], embed=embed)
+            await interaction.followup.send(files=[coins_image], embed=embed)
         else:
-            await interaction.response.send_message(embed=embed)
+            await interaction.followup.send(embed=embed)
 
     async def add(self, interaction: discord.Interaction) -> None:
         # Add to the clan bank
