@@ -401,7 +401,7 @@ class Notifications(Cog):
         await ctx.send(f'Notification edited with id: `{id}`\n```channel:  {notification.channel_id}\ntime:     {notification.time} UTC\ninterval: {notification.interval} (seconds)\nmessage:  {notification.message}```')
 
     @commands.command()
-    async def online(self, ctx: commands.Context, *, member: discord.Member, type: int = 1) -> None:
+    async def online(self, ctx: commands.Context, member: discord.Member, type: int = 1) -> None:
         '''
         Notify next time a user comes online.
         Arguments: member (mention, id, name), (optional: int type [1-4])
