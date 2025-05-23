@@ -95,6 +95,7 @@ wom_bosses: list[str] = [
     'vetion',
     'vorkath',
     'wintertodt',
+    'yama',
     'zalcano',
     'zulrah'
 ]
@@ -117,7 +118,8 @@ wom_minigames: list[str] = [
     'pvp_arena',
     'soul_wars_zeal',
     'guardians_of_the_rift',
-    'colosseum_glory'
+    'colosseum_glory',
+    'collections_logged'
 ]
 
 wom_efficiency: list[str] = ['ehp', 'ehb']
