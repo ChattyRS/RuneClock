@@ -748,7 +748,7 @@ class BackgroundTasks(Cog):
         Inserts a delay of 5 minutes before the start of price tracking for both OSRS and RS3 items.
         This delay serves to avoid exceeding rate limits during frequent successive restarts, e.g. when testing new features of the bot.
         '''
-        await asyncio.sleep(30)
+        await asyncio.sleep(300)
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(BackgroundTasks(bot))
