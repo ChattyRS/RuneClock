@@ -18,7 +18,7 @@ class Servers(Cog):
             guild (_type_): The guild that was joined
         '''
         db_guild: Guild | None = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             banned_guild: BannedGuild | None = (await session.execute(select(BannedGuild).where(Guild.id == guild.id))).scalar_one_or_none()
             if not banned_guild:
                 db_guild = Guild(id=guild.id, prefix='-')
@@ -39,7 +39,7 @@ class Servers(Cog):
         Args:
             guild (discord.Guild): The guild that the bot was removed from.
         '''
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             db_guild: Guild | None = (await session.execute(select(Guild).where(Guild.id == guild.id))).scalar_one_or_none()
             if db_guild:
                 await purge_guild(session, db_guild)

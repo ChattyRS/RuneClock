@@ -53,7 +53,7 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
             group: Any = await r.json()
 
         # Store group id and verification code
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
             guild.wom_group_id = group_id
             guild.wom_verification_code = verification_code
@@ -86,7 +86,7 @@ class Dropdown(discord.ui.Select):
         # and the values attribute gets a list of the user's
         # selected options. We only want the first one.
         role: discord.Role = get_role(self.bot, interaction.guild, int(self.values[0]))
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
             guild.wom_role_id = role.id
             await session.commit()
@@ -124,7 +124,7 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
 
         # Get WOM group
         group = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
@@ -182,7 +182,7 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
 
         # Get WOM group
         group = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
@@ -247,7 +247,7 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         await interaction.response.defer()
 
         # Get guild info from database
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
 
         # Calculate start and end datetimes
@@ -311,7 +311,7 @@ class RandomMetricView(discord.ui.View):
             return
         # Reroll result
         type: str = interaction.message.embeds[0].title.replace('*', '').lower().strip() if interaction.message and interaction.message.embeds[0].title else ''
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
         exclude: list[str] = await get_excluded_metrics(guild) + ([interaction.message.embeds[0].description] if interaction.message and interaction.message.embeds[0].description else [])
         try:
@@ -341,7 +341,7 @@ class WOMExcludeModal(discord.ui.Modal, title='Wise Old Man: exclude metrics'):
                 await interaction.response.send_message(f'Invalid metric: `{metric}`.', ephemeral=True)
                 return
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
             guild.wom_excluded_metrics = ','.join(metrics_to_exclude)
             await session.commit()
@@ -380,7 +380,7 @@ class Clan(Cog):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
             return
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild)
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
             wom_role: discord.Role | None = None
@@ -461,7 +461,7 @@ class Clan(Cog):
     async def random_skill(self, interaction: discord.Interaction):
         # Choose a random skill
         try:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 guild: Guild = await get_db_guild(session, interaction.guild)
             metric: str = choose_metric(await get_excluded_metrics(guild), 'skill')
         except:
@@ -477,7 +477,7 @@ class Clan(Cog):
     async def random_boss(self, interaction: discord.Interaction) -> None:
         # Choose a random boss
         try:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 guild: Guild = await get_db_guild(session, interaction.guild)
             metric: str = choose_metric(await get_excluded_metrics(guild), 'boss')
         except:

@@ -5,13 +5,13 @@ from discord.ext.commands import Cog
 from src.bot import Bot
 from datetime import datetime, timedelta, UTC
 import logging
-from typing import Any, NoReturn, Sequence
+from typing import Any, Sequence
 from sqlalchemy import select
 from aiohttp import ClientResponse
 import feedparser
 import io
 from src.message_queue import QueueMessage
-from src.database import Guild, Mute, Repository, Notification, Poll, NewsPost, Uptime
+from src.database import Guild, Mute, Repository, Notification, Poll, NewsPost, Uptime, OSRSItem, RS3Item
 from github.Commit import Commit
 from github.Repository import Repository as GitRepository
 from github.AuthenticatedUser import AuthenticatedUser
@@ -19,6 +19,7 @@ from github.NamedUser import NamedUser
 from github.PaginatedList import PaginatedList
 from src.runescape_utils import prif_districts
 from src.discord_utils import get_text_channel, find_text_channel, find_guild_text_channel, get_guild_text_channel
+from src.exceptions import PriceTrackingException
 
 class BackgroundTasks(Cog):
     notification_state_initialized: bool = False
@@ -40,6 +41,9 @@ class BackgroundTasks(Cog):
 
     rs3_news_url: str = 'http://services.runescape.com/m=news/latest_news.rss'
     osrs_news_url: str = 'http://services.runescape.com/m=news/latest_news.rss?oldschool=true'
+
+    last_osrs_item_id: int | None = None
+    last_rs3_item_id: int | None = None
     
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
@@ -57,6 +61,8 @@ class BackgroundTasks(Cog):
         self.rsnews.start()
         self.check_polls.start()
         self.git_tracking.start()
+        self.price_tracking_osrs.start()
+        self.price_tracking_rs3.start()
 
     async def cog_unload(self) -> None:
         '''
@@ -69,6 +75,8 @@ class BackgroundTasks(Cog):
         self.rsnews.cancel()
         self.check_polls.cancel()
         self.git_tracking.cancel()
+        self.price_tracking_osrs.cancel()
+        self.price_tracking_rs3.cancel()
 
     @tasks.loop(seconds=10)
     async def uptime_tracking(self) -> None:
@@ -76,7 +84,7 @@ class BackgroundTasks(Cog):
             now: datetime = datetime.now(UTC).replace(microsecond=0)
             today: datetime = now.replace(hour=0, minute=0, second=0)
             
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 latest_event_today: Uptime | None = (await session.execute(select(Uptime).where(Uptime.time >= today).order_by(Uptime.time.desc()))).scalars().first()
                 if latest_event_today and latest_event_today.status == 'running':
                     latest_event_today.time = now
@@ -147,7 +155,7 @@ class BackgroundTasks(Cog):
             _type_: A list of coroutines which can be awaited to send the notifications.
         '''
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
         
         channels: list[discord.TextChannel] = [channel for channel in [find_text_channel(self.bot, guild.notification_channel_id) for guild in guilds] if channel]
@@ -181,7 +189,7 @@ class BackgroundTasks(Cog):
 
         guilds: Sequence[Guild]
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             if osrs:
                 guilds = (await session.execute(select(Guild).where(Guild.osrs_news_channel_id.is_not(None)))).scalars().all()
             else:
@@ -279,12 +287,12 @@ class BackgroundTasks(Cog):
                 self.bot.queue_message(QueueMessage(self.log_channel, error))
 
     @tasks.loop(seconds=30)
-    async def custom_notify(self) -> NoReturn:
+    async def custom_notify(self) -> None:
         '''
         Function to send custom notifications
         '''
         try:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 deleted_from_guild_ids: list[int] = []
                 notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.time <= datetime.now(UTC)))).scalars().all()
                 for notification in notifications:
@@ -323,13 +331,13 @@ class BackgroundTasks(Cog):
                 self.bot.queue_message(QueueMessage(self.log_channel, error))
     
     @tasks.loop(minutes=1)
-    async def unmute(self) -> NoReturn:
+    async def unmute(self) -> None:
         '''
         Function to unmute members when mutes expire
         '''
         to_unmute: list[tuple[discord.Member, discord.Role, discord.Guild]] = []
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             mutes: Sequence[Mute] = (await session.execute(select(Mute).where(Mute.expiration <= datetime.now(UTC)))).scalars().all()
             for mute in mutes:
                 await session.delete(mute)
@@ -393,7 +401,7 @@ class BackgroundTasks(Cog):
             osrs_feed: Any = feedparser.parse(osrs_data)
             
             to_send: list[NewsPost] = []
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost))).scalars().all()
 
                 for post in reversed(rs3_feed.entries):
@@ -447,11 +455,11 @@ class BackgroundTasks(Cog):
                 self.bot.queue_message(QueueMessage(self.log_channel, error))
     
     @tasks.loop(minutes=1)
-    async def check_polls(self) -> NoReturn:
+    async def check_polls(self) -> None:
         '''
         Function to check if there are any polls that have to be closed.
         '''
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             polls: Sequence[Poll] = (await session.execute(select(Poll).where(Poll.end_time <= datetime.now(UTC)))).scalars().all()
             for poll in polls:
                 await session.delete(poll)
@@ -484,12 +492,12 @@ class BackgroundTasks(Cog):
                 pass
 
     @tasks.loop(minutes=1)
-    async def git_tracking(self) -> NoReturn:
+    async def git_tracking(self) -> None:
         '''
         Function to check tracked git repositories for new commits.
         '''
         try:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 repositories: Sequence[Repository] = (await session.execute(select(Repository))).scalars().all()
 
             to_delete: list[Repository] = []
@@ -527,7 +535,7 @@ class BackgroundTasks(Cog):
                     self.bot.queue_message(QueueMessage(channel, None, embed))
 
             if to_delete or modified:
-                async with self.bot.get_session() as session:
+                async with self.bot.db.get_session() as session:
                     # Since the original db session has been disposed, any repositories to be deleted or modified
                     # must first be re-retrieved from the database using a new session so that they can be modified
                     for r in to_delete:
@@ -540,6 +548,207 @@ class BackgroundTasks(Cog):
 
         except:
             pass
+
+    def get_next_item_osrs(self) -> OSRSItem:
+        '''
+        Gets the next OSRS item to have its price updated.
+
+        Returns:
+            OSRSItem: The next item to be updated
+        '''
+        next_item_id: int
+        if self.last_osrs_item_id is None or self.last_osrs_item_id >= max(self.bot.cache.osrs_items.keys()):
+            next_item_id = min(self.bot.cache.osrs_items.keys())
+        else:
+            next_item_id = min([k for k in self.bot.cache.osrs_items.keys() if k > self.last_osrs_item_id])
+        return self.bot.cache.osrs_items[next_item_id]
+
+    @tasks.loop(seconds=10) # Used to be 6, using 10 with new implementation to be conservative
+    async def price_tracking_osrs(self) -> None:
+        '''
+        Update OSRS item pricing in the background.
+        The delay / interval between iterations is changed to avoid rate limits.
+        '''
+        # Interval may have been changed in previous iteration due to rate limits. So we reset it here.
+        self.price_tracking_osrs.change_interval(seconds=10)
+        item: OSRSItem = self.get_next_item_osrs()
+
+        graph_url: str = f'http://services.runescape.com/m=itemdb_oldschool/api/graph/{item.id}.json'
+        graph_data: dict[str, dict[str, str]] = {}
+
+        try:
+            r: ClientResponse = await self.bot.aiohttp.get(graph_url)
+
+            async with r:
+                if r.status == 404:
+                    msg: str = f'OSRS 404 error for item {item.id}: {item.name}'
+                    logging.critical(msg)
+                    self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), msg))
+                    self.last_osrs_item_id = item.id # Continue to the next item because this one apparently does not exist
+                    return
+                elif r.status == 429:
+                    self.price_tracking_osrs.change_interval(seconds=900)
+                    raise PriceTrackingException(f'Rate limited')
+                elif r.status != 200:
+                    self.price_tracking_osrs.change_interval(seconds=60)
+                    raise PriceTrackingException(f'HTTP status code {200} does not indicate success.')
+                try:
+                    graph_data = await r.json(content_type='text/html')
+                except Exception as e:
+                    # This should only happen when the API is down
+                    self.price_tracking_osrs.change_interval(seconds=300)
+                    raise PriceTrackingException(f'Unexpected error for {item.id}: {item.name}\n{e}')
+            
+            # Graph data may not be returned at times, even with status code 200.
+            # Appears to be a regular occurrence, seemingly due to rate limits.
+            if not graph_data:
+                self.price_tracking_osrs.change_interval(seconds=900)
+                raise PriceTrackingException('No graph data from successful response. This appears to indicate we are IP blocked / rate limited.')
+            
+            prices: list[str] = []
+            for price in graph_data['daily'].values():
+                prices.append(price)
+            
+            current: str = str(prices[len(prices) - 1])
+            yesterday: str = str(prices[len(prices) - 2])
+            month_ago: str = str(prices[len(prices) - 31])
+            three_months_ago: str = str(prices[len(prices) - 91])
+            half_year_ago: str = str(prices[0])
+
+            today = str(int(current) - int(yesterday))
+            day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
+            day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
+            day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
+
+            # To update the item, we first obtain a new database session
+            # as the original session used to retrieve the item has been disposed.
+            async with self.bot.db.get_session() as session:
+                db_item: OSRSItem = (await session.execute(select(OSRSItem).where(OSRSItem.id == item.id))).scalar_one()
+            
+                db_item.current = current
+                db_item.today = today
+                db_item.day30 = day30
+                db_item.day90 = day90
+                db_item.day180 = day180
+                db_item.graph_data = graph_data
+
+                await session.commit()
+                self.bot.cache.osrs_items[item.id] = db_item # Update the cached item
+                self.last_osrs_item_id = item.id # Continue to the next item by marking this item as done
+        except Exception as e:
+            # Catch all exceptions to avoid closing the loop
+            error: str = f'{e.__class__.__name__} encountered in osrs price tracking: {e}'
+            print(error)
+            logging.critical(error)
+            self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), error))
+            # In case some unhandled exception occurred, set the interval to something large enough to avoid issues
+            if (self.price_tracking_osrs.seconds == 10):
+                self.price_tracking_osrs.change_interval(seconds=600)
+        
+    def get_next_item_rs3(self) -> RS3Item:
+        '''
+        Gets the next RS3 item to have its price updated.
+
+        Returns:
+            RS3Item: The next item to be updated
+        '''
+        next_item_id: int
+        if self.last_rs3_item_id is None or self.last_rs3_item_id >= max(self.bot.cache.rs3_items.keys()):
+            next_item_id = min(self.bot.cache.rs3_items.keys())
+        else:
+            next_item_id = min([k for k in self.bot.cache.rs3_items.keys() if k > self.last_rs3_item_id])
+        return self.bot.cache.rs3_items[next_item_id]
+
+    @tasks.loop(seconds=10) # Used to be 6, using 10 with new implementation to be conservative
+    async def price_tracking_rs3(self) -> None:
+        '''
+        Update OSRS item pricing in the background.
+        The delay / interval between iterations is changed to avoid rate limits.
+        '''
+        # Interval may have been changed in previous iteration due to rate limits. So we reset it here.
+        self.price_tracking_rs3.change_interval(seconds=10)
+        item: RS3Item = self.get_next_item_rs3()
+
+        graph_url: str = f'http://services.runescape.com/m=itemdb_rs/api/graph/{item.id}.json'
+        graph_data: dict[str, dict[str, str]] = {}
+
+        try:
+            r: ClientResponse = await self.bot.aiohttp.get(graph_url)
+
+            async with r:
+                if r.status == 404:
+                    msg: str = f'RS3 404 error for item {item.id}: {item.name}'
+                    logging.critical(msg)
+                    self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), msg))
+                    self.last_rs3_item_id = item.id # Continue to the next item because this one apparently does not exist
+                    return
+                elif r.status == 429:
+                    self.price_tracking_rs3.change_interval(seconds=900)
+                    raise PriceTrackingException(f'Rate limited')
+                elif r.status != 200:
+                    self.price_tracking_rs3.change_interval(seconds=60)
+                    raise PriceTrackingException(f'HTTP status code {200} does not indicate success.')
+                try:
+                    graph_data = await r.json(content_type='text/html')
+                except Exception as e:
+                    # This should only happen when the API is down
+                    self.price_tracking_rs3.change_interval(seconds=300)
+                    raise PriceTrackingException(f'Unexpected error for {item.id}: {item.name}\n{e}')
+            
+            # Graph data may not be returned at times, even with status code 200.
+            # Appears to be a regular occurrence, seemingly due to rate limits.
+            if not graph_data:
+                self.price_tracking_rs3.change_interval(seconds=900)
+                raise PriceTrackingException('No graph data from successful response. This appears to indicate we are IP blocked / rate limited.')
+            
+            prices: list[str] = []
+            for price in graph_data['daily'].values():
+                prices.append(price)
+            
+            current: str = str(prices[len(prices) - 1])
+            yesterday: str = str(prices[len(prices) - 2])
+            month_ago: str = str(prices[len(prices) - 31])
+            three_months_ago: str = str(prices[len(prices) - 91])
+            half_year_ago: str = str(prices[0])
+
+            today = str(int(current) - int(yesterday))
+            day30: str = '{:.1f}'.format((int(current) - int(month_ago)) / int(month_ago) * 100) + '%'
+            day90: str = '{:.1f}'.format((int(current) - int(three_months_ago)) / int(three_months_ago) * 100) + '%'
+            day180: str = '{:.1f}'.format((int(current) - int(half_year_ago)) / int(half_year_ago) * 100) + '%'
+
+            # To update the item, we first obtain a new database session
+            # as the original session used to retrieve the item has been disposed.
+            async with self.bot.db.get_session() as session:
+                db_item: RS3Item = (await session.execute(select(RS3Item).where(RS3Item.id == item.id))).scalar_one()
+            
+                db_item.current = current
+                db_item.today = today
+                db_item.day30 = day30
+                db_item.day90 = day90
+                db_item.day180 = day180
+                db_item.graph_data = graph_data
+
+                await session.commit()
+                self.bot.cache.rs3_items[item.id] = db_item # Update the cached item
+                self.last_rs3_item_id = item.id # Continue to the next item by marking this item as done
+        except Exception as e:
+            # Catch all exceptions to avoid closing the loop
+            error: str = f'{e.__class__.__name__} encountered in rs3 price tracking: {e}'
+            print(error)
+            logging.critical(error)
+            self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), error))
+            # In case some unhandled exception occurred, set the interval to something large enough to avoid issues
+            if (self.price_tracking_rs3.seconds == 10):
+                self.price_tracking_rs3.change_interval(seconds=600)
+    
+    @price_tracking_osrs.before_loop
+    @price_tracking_rs3.before_loop
+    async def delayed_start_price_tracking(self) -> None:
+        '''
+        Inserts a delay of 5 minutes before the start of price tracking for both OSRS and RS3 items.
+        This delay serves to avoid exceeding rate limits during frequent successive restarts, e.g. when testing new features of the bot.
+        '''
+        await asyncio.sleep(30)
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(BackgroundTasks(bot))

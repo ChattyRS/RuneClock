@@ -1,10 +1,13 @@
+from contextlib import asynccontextmanager
+from asyncpg import TooManyConnectionsError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession, async_sessionmaker, AsyncAttrs
-from sqlalchemy import NullPool, PrimaryKeyConstraint, ForeignKey
+from sqlalchemy import PrimaryKeyConstraint, ForeignKey
 from sqlalchemy import BigInteger, Integer, String, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import ARRAY, JSON, TIMESTAMP
-from typing import Any, Optional
+from typing import Any, AsyncGenerator, Callable, Optional, Coroutine
 from datetime import datetime
+from sqlalchemy.exc import TimeoutError
 
 class Base(AsyncAttrs, DeclarativeBase):
     pass
@@ -194,40 +197,84 @@ class StickyMessage(Base):
     message: Mapped[str] = mapped_column(String, nullable=False)
     message_id: Mapped[Optional[int]] = mapped_column(BigInteger)
 
-def get_db_engine(config: dict[str, Any]) -> AsyncEngine:
-    '''
-    Get AsyncEngine to connect with the database
+class Database():
+    config: dict[str, Any]
+    restart: Callable[[str | None], Coroutine]
 
-    Args:
-        config (dict[str, Any]): The config containing the relevant parts of the connection string
+    engine: AsyncEngine
+    async_session: async_sessionmaker[AsyncSession]
 
-    Returns:
-        AsyncEngine: The async engine
-    '''
-    connection_string: str = (f'postgresql+asyncpg://{config["postgres_username"]}:{config["postgres_password"]}'
-        + f'@{config["postgres_ip"]}:{config["postgres_port"]}/{config["postgres_db_name"]}')
-    return create_async_engine(connection_string, pool_size=100, max_overflow=90)
+    def __init__(self, config: dict[str, Any], restart: Callable[[str | None], Coroutine]) -> None:
+        self.config = config
+        self.restart = restart
 
-def get_db_session_maker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
-    '''
-    Get async session maker to create db sessions
+        self.engine = self.__get_db_engine()
+        self.async_session = self.__get_db_session_maker()
 
-    Args:
-        engine (AsyncEngine): The async engine
+    def __get_db_engine(self) -> AsyncEngine:
+        '''
+        Get AsyncEngine to connect with the database
 
-    Returns:
-        async_sessionmaker[AsyncSession]: The async session maker
-    '''
-    # async_sessionmaker: a factory for new AsyncSession objects.
-    # expire_on_commit - don't expire objects after transaction commit
-    return async_sessionmaker(engine, expire_on_commit=False)
+        Args:
+            config (dict[str, Any]): The config containing the relevant parts of the connection string
 
-async def create_all_database_tables(engine: AsyncEngine) -> None:
-    '''
-    Creates all database tables.
+        Returns:
+            AsyncEngine: The async engine
+        '''
+        connection_string: str = (f'postgresql+asyncpg://{self.config["postgres_username"]}:{self.config["postgres_password"]}'
+            + f'@{self.config["postgres_ip"]}:{self.config["postgres_port"]}/{self.config["postgres_db_name"]}')
+        return create_async_engine(connection_string, pool_size=100, max_overflow=90)
 
-    Args:
-        engine (AsyncEngine): The async engine
-    '''
-    async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
+    def __get_db_session_maker(self) -> async_sessionmaker[AsyncSession]:
+        '''
+        Get async session maker to create db sessions
+
+        Returns:
+            async_sessionmaker[AsyncSession]: The async session maker
+        '''
+        # async_sessionmaker: a factory for new AsyncSession objects.
+        # expire_on_commit - don't expire objects after transaction commit
+        return async_sessionmaker(self.engine, expire_on_commit=False)
+
+    async def create_all_database_tables(self) -> None:
+        '''
+        Creates all database tables.
+        '''
+        async with self.engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
+    async def close_connection(self) -> None:
+        '''
+        Close the database connection by disposing the engine.
+        '''
+        await self.engine.dispose()
+
+    @asynccontextmanager
+    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+        '''
+        Gets a managed database session.
+        The session is automatically closed after it has been used.
+
+        Returns:
+            AsyncGenerator[AsyncSession]: AsyncGenerator to generate the AsyncSession
+
+        Yields:
+            Iterator[AsyncGenerator[AsyncSession]]: AsyncSession
+        '''
+        session: AsyncSession | None = None
+        try:
+            async with self.async_session() as session:
+                yield session
+        except (TimeoutError, TooManyConnectionsError) as e:
+            # In case of unexpected database connection errors, restart the bot.
+            # TimeoutError can be caused by a timeout due to hitting the QueuePool limit.
+            # TooManyConnectionsError occurs when we exceed the total number of connections allowed by the database.
+            # Currently unclear what is causing these issues to occur.
+            await self.restart('Restarting after TimeoutError or TooManyConnectionsError...')
+        except:
+            if session:
+                await session.rollback()
+            raise
+        finally:
+            if session:
+                await session.close()

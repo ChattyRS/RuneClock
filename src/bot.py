@@ -1,12 +1,11 @@
-from contextlib import asynccontextmanager
 from datetime import datetime, UTC
 import os
-from typing import Any, AsyncGenerator, Sequence
+from typing import Any, Sequence
 import discord
 from discord.ext import commands
 from sqlalchemy import select
 from src.discord_utils import get_text_channel
-from src.database import Command, Guild, get_db_engine, get_db_session_maker
+from src.database import Database, Guild, Command
 from src.configuration import get_config
 from src.auth_utils import get_google_sheets_credentials
 from aiohttp import TCPConnector, ClientSession, ClientTimeout
@@ -17,8 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from praw import Reddit
 import certifi
 import ssl
-from sqlalchemy.exc import TimeoutError as SqlTimeoutError
-from asyncpg import TooManyConnectionsError
+from src.cache import Cache
 
 class Bot(commands.AutoShardedBot):
     bot: commands.AutoShardedBot
@@ -52,8 +50,8 @@ class Bot(commands.AutoShardedBot):
     command_counter = 0
 
     message_queue: MessageQueue = MessageQueue()
-
-    db_guild_cache: dict[int, Guild] = {}
+    db: Database
+    cache: Cache
 
     def __init__(self) -> None:
         self.config = get_config()
@@ -80,83 +78,9 @@ class Bot(commands.AutoShardedBot):
             user_agent = self.config['user_agent'], 
             username = self.config['redditName']
         )
+        self.db = Database(self.config, self.restart)
+        self.cache = Cache(self.db)
         self.bot = self
-
-    def create_db_engine(self) -> None:
-        '''
-        Creates the database engine and async session maker.
-        '''
-        self.engine = get_db_engine(self.config)
-        self.async_session = get_db_session_maker(self.engine)
-
-    @asynccontextmanager
-    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
-        '''
-        Gets a managed database session.
-        The session is automatically closed after it has been used.
-
-        Returns:
-            AsyncGenerator[AsyncSession]: AsyncGenerator to generate the AsyncSession
-
-        Yields:
-            Iterator[AsyncGenerator[AsyncSession]]: AsyncSession
-        '''
-        session: AsyncSession | None = None
-        try:
-            async with self.async_session() as session:
-                yield session
-        except SqlTimeoutError as e:
-            # In case of timeout error due to QueuePool limit
-            # We close all existing connections to hopefully allow the bot to recover from the error
-            # https://docs.sqlalchemy.org/en/20/errors.html#error-3o7r
-            await self.engine.dispose()
-            self.create_db_engine()
-            error: str = f'Encountered exception while getting db session: {e.__class__.__name__}: {e}'
-            error += '\n\nDatabase engine was disposed and recreated to forcibly close all connections.'
-            self.queue_message(QueueMessage(get_text_channel(self, self.config['testChannel']), error))
-        except TooManyConnectionsError as e:
-            # It seems that even after disposing the entire engine and recreating it as above, some connections are *still* not closed.
-            # Hence, after disposing the engine and recreating it with same pool size limits as the original,
-            # the old unclosed connections together in combination with those from the new engine may exceed the maximum number of connections
-            # allowed by the database server. Hence we can run into this TooManyConnectionsError.
-            # In this case, we simply restart the entire bot. I don't know what else to do at this point.
-            await get_text_channel(self, self.config['testChannel']).send(f'Restarting after TooManyConnectionsError...')
-            self.restart()
-        except:
-            if session:
-                await session.rollback()
-            raise
-        finally:
-            if session:
-                await session.close()
-    
-    async def close_database_connection(self) -> None:
-        '''
-        Close the database connection by disposing the engine.
-        '''
-        await self.engine.dispose()
-
-    def get_cached_db_guild(self, guild_or_id: discord.Guild | int | None) -> Guild | None:
-        '''
-        Get a db guild from the cache.
-
-        Args:
-            guild_id (int): The guild id
-
-        Returns:
-            Guild | None: The guild, if found.
-        '''
-        guild_id: int | None = guild_or_id.id if isinstance(guild_or_id, discord.Guild) else guild_or_id
-        return self.db_guild_cache[guild_id] if guild_id and guild_id in self.db_guild_cache else None
-    
-    def cache_db_guild(self, guild: Guild) -> None:
-        '''
-        Cache a db guild.
-
-        Args:
-            guild (Guild): The guild to add to the cache.
-        '''
-        self.db_guild_cache[guild.id] = guild
 
     async def get_command_prefix(self, bot: commands.AutoShardedBot, message: discord.message.Message) -> list[str]:
         '''
@@ -171,16 +95,21 @@ class Bot(commands.AutoShardedBot):
         Returns:
             List[str]: list of prefixes
         '''
-        guild: Guild | None = self.get_cached_db_guild(message.guild.id) if message.guild else None
+        guild: Guild | None = self.cache.get_guild(message.guild.id) if message.guild else None
         prefix: str = guild.prefix if guild and guild.prefix else '-'
         return commands.when_mentioned_or(prefix)(bot, message)
     
-    def restart(self) -> None:
+    async def restart(self, error: str | None = None) -> None:
         '''
         Restarts the bot.
         The script runs in a loop, so by quitting, the bot will automatically restart.
+
+        Args:
+            error (str | None, optional): Error to be sent. Defaults to None.
         '''
-        print("Restarting script...")
+        print(f"{error}\nRestarting script...")
+        if error:
+            await get_text_channel(self, self.config['testChannel']).send(error)
         os._exit(0)
     
     def increment_command_counter(self) -> None:
@@ -213,7 +142,7 @@ class Bot(commands.AutoShardedBot):
         '''
         aliases: list[str] = []
 
-        async with self.get_session() as session:
+        async with self.db.get_session() as session:
             custom_commands: Sequence[Command] = (await session.execute(select(Command))).scalars().all()
 
         for command in [c for c in custom_commands if c]:

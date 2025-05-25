@@ -32,7 +32,7 @@ class Notifications(Cog):
         if user.bot:
             return
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, channel.guild)
         if guild.role_channel_id != channel.id:
             return
@@ -64,7 +64,7 @@ class Notifications(Cog):
         if user.bot:
             return
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, channel.guild)
         if guild.role_channel_id != channel.id:
             return
@@ -97,7 +97,7 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'This command can only be used in a server.')
         
         old_news_channel_id: int | None = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, ctx.guild)
 
             old_news_channel_id = guild.rs3_news_channel_id
@@ -131,7 +131,7 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'This command can only be used in a server.')
         
         old_news_channel_id: int | None = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, ctx.guild)
 
             old_news_channel_id = guild.osrs_news_channel_id
@@ -174,7 +174,7 @@ class Notifications(Cog):
                     raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
         
         old_channel_id: int | None = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, ctx.guild)
 
             old_channel_id = guild.notification_channel_id
@@ -243,7 +243,7 @@ class Notifications(Cog):
         if 0 < interval.total_seconds() < 900:
             raise commands.CommandError(f'Invalid argument: `{interval}`. Interval must be at least 15 minutes when set.')
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             id: int | None = (await session.execute(select(Notification.notification_id).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.desc()))).scalar()
             id = id+1 if id is not None else 0
             session.add(Notification(notification_id=id, guild_id=ctx.guild.id, channel_id=channel.id, time=time, interval=round(interval.total_seconds()), message=message))
@@ -261,7 +261,7 @@ class Notifications(Cog):
         if not ctx.guild:
             raise commands.CommandError(message=f'This command can only be used in a server.')
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             notifications: Sequence[Notification] = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.asc()))).scalars().all()
 
         if not notifications:
@@ -289,7 +289,7 @@ class Notifications(Cog):
         else:
             id = int(id)
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             notifications: list[Notification] = [n for n in (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id).order_by(Notification.notification_id.asc()))).scalars().all()]
             notification: list[Notification] | Notification = [n for n in notifications if n.notification_id == id]
             
@@ -341,7 +341,7 @@ class Notifications(Cog):
         if not value:
             raise commands.CommandError(message=f'Required argument missing: `value`.')
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             notification: Notification | None = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id, Notification.notification_id == id))).scalar_one_or_none()
         if not notification:
             raise commands.CommandError(message=f'Could not find custom notification: `{id}`.')
@@ -387,7 +387,7 @@ class Notifications(Cog):
             notification.message = value
 
         # Re-fetch notification from db to apply changes as we deliberately closed the initial db session
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             db_notification: Notification | None = (await session.execute(select(Notification).where(Notification.guild_id == ctx.guild.id, Notification.notification_id == id))).scalar_one_or_none()
             if db_notification:
                 db_notification.channel_id = notification.channel_id
@@ -424,7 +424,7 @@ class Notifications(Cog):
         elif type == 4 and str(member.status) == 'offline':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already offline.')
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
                 .where(OnlineNotification.guild_id == ctx.guild.id, OnlineNotification.author_id == ctx.author.id, OnlineNotification.member_id == member.id))).scalar_one_or_none()
             if online_notification:
@@ -449,7 +449,7 @@ class Notifications(Cog):
         if before.status == after.status:
             return
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
                 .where(OnlineNotification.guild_id == after.guild.id, OnlineNotification.member_id == after.id))).scalar_one_or_none()
             

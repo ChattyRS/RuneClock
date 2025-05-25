@@ -141,7 +141,7 @@ class Runescape(Cog):
         elif rsn and re.match(r'^[A-z0-9 -]+$', rsn) is None:
             raise commands.CommandError(message=f'Invalid argument: `{rsn}`.')
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
             if user:
                 user.rsn = rsn
@@ -166,7 +166,7 @@ class Runescape(Cog):
         elif rsn and re.match(r'^[A-z0-9 -]+$', rsn) is None:
             raise commands.CommandError(message=f'Invalid argument: `{rsn}`.')
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
             if user:
                 user.osrs_rsn = rsn
@@ -189,7 +189,7 @@ class Runescape(Cog):
         await ctx.channel.typing()
 
         if not username:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
             if user:
                 username = user.rsn
@@ -356,7 +356,7 @@ class Runescape(Cog):
         '''
         self.bot.increment_command_counter()
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost).where(NewsPost.game == 'osrs').order_by(NewsPost.time.desc()).fetch(5))).scalars().all()
 
         embed = discord.Embed(title=f'Old School RuneScape News')
@@ -373,7 +373,7 @@ class Runescape(Cog):
         '''
         self.bot.increment_command_counter()
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             news_posts: Sequence[NewsPost] = (await session.execute(select(NewsPost).where(NewsPost.game == 'rs3').order_by(NewsPost.time.desc()).fetch(5))).scalars().all()
 
         embed = discord.Embed(title=f'RuneScape News')
@@ -406,12 +406,9 @@ class Runescape(Cog):
         if len(item_name) < 2:
             raise commands.CommandError(message=f'Invalid argument: `item_name`. Length must be at least 2 characters.')
         
-        async with self.bot.get_session() as session:
-            items: Sequence[OSRSItem] = (await session.execute(select(OSRSItem).where(OSRSItem.name.ilike(f'%{item_name}%')))).scalars().all()
-        if not items:
+        item: OSRSItem | None = self.bot.cache.get_osrs_item_by_name(item_name)
+        if not item:
             raise commands.CommandError(message=f'Could not find item: `{item_name}`.')
-        items = sorted(items, key=lambda i: len(i.name))
-        item: OSRSItem = items[0]
 
         item_name = item.name
         price: str = f'{int(item.current.replace(' ', '')):,}'
@@ -530,12 +527,9 @@ class Runescape(Cog):
         if len(item_name) < 2:
             raise commands.CommandError(message=f'Invalid argument: `item_name`. Length must be at least 2 characters.')
 
-        async with self.bot.get_session() as session:
-            items: Sequence[RS3Item] = (await session.execute(select(RS3Item).where(RS3Item.name.ilike(f'%{item_name}%')))).scalars().all()
-        if not items:
+        item: RS3Item | None = self.bot.cache.get_rs3_item_by_name(item_name)
+        if not item:
             raise commands.CommandError(message=f'Could not find item: `{item_name}`.')
-        items = sorted(items, key=lambda i: len(i.name))
-        item: RS3Item = items[0]
 
         item_name = item.name
         price: str = f'{int(item.current.replace(' ', '')):,}'
@@ -644,7 +638,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
             name = user.osrs_rsn if user and user.osrs_rsn else disc_user.display_name
         if not name:
@@ -731,7 +725,7 @@ class Runescape(Cog):
 
         user_1: User | None = None
         user_2: User | None = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             if isinstance(name_1, discord.User):
                 user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
             if isinstance(name_2, discord.User):
@@ -852,7 +846,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
             name = user.osrs_rsn if user and user.osrs_rsn else disc_user.display_name
         if not name:
@@ -952,7 +946,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
@@ -1051,7 +1045,7 @@ class Runescape(Cog):
 
         user_1: User | None = None
         user_2: User | None = None
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             if isinstance(name_1, discord.User):
                 user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
             if isinstance(name_2, discord.User):
@@ -1187,7 +1181,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
@@ -1487,7 +1481,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
@@ -1572,7 +1566,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:

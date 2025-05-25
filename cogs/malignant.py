@@ -352,7 +352,7 @@ class Malignant(Cog):
             return
         
         # Get the logging channel
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild | None = await find_db_guild(session, malignant)
         if not guild or not guild.log_channel_id:
             return

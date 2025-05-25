@@ -2,17 +2,13 @@ from datetime import datetime, UTC
 import logging
 from pathlib import Path
 import sys
-from typing import Sequence
 import discord
 from discord.ext import commands
-from sqlalchemy import select
 from src.bot import Bot
 import string
 import traceback
-from src.price_tracking import price_tracking_osrs, price_tracking_rs3
 from src.message_queue import QueueMessage
 from src.database import Guild, Uptime
-from src.database import get_db_engine, get_db_session_maker, create_all_database_tables
 from src.discord_utils import find_text_channel, get_custom_command
 from src.database_utils import find_or_create_db_guild
 from src.startup_tasks import role_setup, check_guilds
@@ -32,10 +28,6 @@ class RuneClock(Bot):
         self.loop.create_task(role_setup(self))
         self.loop.create_task(check_guilds(self))
 
-        # Price tracking is still done in a while true loop due to more complex scheduling logic to avoid rate limits
-        self.loop.create_task(price_tracking_rs3(self))
-        self.loop.create_task(price_tracking_osrs(self))
-
     async def start_bot(self) -> None:
         '''
         Starts the discord bot.
@@ -50,8 +42,7 @@ class RuneClock(Bot):
         print('Setting up database connection...')
 
         try:
-            self.create_db_engine()
-            await create_all_database_tables(self.engine)
+            await self.db.create_all_database_tables()
         except Exception as e:
             error: str = f'Error encountered while setting up database: \n{type(e).__name__}: {e}'
             logging.critical(error)
@@ -68,17 +59,11 @@ class RuneClock(Bot):
 
         await self.setup_database()
 
-        async with self.get_session() as session:
+        async with self.db.get_session() as session:
             session.add(Uptime(time=self.start_time, status='started'))
             await session.commit()
 
-        # Initialize guild cache
-        # This is used to keep track of guild prefixes without needing to perform database requests for each message
-        guilds: Sequence[Guild] = []
-        async with self.get_session() as session:
-            guilds: Sequence[Guild] = (await session.execute(select(Guild))).scalars().all()
-        for g in guilds:
-            self.db_guild_cache[g.id] = g
+        await self.cache.build()
 
         print(f'Loading Discord...')
 
@@ -154,13 +139,11 @@ class RuneClock(Bot):
         
         # Get guild from cache, or fetch it from the database / create it if it is not cached yet
         # This can happen e.g. if the bot was added to the guild while it was down, such that it was unable to receive the on_guild_join event
-        guild: Guild
-        if message.guild.id in self.db_guild_cache:
-            guild = self.db_guild_cache[message.guild.id]
-        else:
-            async with self.get_session() as session:
+        guild: Guild | None = self.cache.get_guild(message.guild)
+        if not guild:
+            async with self.db.get_session() as session:
                 guild = await find_or_create_db_guild(session, message.guild)
-            self.db_guild_cache[guild.id] = guild
+            self.cache.guild(guild)
 
         now: datetime = datetime.now(UTC)
         msg: str = message.content

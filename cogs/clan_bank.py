@@ -33,7 +33,7 @@ class Dropdown(discord.ui.Select):
             await interaction.response.send_message(f'Could not find role.', ephemeral=True)
             return
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, interaction.guild.id)
             guild.bank_role_id = role.id
             await session.commit()
@@ -112,7 +112,7 @@ class ConfirmView(discord.ui.View):
             amount = -amount
         description: str | None = interaction.message.embeds[0].fields[1].value
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
              session.add(ClanBankTransaction(amount=amount, description=description, guild_id=interaction.guild.id, member_id=user_id, time=datetime.now(UTC)))
              await session.commit()
 
@@ -231,7 +231,7 @@ class ClanBank(Cog):
             await interaction.response.send_message(f'This command can only be used in a server', ephemeral=True)
             return
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 guild: Guild = await get_db_guild(session, interaction.guild)
             bank_role = None
             if guild.bank_role_id:
@@ -279,7 +279,7 @@ class ClanBank(Cog):
         await interaction.response.defer()
         
         # Get the clan bank transactions
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             tx: Sequence[ClanBankTransaction] = (await session.execute(select(ClanBankTransaction).where(ClanBankTransaction.guild_id == interaction.guild.id))).scalars().all()
 
         amount: int = sum([t.amount for t in tx])
@@ -321,7 +321,7 @@ class ClanBank(Cog):
             return
         
         # View the history of clan bank transaction
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             tx: Sequence[ClanBankTransaction] = (await session.execute(select(ClanBankTransaction).where(ClanBankTransaction.guild_id == interaction.guild.id))).scalars().all()
         
         # Create embed

@@ -44,7 +44,7 @@ class CustomCommands(Cog):
         command: str = ctx.message.clean_content[ctx.message.clean_content.index(' ')+1:].strip()
         if ''.join(command.split()) == command:
             custom_db_command: Command | None
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 custom_db_command = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id, Command.name == command))).scalar_one_or_none()
                 if custom_db_command:
                     await session.delete(custom_db_command)
@@ -66,7 +66,7 @@ class CustomCommands(Cog):
         if cmd and cmd != custom_command:
             raise CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id, Command.name == command))).scalar_one_or_none()
             if custom_db_command:
                 edit = True
@@ -97,7 +97,7 @@ class CustomCommands(Cog):
         if not ctx.invoked_with or not ctx.guild or not isinstance(ctx.channel, discord.TextChannel) or not isinstance(ctx.author, discord.Member):
             raise CommandError(message=f'Could not find the guild, channel, or alias that was used to invoke the command. This is unexpected.')
         alias: str = ctx.invoked_with.lower()
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             custom_db_command: Command | None = await find_custom_db_command(session, ctx.guild, alias)
         if not custom_db_command:
             return
@@ -269,7 +269,7 @@ class CustomCommands(Cog):
         self.bot.increment_command_counter()
 
         embed = discord.Embed(title='Commands')
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             custom_commands: Sequence[Command] = await get_custom_db_commands(session, ctx.guild)
 
         if not custom_commands:
@@ -321,7 +321,7 @@ class CustomCommands(Cog):
         
         description_str: str = ' '.join(description)
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             custom_command: Command | None = await find_custom_db_command(session, ctx.guild, command)
             
             if custom_command:
@@ -350,7 +350,7 @@ class CustomCommands(Cog):
             raise CommandError(message=f'Error: `alias already in use`.')
         
         msg: str = ''
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             custom_db_command: Command | None = await find_custom_db_command(session, ctx.guild, command)
             
             if custom_db_command:

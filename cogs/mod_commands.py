@@ -36,12 +36,12 @@ class ModCommands(Cog):
             raise CommandError(message=f'Required argument missing: `guild`.')
 
         if not public and not private:
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 guild: Guild = await get_db_guild(session, ctx.guild)
                 guild.modmail_public = None
                 guild.modmail_private = None
                 await session.commit()
-            self.bot.cache_db_guild(guild)
+            self.bot.cache.guild(guild)
             await ctx.send(f'Modmail has been disabled for server **{ctx.guild.name}**.')
             return
 
@@ -50,12 +50,12 @@ class ModCommands(Cog):
         
         public, private = ctx.message.channel_mentions[0], ctx.message.channel_mentions[1]
 
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             guild: Guild = await get_db_guild(session, ctx.guild)
             guild.modmail_public = public.id
             guild.modmail_private = private.id
             await session.commit()
-        self.bot.cache_db_guild(guild)
+        self.bot.cache.guild(guild)
 
         await ctx.send(f'Modmail public and private channels for server **{ctx.guild.name}** have been set to {public.mention} and {private.mention}.')
     
@@ -70,7 +70,7 @@ class ModCommands(Cog):
         if message.author.bot or message.guild is None or not isinstance(message.channel, discord.TextChannel):
             return
         
-        guild: Guild | None = self.bot.get_cached_db_guild(message.guild)
+        guild: Guild | None = self.bot.cache.get_guild(message.guild)
         if not guild:
             return
         
@@ -179,7 +179,7 @@ class ModCommands(Cog):
 
             end: datetime = datetime.now(UTC).replace(second=0, microsecond=0) + duration_delta
 
-            async with self.bot.get_session() as session:
+            async with self.bot.db.get_session() as session:
                 session.add(Mute(guild_id=ctx.guild.id, user_id=member.id, expiration=end, reason=reason))
                 await session.commit()
 
@@ -226,7 +226,7 @@ class ModCommands(Cog):
             raise CommandError(message=f'This command can only be used from a server.')
 
         msg = 'User ID             Expiration date      Reason\n'
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             mutes: Sequence[Mute] = (await session.execute(select(Mute).where(Mute.guild_id == ctx.guild.id))).scalars().all()
         if not mutes:
             raise CommandError(message=f'No mutes active.')
@@ -260,7 +260,7 @@ class ModCommands(Cog):
             except discord.Forbidden:
                 raise CommandError(message=f'Missing permissions: `role_management`.')
         
-        async with self.bot.get_session() as session:
+        async with self.bot.db.get_session() as session:
             mute: Mute | None = (await session.execute(select(Mute).where(Mute.guild_id == ctx.guild.id, Mute.user_id == member.id))).scalar_one_or_none()
             if mute:
                 await session.delete(mute)
