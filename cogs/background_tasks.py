@@ -591,7 +591,7 @@ class BackgroundTasks(Cog):
                     raise PriceTrackingException(f'Rate limited')
                 elif r.status != 200:
                     self.price_tracking_osrs.change_interval(seconds=60)
-                    raise PriceTrackingException(f'HTTP status code {200} does not indicate success.')
+                    raise PriceTrackingException(f'HTTP status code {r.status} does not indicate success.')
                 try:
                     graph_data = await r.json(content_type='text/html')
                 except Exception as e:
@@ -687,7 +687,7 @@ class BackgroundTasks(Cog):
                     raise PriceTrackingException(f'Rate limited')
                 elif r.status != 200:
                     self.price_tracking_rs3.change_interval(seconds=60)
-                    raise PriceTrackingException(f'HTTP status code {200} does not indicate success.')
+                    raise PriceTrackingException(f'HTTP status code {r.status} does not indicate success.')
                 try:
                     graph_data = await r.json(content_type='text/html')
                 except Exception as e:
