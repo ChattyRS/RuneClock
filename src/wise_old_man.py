@@ -53,6 +53,7 @@ wom_bosses: list[str] = [
     'dagannoth_rex',
     'dagannoth_supreme',
     'deranged_archaeologist',
+    'doom_of_mokhaiotl',
     'duke_sucellus',
     'general_graardor',
     'giant_mole',
