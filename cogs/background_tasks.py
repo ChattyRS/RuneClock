@@ -44,6 +44,10 @@ class BackgroundTasks(Cog):
 
     last_osrs_item_id: int | None = None
     last_rs3_item_id: int | None = None
+
+    # Last error, if any. May indicate HTTP status code or exception class name, depending on the type of error. None if no exception occurred in last iteration
+    last_error_osrs_price_tracking: str | int | None = None
+    last_error_rs3_price_tracking: str | int | None = None
     
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
@@ -581,29 +585,22 @@ class BackgroundTasks(Cog):
 
             async with r:
                 if r.status == 404:
-                    msg: str = f'OSRS 404 error for item {item.id}: {item.name}'
-                    logging.critical(msg)
-                    self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), msg))
                     self.last_osrs_item_id = item.id # Continue to the next item because this one apparently does not exist
-                    return
+                    raise PriceTrackingException(f'OSRS 404 error for item {item.id}: {item.name}', r.status, 10)
                 elif r.status == 429:
-                    self.price_tracking_osrs.change_interval(seconds=900)
-                    raise PriceTrackingException(f'Rate limited')
+                    raise PriceTrackingException(f'Rate limited', r.status, 900)
                 elif r.status != 200:
-                    self.price_tracking_osrs.change_interval(seconds=60)
-                    raise PriceTrackingException(f'HTTP status code {r.status} does not indicate success.')
+                    raise PriceTrackingException(f'HTTP status code {r.status} does not indicate success.', r.status, 60)
                 try:
                     graph_data = await r.json(content_type='text/html')
                 except Exception as e:
                     # This should only happen when the API is down
-                    self.price_tracking_osrs.change_interval(seconds=300)
-                    raise PriceTrackingException(f'Unexpected error for {item.id}: {item.name}\n{e}')
+                    raise PriceTrackingException(f'Unexpected error for {item.id}: {item.name}\n{e}', r.status, 300)
             
             # Graph data may not be returned at times, even with status code 200.
             # Appears to be a regular occurrence, seemingly due to rate limits.
             if not graph_data:
-                self.price_tracking_osrs.change_interval(seconds=900)
-                raise PriceTrackingException('No graph data from successful response. This appears to indicate we are IP blocked / rate limited.')
+                raise PriceTrackingException('No graph data from successful response. This may indicate we are IP blocked / rate limited.', 200, 900)
             
             prices: list[str] = []
             for price in graph_data['daily'].values():
@@ -634,16 +631,14 @@ class BackgroundTasks(Cog):
 
                 await session.commit()
                 self.bot.cache.osrs_items[item.id] = db_item # Update the cached item
-                self.last_osrs_item_id = item.id # Continue to the next item by marking this item as done
+
+            self.last_osrs_item_id = item.id # Continue to the next item by marking this item as done
+            self.last_error_osrs_price_tracking = None # No error occurred in this iteration
+        except PriceTrackingException as e:
+            self.handle_price_tracking_error(e, True, e.status, e.delay_before_retry)
         except Exception as e:
             # Catch all exceptions to avoid closing the loop
-            error: str = f'{e.__class__.__name__} encountered in osrs price tracking: {e}'
-            print(error)
-            logging.critical(error)
-            self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), error))
-            # In case some unhandled exception occurred, set the interval to something large enough to avoid issues
-            if (self.price_tracking_osrs.seconds == 10):
-                self.price_tracking_osrs.change_interval(seconds=600)
+            self.handle_price_tracking_error(e, True, None)
         
     def get_next_item_rs3(self) -> RS3Item:
         '''
@@ -677,29 +672,22 @@ class BackgroundTasks(Cog):
 
             async with r:
                 if r.status == 404:
-                    msg: str = f'RS3 404 error for item {item.id}: {item.name}'
-                    logging.critical(msg)
-                    self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), msg))
                     self.last_rs3_item_id = item.id # Continue to the next item because this one apparently does not exist
-                    return
+                    raise PriceTrackingException(f'RS3 404 error for item {item.id}: {item.name}', r.status, 10)
                 elif r.status == 429:
-                    self.price_tracking_rs3.change_interval(seconds=900)
-                    raise PriceTrackingException(f'Rate limited')
+                    raise PriceTrackingException(f'Rate limited', r.status, 900)
                 elif r.status != 200:
-                    self.price_tracking_rs3.change_interval(seconds=60)
-                    raise PriceTrackingException(f'HTTP status code {r.status} does not indicate success.')
+                    raise PriceTrackingException(f'HTTP status code {r.status} does not indicate success.', r.status, 60)
                 try:
                     graph_data = await r.json(content_type='text/html')
                 except Exception as e:
                     # This should only happen when the API is down
-                    self.price_tracking_rs3.change_interval(seconds=300)
-                    raise PriceTrackingException(f'Unexpected error for {item.id}: {item.name}\n{e}')
+                    raise PriceTrackingException(f'Unexpected error for {item.id}: {item.name}\n{e}', r.status, 300)
             
             # Graph data may not be returned at times, even with status code 200.
             # Appears to be a regular occurrence, seemingly due to rate limits.
             if not graph_data:
-                self.price_tracking_rs3.change_interval(seconds=900)
-                raise PriceTrackingException('No graph data from successful response. This appears to indicate we are IP blocked / rate limited.')
+                raise PriceTrackingException('No graph data from successful response. This may indicate we are IP blocked / rate limited.', 200, 900)
             
             prices: list[str] = []
             for price in graph_data['daily'].values():
@@ -730,16 +718,54 @@ class BackgroundTasks(Cog):
 
                 await session.commit()
                 self.bot.cache.rs3_items[item.id] = db_item # Update the cached item
-                self.last_rs3_item_id = item.id # Continue to the next item by marking this item as done
+
+            self.last_rs3_item_id = item.id # Continue to the next item by marking this item as done
+            self.last_error_rs3_price_tracking = None # No error occurred in this iteration
+        except PriceTrackingException as e:
+            self.handle_price_tracking_error(e, False, e.status, e.delay_before_retry)
         except Exception as e:
             # Catch all exceptions to avoid closing the loop
-            error: str = f'{e.__class__.__name__} encountered in rs3 price tracking: {e}'
-            print(error)
-            logging.critical(error)
+            self.handle_price_tracking_error(e, False, None)
+
+    def handle_price_tracking_error(self, e: Exception, is_osrs: bool, status: int | None = None, delay_before_retry: int | None = 600) -> None:
+        '''
+        Handles errors in price tracking background tasks.
+
+        Args:
+            e (Exception): The exception that occurred
+            status (int): HTTP status code of the price tracking request, if any
+            is_osrs (bool): Whether the exception occurred in OSRS or RS3 price tracking
+            delay_before_retry (int, optional): The delay before the background job should be retried. Defaults to 600.
+        '''
+        # Set default for parameters if not given
+        delay_before_retry = delay_before_retry if delay_before_retry else 600
+
+        # Determine if this is a repeated occurrence of the same error
+        repeated: bool = (status if status else e.__class__.__name__) == (self.last_error_osrs_price_tracking if is_osrs else self.last_error_rs3_price_tracking)
+
+        # Define error message
+        error: str = f'{'Repeated ' if repeated else ''}{e.__class__.__name__} encountered in {'osrs' if is_osrs else 'rs3'} price tracking: {e}'
+
+        # Always print and log the error
+        print(error)
+        logging.error(error)
+
+        # Send a message with the error to the test channel, but only if the error is repeated, or if this type of error should not be ignored on the first occurrence
+        ignored_error_types_on_first_occurrence: list[str | int] = ['TimeoutError', 'ClientConnectorError', 200, 500, 502, 504, 522] # Expected errors from RS API that are not alarming unless repeated
+        if repeated or e.__class__.__name__ not in ignored_error_types_on_first_occurrence:
             self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), error))
-            # In case some unhandled exception occurred, set the interval to something large enough to avoid issues
-            if (self.price_tracking_rs3.seconds == 10):
-                self.price_tracking_rs3.change_interval(seconds=600)
+
+        # Change interval of the relevant background job according to the given delay
+        if is_osrs:
+            self.price_tracking_osrs.change_interval(seconds=delay_before_retry)
+        elif not is_osrs:
+            self.price_tracking_rs3.change_interval(seconds=delay_before_retry)
+
+        # Set the last error variable
+        if is_osrs:
+            self.last_error_osrs_price_tracking = status if status else e.__class__.__name__
+        else:
+            self.last_error_rs3_price_tracking = status if status else e.__class__.__name__
     
     @price_tracking_osrs.before_loop
     @price_tracking_rs3.before_loop
