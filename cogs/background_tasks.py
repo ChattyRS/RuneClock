@@ -752,7 +752,7 @@ class BackgroundTasks(Cog):
 
         # Send a message with the error to the test channel, but only if the error is repeated, or if this type of error should not be ignored on the first occurrence
         ignored_error_types_on_first_occurrence: list[str | int] = ['TimeoutError', 'ClientConnectorError', 200, 500, 502, 504, 522] # Expected errors from RS API that are not alarming unless repeated
-        if repeated or e.__class__.__name__ not in ignored_error_types_on_first_occurrence:
+        if repeated or (status if status else e.__class__.__name__) not in ignored_error_types_on_first_occurrence:
             self.bot.queue_message(QueueMessage(get_text_channel(self.bot, self.bot.config['testChannel']), error))
 
         # Change interval of the relevant background job according to the given delay
