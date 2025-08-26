@@ -442,7 +442,7 @@ class Notifications(Cog):
                 await ctx.send(f'You will be notified when `{member.display_name}` is offline.')
 
     @commands.Cog.listener()
-    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
+    async def on_presence_update(self, before: discord.Member, after: discord.Member) -> None:
         '''
         Notify users of status updates.
         '''
