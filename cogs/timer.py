@@ -16,7 +16,7 @@ class Timer(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    @commands.command(pass_context=True, aliases=['reminder', 'remind', 'remindme'])
+    @commands.command(aliases=['reminder', 'remind', 'remindme'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def timer(self, ctx: commands.Context, time: str = '', unit: str = 'm', *, msg: str | None) -> None:
         '''

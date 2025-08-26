@@ -152,7 +152,7 @@ class Sheets(Cog):
         # Register persistent views
         self.bot.add_view(SheetPageView(self.bot))
 
-    @commands.hybrid_command(pass_context=True, aliases=['sheet'])
+    @commands.hybrid_command(aliases=['sheet'])
     async def display_sheet(self, ctx: commands.Context, key: str | None, sheet_name: str | None = None, number_of_value_columns: int | None = None) -> None:
         '''
         Displays info from a Google sheet.

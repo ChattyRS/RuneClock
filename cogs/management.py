@@ -180,7 +180,7 @@ class Management(Cog):
             await ctx.author.send(embed=embed_short)
         await ctx.message.add_reaction('✅')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def welcome(self, ctx: commands.Context, channel_name: str = '', *msgParts) -> None:
         '''
@@ -228,7 +228,7 @@ class Management(Cog):
         await ctx.send(f'The welcome channel for server **{ctx.guild.name}** has been changed to {channel.mention}.\n'
                        f'The welcome message has been set to \"{msg}\".')
 
-    @commands.command(pass_context=True, aliases=['servers', 'guilds', 'guildcount'])
+    @commands.command(aliases=['servers', 'guilds', 'guildcount'])
     async def servercount(self, ctx: commands.Context) -> None:
         '''
         Returns the amount of servers that the bot is currently in.
@@ -236,7 +236,7 @@ class Management(Cog):
         self.bot.increment_command_counter()
         await ctx.send(f'I am in **{len(self.bot.guilds)}** servers!')
 
-    @commands.group(pass_context=True, invoke_without_command=True, aliases=['logging'])
+    @commands.group(invoke_without_command=True, aliases=['logging'])
     @is_admin()
     async def log(self, ctx: commands.Context, channel_name: str = '') -> None:
         '''
@@ -287,7 +287,7 @@ class Management(Cog):
             await session.commit()
         await ctx.send(f'Bot message deletion and edit logging {"enabled" if guild.log_bots else "disabled"}.')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def command(self, ctx: commands.Context, cmd: str = '') -> None:
         '''
@@ -323,7 +323,7 @@ class Management(Cog):
         
         await ctx.send(message)
 
-    @commands.command(pass_context=True, aliases=['setprefix'])
+    @commands.command(aliases=['setprefix'])
     @is_admin()
     async def prefix(self, ctx: commands.Context, prefix: str = '-') -> None:
         '''
@@ -346,7 +346,7 @@ class Management(Cog):
         
         await ctx.send(f'The command prefix for server **{ctx.guild.name}** has been set to `{prefix}`.')
 
-    @commands.command(pass_context=True, aliases=['latency', 'delay'])
+    @commands.command(aliases=['latency', 'delay'])
     async def ping(self, ctx: commands.Context) -> None:
         '''
         Pings the bot to check latency.
@@ -370,7 +370,7 @@ class Management(Cog):
         self.bot.increment_command_counter()
         await ctx.send(self.bot.config['support_server'])
 
-    @commands.group(pass_context=True, invoke_without_command=True, aliases=['github'])
+    @commands.group(invoke_without_command=True, aliases=['github'])
     async def git(self, ctx: commands.Context) -> None:
         '''
         Returns the link to the GitHub repository of this bot.
@@ -556,7 +556,7 @@ class Management(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     @is_owner()
     async def restart(self, ctx: commands.Context) -> None:
         '''
@@ -572,7 +572,7 @@ class Management(Cog):
             print('Error sending restart message')
         await self.bot.restart()
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def say(self, ctx: commands.Context) -> None:
         '''
@@ -626,7 +626,7 @@ class Management(Cog):
         await channel.send(embed=embed)
         
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     @is_owner()
     async def eval(self, ctx: commands.Context, *, body: str = '') -> None:
         '''
@@ -723,7 +723,7 @@ class Management(Cog):
         else:
             await ctx.send(f'Reloaded extension: **{module}**')
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     @is_owner()
     async def repl(self, ctx: commands.Context) -> None:
         """Launches an interactive REPL session."""

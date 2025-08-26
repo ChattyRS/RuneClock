@@ -150,7 +150,7 @@ class Notifications(Cog):
 
         await ctx.send(f'The OSRS news channel has been set to {channel.mention}.')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def rsnotify(self, ctx: commands.Context, *, channel: GuildChannel | None) -> None:
         '''

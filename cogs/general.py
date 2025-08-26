@@ -21,7 +21,7 @@ class General(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    @commands.command(pass_context=True, aliases=['flip', 'coin', 'coinflip'])
+    @commands.command(aliases=['flip', 'coin', 'coinflip'])
     async def flipcoin(self, ctx: commands.Context) -> None:
         '''
         Flips a coin.
@@ -37,7 +37,7 @@ class General(Cog):
         
         await ctx.send(f'{ctx.author.mention} {result}!')
 
-    @commands.command(pass_context=True, aliases=['dice'])
+    @commands.command(aliases=['dice'])
     async def roll(self, ctx: commands.Context, sides=6, num=1) -> None:
         '''
         Rolls a dice.
@@ -64,7 +64,7 @@ class General(Cog):
         
         await ctx.send(f'{ctx.author.mention} You rolled {result}!')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     async def rps(self, ctx: commands.Context, choice='') -> None:
         '''
         Play rock, paper, scissors.
@@ -92,7 +92,7 @@ class General(Cog):
         
         await ctx.send(result)
 
-    @commands.command(pass_context=True)
+    @commands.command()
     async def serverinfo(self, ctx: commands.Context) -> None:
         '''
         Get info on a server
@@ -117,7 +117,7 @@ class General(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True, alias=['userinfo', 'memberinfo'])
+    @commands.command(alias=['userinfo', 'memberinfo'])
     async def whois(self, ctx: commands.Context, *member_name) -> None:
         '''
         Get info on a member.

@@ -129,7 +129,7 @@ class Runescape(Cog):
 
             self.vis_wax_embed.set_footer(text='Powered by Warband Tracker')
 
-    @commands.command(pass_context=True, aliases=['rsn'])
+    @commands.command(aliases=['rsn'])
     async def setrsn(self, ctx: commands.Context, *, rsn: str | None) -> None:
         '''
         Sets your Runescape 3 RSN.
@@ -154,7 +154,7 @@ class Runescape(Cog):
         else:
             await ctx.send(f'{ctx.author.mention} Your RSN has been removed.')
 
-    @commands.command(pass_context=True, aliases=['07rsn'])
+    @commands.command(aliases=['07rsn'])
     async def set07rsn(self, ctx: commands.Context, *, rsn: str | None) -> None:
         '''
         Sets your Old School Runescape RSN.
@@ -228,7 +228,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='07reddit', pass_context=True, aliases=['osrsreddit'])
+    @commands.command(name='07reddit', aliases=['osrsreddit'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def _07reddit(self, ctx: commands.Context) -> None:
         '''
@@ -249,7 +249,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True, aliases=['rsreddit', 'rs3reddit'])
+    @commands.command(aliases=['rsreddit', 'rs3reddit'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def reddit(self, ctx: commands.Context) -> None:
         '''
@@ -270,7 +270,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='07rsw', pass_context=True, aliases=['07wiki', 'osrswiki'])
+    @commands.command(name='07rsw', aliases=['07wiki', 'osrswiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def _07rsw(self, ctx: commands.Context, *, query: str) -> None:
         '''
@@ -310,7 +310,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True, aliases=['rswiki', 'wiki', 'rs3wiki'])
+    @commands.command(aliases=['rswiki', 'wiki', 'rs3wiki'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def rsw(self, ctx: commands.Context, *, query: str) -> None:
         '''
@@ -349,7 +349,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='07news', pass_context=True, aliases=['osrsnews'])
+    @commands.command(name='07news', aliases=['osrsnews'])
     async def _07news(self, ctx: commands.Context) -> None:
         '''
         Get 5 latest OSRS news posts.
@@ -366,7 +366,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True, aliases=['rsnews', 'rs3news'])
+    @commands.command(aliases=['rsnews', 'rs3news'])
     async def news(self, ctx: commands.Context) -> None:
         '''
         Get 5 latest RS news posts.
@@ -383,7 +383,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='07price', pass_context=True, aliases=['osrsprice'])
+    @commands.command(name='07price', aliases=['osrsprice'])
     async def _07price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
         '''
         Get the OSRS GE price for an item.
@@ -504,7 +504,7 @@ class Runescape(Cog):
 
         await ctx.send(file=file, embed=embed)
     
-    @commands.command(pass_context=True, aliases=['rsprice', 'rs3price'])
+    @commands.command(aliases=['rsprice', 'rs3price'])
     async def price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
         '''
         Get the RS3 GE price for an item.
@@ -624,7 +624,7 @@ class Runescape(Cog):
 
         await ctx.send(file=file, embed=embed)
     
-    @commands.command(name='07stats', pass_context=True, aliases=['osrsstats'])
+    @commands.command(name='07stats', aliases=['osrsstats'])
     @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def _07stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
@@ -832,7 +832,7 @@ class Runescape(Cog):
 
         await ctx.send(files=[compare_image_file, osrs_icon], embed=embed)
 
-    @commands.command(name='07gainz', pass_context=True, aliases=['07gains', 'osrsgainz', 'osrsgains'])
+    @commands.command(name='07gainz', aliases=['07gains', 'osrsgainz', 'osrsgains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def _07gainz(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
@@ -932,7 +932,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True, aliases=['rs3stats'])
+    @commands.command(aliases=['rs3stats'])
     @commands.cooldown(1, 5, runescape_api_cooldown_key)
     async def stats(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
@@ -1167,7 +1167,7 @@ class Runescape(Cog):
 
         await ctx.send(files=[compare_image_file, rs3_icon_file], embed=embed)
 
-    @commands.command(pass_context=True, aliases=['gains', 'rs3gainz', 'rs3gains'])
+    @commands.command(aliases=['gains', 'rs3gainz', 'rs3gains'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def gainz(self, ctx: commands.Context, *, username: discord.User | str | None) -> None:
         '''
@@ -1271,7 +1271,7 @@ class Runescape(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True, aliases=['gametime'])
+    @commands.command(aliases=['gametime'])
     async def time(self, ctx: commands.Context) -> None:
         '''
         Get current RuneScape game time.

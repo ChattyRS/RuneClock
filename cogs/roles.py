@@ -18,7 +18,7 @@ class Roles(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def manageroles(self, ctx: commands.Context, *, channel: discord.TextChannel | None) -> None:
         '''
@@ -79,7 +79,7 @@ class Roles(Cog):
 
         await ctx.send(f'The role management channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     async def rank(self, ctx: commands.Context, *, rank: str) -> None:
         '''
         Toggles the given rank.
@@ -122,7 +122,7 @@ class Roles(Cog):
             except discord.Forbidden:
                 raise commands.CommandError(message=f'Missing permissions: `manage_roles`.')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def addrank(self, ctx: commands.Context, *, rank: str) -> None:
         '''
@@ -159,7 +159,7 @@ class Roles(Cog):
         
         await ctx.send(f'Added rank **{rank}**.')
 
-    @commands.command(pass_context=True, aliases=['removerank'])
+    @commands.command(aliases=['removerank'])
     @is_admin()
     async def delrank(self, ctx: commands.Context, *, rank: str) -> None:
         '''
@@ -185,7 +185,7 @@ class Roles(Cog):
         
         await ctx.send(f'Removed rank **{rank}**.')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     async def ranks(self, ctx: commands.Context) -> None:
         '''
         Get the list of joinable ranks.
@@ -226,7 +226,7 @@ class Roles(Cog):
 
         await ctx.send(f'```{msg}```')
 
-    @commands.command(pass_context=True, aliases=['randomcolor'])
+    @commands.command(aliases=['randomcolor'])
     async def randomcolour(self, ctx: commands.Context) -> None:
         '''
         Generates a random hex colour.
@@ -243,7 +243,7 @@ class Roles(Cog):
         embed.add_field(name='RGB', value=f'{r1}, {r2}, {r3}', inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def addrole(self, ctx: commands.Context, *, role_name: str) -> None:
         '''
@@ -269,7 +269,7 @@ class Roles(Cog):
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
 
-    @commands.command(pass_context=True, aliases=['removerole'])
+    @commands.command(aliases=['removerole'])
     @is_admin()
     async def delrole(self, ctx: commands.Context, *, role: discord.Role) -> None:
         '''
@@ -284,7 +284,7 @@ class Roles(Cog):
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `delete_roles`.')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     async def members(self, ctx: commands.Context, *, role: discord.Role) -> None:
         '''
         List members in a role.
@@ -294,7 +294,7 @@ class Roles(Cog):
         embed = discord.Embed(title=f'Members in {role.name} ({len(role.members)})', colour=0x00b2ff)
         await send_lines_over_multiple_embeds(ctx, [m.mention for m in role.members], embed)
 
-    @commands.command(pass_context=True)
+    @commands.command()
     async def roles(self, ctx: commands.Context) -> None:
         '''
         Get a list of roles and member counts.

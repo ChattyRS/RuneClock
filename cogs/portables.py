@@ -642,7 +642,7 @@ class Portables(Cog):
         await sheet.update_cell(row, credit_col, username)
         await ctx.send(f'**{name}** has been noted as active for **{timestamp}**.')
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     @portables_admin()
     async def addsmiley(self, ctx: commands.Context, *name_parts) -> None:
         '''
@@ -703,7 +703,7 @@ class Portables(Cog):
             admin_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['adminChannel'])
             self.bot.queue_message(QueueMessage(admin_channel, f'**{name}** has been added to the smileys sheet with status **Pending**.'))
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     @portables_leader()
     async def activatesmiley(self, ctx: commands.Context, *name_parts) -> None:
         '''
@@ -761,7 +761,7 @@ class Portables(Cog):
 
         await ctx.send(f'**{name}**\'s status has been set to active.')
 
-    @commands.command(pass_context=True, aliases=['a'], ignore_extra=True)
+    @commands.command(aliases=['a'], ignore_extra=True)
     @portables_only()
     async def add(self, ctx: commands.Context) -> None:
         """
@@ -854,7 +854,7 @@ class Portables(Cog):
         else:
             await ctx.send(f'The **{portable}** location **{new_ports_text}** has been added.')
 
-    @commands.command(pass_context=True, aliases=['rem'], ignore_extra=True)
+    @commands.command(aliases=['rem'], ignore_extra=True)
     @portables_only()
     async def remove(self, ctx: commands.Context) -> None:
         """
@@ -1022,7 +1022,7 @@ class Portables(Cog):
             await ctx.send(f'All locations for the portable `{port}` have been removed.')
 
 
-    @commands.command(pass_context=True, ignore_extra=True)
+    @commands.command(ignore_extra=True)
     @is_helper()
     async def edit(self, ctx: commands.Context, portable: str = '', *input_locs) -> None:
         '''
@@ -1096,7 +1096,7 @@ class Portables(Cog):
 
         await ctx.send(f'The **{portable}** locations have been edited to: **{new_ports_text}**.') # send confirmation message
 
-    @commands.command(pass_context=True, aliases=['watch'], hidden=True)
+    @commands.command(aliases=['watch'], hidden=True)
     @is_rank()
     async def watchlist(self, ctx: commands.Context, name: str = "", *reasons) -> None:
         '''
@@ -1154,7 +1154,7 @@ class Portables(Cog):
 
         await ctx.send(f'**{name}** has been added to the watchlist ({str(count)}).')
 
-    @commands.command(pass_context=True, aliases=['act', 'active'], hidden=True)
+    @commands.command(aliases=['act', 'active'], hidden=True)
     @portables_admin()
     async def activity(self, ctx: commands.Context, *name_parts) -> None:
         '''
@@ -1222,7 +1222,7 @@ class Portables(Cog):
         await sheet.update_cell(row, col, timestamp)
         await ctx.send(f'**{name}** has been noted as active for **{timestamp}** **{datetime.now(UTC).strftime("%b")}**.')
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     @portables_admin()
     async def sheetactivity(self, ctx: commands.Context, *name_parts) -> None:
         '''

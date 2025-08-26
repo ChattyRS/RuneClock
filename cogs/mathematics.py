@@ -21,7 +21,7 @@ class Mathematics(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def math(self, ctx: commands.Context, *formulas) -> None:
         '''
@@ -74,7 +74,7 @@ class Mathematics(Cog):
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression:\n```{e}```')
 
-    @commands.command(pass_context=True, aliases=['plot'])
+    @commands.command(aliases=['plot'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def graph(self, ctx: commands.Context, start: float, end: float, *formulas) -> None:
         '''
@@ -149,7 +149,7 @@ class Mathematics(Cog):
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression: \n```{e}```')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def solve(self, ctx: commands.Context, *formulas) -> None:
         '''

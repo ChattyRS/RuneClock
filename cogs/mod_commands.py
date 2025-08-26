@@ -321,7 +321,7 @@ class ModCommands(Cog):
 
         await ctx.send(f'`{member.display_name}` has been banned.')
 
-    @commands.command(pass_context=True, aliases=['delete', 'clear'])
+    @commands.command(aliases=['delete', 'clear'])
     @is_admin()
     async def purge(self, ctx: Context, num: int | str = 0) -> None:
         '''
@@ -352,7 +352,7 @@ class ModCommands(Cog):
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `delete_message`.')
 
-    @commands.command(pass_context=True)
+    @commands.command()
     @is_admin()
     async def role(self, ctx: Context, role: RoleConverter, *, member: discord.Member) -> None:
         '''
@@ -382,7 +382,7 @@ class ModCommands(Cog):
             except discord.Forbidden:
                 raise CommandError(message=f'I have insufficient permissions to remove this role from this user.')
 
-    @commands.command(pass_context=True, aliases=['mention'])
+    @commands.command(aliases=['mention'])
     @is_admin()
     async def mentionable(self, ctx: Context, role: RoleConverter) -> None:
         '''
@@ -405,7 +405,7 @@ class ModCommands(Cog):
             raise CommandError(message=f'Missing permissions: `edit_role`.')
         await ctx.send(message)
 
-    @commands.command(pass_context=True, aliases=['rolecolor'])
+    @commands.command(aliases=['rolecolor'])
     @is_admin()
     async def rolecolour(self, ctx: Context, role: RoleConverter, colour: str | discord.Colour = "") -> None:
         '''
@@ -435,7 +435,7 @@ class ModCommands(Cog):
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `edit_role`.')
 
-    @commands.command(pass_context=True, aliases=['changenick', 'nick'])
+    @commands.command(aliases=['changenick', 'nick'])
     async def setnick(self, ctx: Context, *, username: str | None) -> None:
         '''
         Changes the user's nickname.
