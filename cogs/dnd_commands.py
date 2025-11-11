@@ -193,32 +193,32 @@ class DNDCommands(Cog):
                 self.bot.merchant = txt
         
         # Update spotlight and spotlight time
-        try:
-            if not self.bot.spotlight or not self.bot.next_spotlight or self.bot.next_spotlight <= now:
-                spotlight_url = 'https://runescape.wiki/api.php?action=parse&format=json&page=Template%3AMinigame%20spotlight&prop=text'
-                r = await self.bot.aiohttp.get(spotlight_url, headers=wiki_headers)
-                async with r:
-                    data = await r.json()
+        # try:
+        #     if not self.bot.spotlight or not self.bot.next_spotlight or self.bot.next_spotlight <= now:
+        #         spotlight_url = 'https://runescape.wiki/api.php?action=parse&format=json&page=Template%3AMinigame%20spotlight&prop=text'
+        #         r = await self.bot.aiohttp.get(spotlight_url, headers=wiki_headers)
+        #         async with r:
+        #             data = await r.json()
 
-                    bs = BeautifulSoup(data['parse']['text']['*'].replace('\\"', '"'), "html.parser")
-                    table_body: Tag | NavigableString | None = bs.find('table')
-                    rows: list = table_body.find_all('tr') if table_body and isinstance(table_body, Tag) else []
-                    schedule: list[list[str]] = []
-                    for row in rows[:2]:
-                        minigame: str = row.find('td').find('a').text.strip()
-                        time: str = row.find('td').find('span').text.strip()
-                        schedule.append([minigame, time])
+        #             bs = BeautifulSoup(data['parse']['text']['*'].replace('\\"', '"'), "html.parser")
+        #             table_body: Tag | NavigableString | None = bs.find('table')
+        #             rows: list = table_body.find_all('tr') if table_body and isinstance(table_body, Tag) else []
+        #             schedule: list[list[str]] = []
+        #             for row in rows[:2]:
+        #                 minigame: str = row.find('td').find('a').text.strip()
+        #                 time: str = row.find('td').find('span').text.strip()
+        #                 schedule.append([minigame, time])
 
-                    next_date: datetime = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-                    next_day_and_month: datetime = datetime.strptime(schedule[1][1], '%d %b')
-                    next_date = next_date.replace(day=next_day_and_month.day, month=next_day_and_month.month)
-                    if datetime.strptime('1 Jan', '%d %b') <= next_day_and_month <= datetime.strptime('3 Jan', '%d %b'):
-                        next_date = next_date.replace(year=next_date.year+1)
+        #             next_date: datetime = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        #             next_day_and_month: datetime = datetime.strptime(schedule[1][1], '%d %b')
+        #             next_date = next_date.replace(day=next_day_and_month.day, month=next_day_and_month.month)
+        #             if datetime.strptime('1 Jan', '%d %b') <= next_day_and_month <= datetime.strptime('3 Jan', '%d %b'):
+        #                 next_date = next_date.replace(year=next_date.year+1)
 
-                    self.bot.spotlight = schedule[0][0]
-                    self.bot.next_spotlight = next_date
-        except Exception as e:
-            print(f'Error getting minigame spotlight data: {type(e).__name__} : {e}')
+        #             self.bot.spotlight = schedule[0][0]
+        #             self.bot.next_spotlight = next_date
+        # except Exception as e:
+        #     print(f'Error getting minigame spotlight data: {type(e).__name__} : {e}')
 
         # Update upcoming wilderness flash event
         t_0 = datetime(2022, 10, 19, 14, 0, 0, tzinfo=UTC)
