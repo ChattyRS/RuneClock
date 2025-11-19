@@ -672,7 +672,7 @@ class Runescape(Cog):
 
         stats_interface: Array = copy.deepcopy(self.stats_interface_osrs)
             
-        draw_num(stats_interface, levels[0], 143, 262, yellow, True)
+        draw_num(stats_interface, levels[0], 144, 262, yellow, True)
 
         for i, index in enumerate(skill_indices_osrs):
             level: int = levels[1:][index]
