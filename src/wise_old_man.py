@@ -28,8 +28,8 @@ wom_skills: list[str] = [
     'farming',
     'runecrafting',
     'hunter',
-    'construction'#,
-    #'sailing'
+    'construction',
+    'sailing'
 ]
 
 wom_bosses: list[str] = [

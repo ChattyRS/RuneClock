@@ -262,8 +262,8 @@ skills_07: list[str] = [
     'Farming', 
     'Runecraft', 
     'Hunter', 
-    'Construction'#,
-    #'Sailing'
+    'Construction',
+    'Sailing'
 ]
 
 osrs_skill_emojis: list[str] = [
@@ -358,7 +358,7 @@ rs3_skill_emojis: list[str] = [
     '<:Archaeology:962315037509316628>'
 ]
 
-skill_indices: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21]#,23
+skill_indices_osrs: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23]
 skill_indices_rs3: list[int] = [0, 3, 14, 2, 16, 13, 1, 15, 10, 4, 17, 7, 5, 12, 11, 6, 9, 8, 20, 18, 19, 22, 21, 23, 24, 25, 26, 27, 28]
 
 cb_indices_rs3: list[int] = [0, 2, 1, 3, 6, 4, 5, 23]

@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from src.number_utils import is_int, is_float, format_float
 from src.runescape_utils import xp_to_level, level_to_xp, combat_level, osrs_combat_level
 from src.runescape_utils import skills_07, osrs_skill_emojis, skills_rs3, rs3_skill_emojis
-from src.runescape_utils import skill_indices, skill_indices_rs3, cb_indices_rs3, cb_indices_osrs
+from src.runescape_utils import skill_indices_osrs, skill_indices_rs3, cb_indices_rs3, cb_indices_osrs
 from src.runescape_utils import araxxor, vorago, rots, runescape_api_cooldown_key
 from src.graphics import draw_num, draw_outline_osrs, draw_outline_rs3
 import io
@@ -672,9 +672,9 @@ class Runescape(Cog):
 
         stats_interface: Array = copy.deepcopy(self.stats_interface_osrs)
             
-        draw_num(stats_interface, levels[0], 144, 262, yellow, True)
+        draw_num(stats_interface, levels[0], 143, 262, yellow, True)
 
-        for i, index in enumerate(skill_indices):
+        for i, index in enumerate(skill_indices_osrs):
             level: int = levels[1:][index]
             if index == 3:
                 level = max(int(level), 10)
@@ -778,7 +778,7 @@ class Runescape(Cog):
             stats_interface: Array = interfaces[i]
             draw_num(stats_interface, int(levels[0]), 175, 257, yellow, True)
 
-            for i, index in enumerate(skill_indices):
+            for i, index in enumerate(skill_indices_osrs):
                 level = int(levels[1:][index])
                 if index == 3:
                     level: int = max(level, 10)
@@ -796,7 +796,7 @@ class Runescape(Cog):
             draw_outline_osrs(stats_interface_1, 8+63*2, 8+32*7, red)
             draw_outline_osrs(stats_interface_2, 8+63*2, 8+32*7, green)
         
-        for i, index in enumerate(skill_indices):
+        for i, index in enumerate(skill_indices_osrs):
             level_1 = int(level_list[0][1:][index])
             level_2 = int(level_list[1][1:][index])
 
