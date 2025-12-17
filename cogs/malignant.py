@@ -245,12 +245,12 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
         country: str | None = player_details['country'] if 'country' in player_details else None
 
         # Validate requirements
-        if total < 1500:
-            await interaction.followup.send(f'You do not meet the requirements to join Malignant because your total level is too low ({total}/1500). If you want to join anyway, please contact a Moderator. Or get good ;)', ephemeral=True)
-            return
-        if combat < 100:
-            await interaction.followup.send(f'You do not meet the requirements to join Malignant because your combat level is too low ({combat}/100). If you want to join anyway, please contact a Moderator. Or get good ;)', ephemeral=True)
-            return
+        # if total < 1500:
+        #     await interaction.followup.send(f'You do not meet the requirements to join Malignant because your total level is too low ({total}/1500). If you want to join anyway, please contact a Moderator. Or get good ;)', ephemeral=True)
+        #     return
+        # if combat < 100:
+        #     await interaction.followup.send(f'You do not meet the requirements to join Malignant because your combat level is too low ({combat}/100). If you want to join anyway, please contact a Moderator. Or get good ;)', ephemeral=True)
+        #     return
         # if ehb < 50:
         #     await interaction.followup.send(f'You do not meet the requirements to join Malignant because your EHB is too low ({ehb}/50). If you want to join anyway, please contact a Moderator. Or get good ;)', ephemeral=True)
         #     return
