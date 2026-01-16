@@ -343,7 +343,7 @@ class Malignant(Cog):
             after (discord.User): Updated user data
         '''
         # Ignore anything other than username changes
-        if before.global_name == after.name:
+        if before.name == after.name:
             return
         
         # Ignore users who are not a member for the Malignant guild
