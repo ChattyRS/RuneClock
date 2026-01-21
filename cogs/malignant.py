@@ -1,6 +1,6 @@
 from typing import Any
 import discord
-from discord import Attachment, TextStyle
+from discord import TextStyle
 from discord.ext import commands
 from discord.ext.commands import Cog
 from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, AsyncioGspreadWorksheet
@@ -43,6 +43,7 @@ roster_columns: dict[str, int] = {
 
 application_fields: dict[str, str] = {
     'rsn': 'RuneScape username',
+    'requirements': 'Requirements screenshot',
     'total': 'Total level',
     'combat': 'Combat level',
     'ehb': 'EHB',
@@ -93,25 +94,16 @@ class ApplicationView(discord.ui.View):
         if not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message('Error: this can only done in a text channel.', ephemeral=True)
             return
+        
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
-        if not embed.footer.text:
-            await interaction.response.send_message('Embed footer was unexpectedly empty.', ephemeral=True)
-            return
 
-        # Defer interaction response to ensure timeouts cannot occur due to converting of attachments
+        # Defer interaction response to ensure timeouts cannot occur
         await interaction.response.defer()
 
-        files: list[discord.File] = []
-        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
-        attachment_message_id: int = int(embed.footer.text.split(';')[1].replace(' Attachments reference: ', ''))
-        attachment_message: discord.Message = await log_channel.fetch_message(attachment_message_id)
-        for attachment in attachment_message.attachments:
-            file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
-            files.append(file)
-        embed.set_image(url=f'attachment://{files[0].filename}')
+        # embed.set_image(url=embed.image.url)
         embed.set_footer(text=f'❌ Declined by {interaction.user.display_name}')
-        await interaction.message.edit(embed=embed, attachments=files, view=None)
+        await interaction.message.edit(embed=embed, view=None)
         await interaction.followup.send('Application declined successfully.', ephemeral=True)
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.success, custom_id='malignant_app_accept_button')
@@ -146,7 +138,7 @@ class ApplicationView(discord.ui.View):
         await interaction.response.defer()
 
         # Get applicant discord user 
-        user_id = int(embed.footer.text.split(';')[0].replace('User ID: ', ''))
+        user_id = int(embed.footer.text.replace('User ID: ', ''))
         applicant: discord.Member = await interaction.guild.fetch_member(user_id)
         
         # Update roster
@@ -179,16 +171,8 @@ class ApplicationView(discord.ui.View):
             results.append(f'Failed to add `{rsn}` to WOM.')
         
         # Update message
-        files: list[discord.File] = []
-        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
-        attachment_message_id: int = int(embed.footer.text.split(';')[1].replace(' Attachments reference: ', ''))
-        attachment_message: discord.Message = await log_channel.fetch_message(attachment_message_id)
-        for attachment in attachment_message.attachments:
-            file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
-            files.append(file)
-        embed.set_image(url=f'attachment://{files[0].filename}')
         embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
-        await interaction.message.edit(embed=embed, attachments=files, view=None)
+        await interaction.message.edit(embed=embed, view=None)
         
         if results:
             await interaction.followup.send('\n'.join(results), ephemeral=True)
@@ -200,12 +184,16 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
     A trivial application modal, where the applicant only needs to enter their RSN.
     Required info is then pulled from WOM.
     '''
-    def __init__(self, bot: Bot, message: discord.Message) -> None:
+    def __init__(self, bot: Bot) -> None:
         super().__init__()
         self.bot: Bot = bot
-        self.message: discord.Message = message
 
-    rsn = discord.ui.TextInput(label=application_fields['rsn'], min_length=1, max_length=12, required=True, style=TextStyle.short)
+    rsn: discord.ui.TextInput = discord.ui.TextInput(label=application_fields['rsn'], min_length=1, max_length=12, required=True, style=TextStyle.short)
+    requirements: discord.ui.Label = discord.ui.Label(
+        text=application_fields['requirements'], 
+        description='Please upload a screenshot showing your username and that you meet the requirements',
+        component=discord.ui.FileUpload(min_values=1, max_values=1, required=True)
+    )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         # Validation
@@ -215,17 +203,13 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
         if not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message(f'Error, this can only be done in a text channel.', ephemeral=True)
             return
-        embed: discord.Embed = self.message.embeds[0]
-        if not embed.footer.text:
-            await interaction.response.send_message('Embed footer was unexpectedly empty.', ephemeral=True)
-            return
+        embed: discord.Embed = discord.Embed(title=f'Malignant application', colour=0x00b2ff)
+        embed.set_footer(text=f'User ID: {interaction.user.id}')
         
         # Defer the interaction response, as it will take some time to request data from WOM
         await interaction.response.defer()
 
-        # Update embed with RSN
-        embed.title = 'Malignant application'
-        embed.colour = 0x00b2ff
+        # Add RSN to embed
         embed.add_field(name=application_fields['rsn'], value=self.rsn.value, inline=False)
 
         # Request user data from WOM
@@ -268,58 +252,15 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
             if country_name:
                 embed.add_field(name=application_fields['country'], value=country_name, inline=False)
 
-        # Update the message with the new data and add view with accept / decline buttons for mods
-        files: list[discord.File] = []
-        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
-        attachment_message_id: int = int(embed.footer.text.split(';')[1].replace(' Attachments reference: ', ''))
-        attachment_message: discord.Message = await log_channel.fetch_message(attachment_message_id)
-        for attachment in attachment_message.attachments:
-            file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
-            files.append(file)
-        embed.set_image(url=f'attachment://{files[0].filename}')
+        # Send the message with the application data and add view with accept / decline buttons for mods
+        upload: discord.ui.FileUpload = self.requirements.component # type: ignore we know that the component for this label is a file upload
+        file: discord.File = await upload.values[0].to_file(filename=upload.values[0].filename, description=upload.values[0].description, use_cached=True)
+        embed.set_image(url=f'attachment://{file.filename}')
         view = ApplicationView(self.bot)
-        await self.message.edit(embed=embed, attachments=files, view=view)
-
-        # Send followup message to the applicant notifying them that their application came through successfully
-        await interaction.followup.send('Your application was sent successfully!', ephemeral=True)
+        await interaction.followup.send(embed=embed, file=file, view=view)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         await interaction.followup.send('Unexpected error occurred', ephemeral=True)
-        print(error)
-        traceback.print_tb(error.__traceback__)
-
-class RequirementsView(discord.ui.View):
-    '''
-    A view on an embed message showing the submitted requirements screenshot(s) from the applicant.
-    There is an "Apply" button below the modal allowing the applicant to proceed with their application.
-    '''
-    def __init__(self, bot: Bot) -> None:
-        super().__init__(timeout=None)
-        self.bot: Bot = bot
-
-    def is_applicant(self, interaction: discord.Interaction) -> bool:
-        '''
-        Returns true iff the interaction user is the user who originally sent the requirements screenshot(s).
-        '''
-        # Check requirements
-        if not interaction.message or not interaction.message.embeds or not interaction.message.embeds[0].footer.text:
-            return False
-        # Return true iff the user is the original applicant
-        return interaction.user.id == int(interaction.message.embeds[0].footer.text.split(';')[0].replace('User ID: ', ''))
-
-    @discord.ui.button(label='Apply', style=discord.ButtonStyle.blurple, custom_id='malignant_req_apply_button')
-    async def apply(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
-        # Validate permissions
-        if not interaction.message or not interaction.message.embeds or not self.is_applicant(interaction):
-            await interaction.response.send_message('Only the original applicant can use this to apply.', ephemeral=True)
-            return
-        
-        # Send the application modal
-        modal = ApplicationModal(self.bot, interaction.message)
-        await interaction.response.send_modal(modal)
-    
-    async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
-        await interaction.response.send_message('Unexpected error occurred.', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
@@ -329,7 +270,6 @@ class Malignant(Cog):
     
     async def cog_load(self) -> None:
         # Register persistent views
-        self.bot.add_view(RequirementsView(self.bot))
         self.bot.add_view(ApplicationView(self.bot))
 
     @Cog.listener()
@@ -391,93 +331,6 @@ class Malignant(Cog):
         
         # If we did not find a matching row on the sheet, send an error message
         self.bot.queue_message(QueueMessage(channel, f'The roster has not been updated, because the old value `{before.name}` could not be found.'))
-
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message) -> None:
-        '''
-        This event triggers on every message received by the bot. Including ones that it sent itself.
-        When a message is sent in the Malignant applications channel which includes one or more images, 
-        this event will trigger the application process.
-
-        Args:
-            message (discord.Message): The message
-        '''
-        # Ignore all bots
-        if message.author.bot:
-            return
-
-        # Ignore messages that were not sent from guilds or text channels.
-        if message.guild is None or not isinstance(message.channel, discord.TextChannel) or not isinstance(message.author, discord.Member):
-            return
-        
-        # Ignore messages from outside the Malignant server
-        if not message.guild.id in [self.bot.config['malignant_guild_id'], self.bot.config['test_guild_id']]:
-            return
-        
-        # Ignore messages in channels other than the applications channel
-        if not message.channel.id in [self.bot.config['malignant_applications_channel_id'], self.bot.config['testChannel']]:
-            return
-        
-        # Ignore messages from ranked players
-        bronze_role: discord.Role | None = message.guild.get_role(self.bot.config['malignant_bronze_role_id'])
-        if bronze_role and message.author.top_role >= bronze_role and (message.author.id != self.bot.config['owner'] or not 'test' in message.content.lower()):
-            return
-        
-        # Ignore messages without image attachments
-        if not message.attachments:
-            return
-        
-        # Get list of attached images
-        images: list[Attachment] = [a for a in message.attachments if a.content_type in ['image/jpeg', 'image/png']]
-        
-        # Ignore messages without any image attachments
-        if not images:
-            return
-        
-        await self.send_requirements_view(message, images)
-        
-    async def send_requirements_view(self, message: discord.Message, images: list[Attachment]) -> None:
-        '''
-        Sends a requirements view to the applications channel based on the given message and attached images.
-
-        Args:
-            message (discord.Message): The original message
-            images (list[Attachment]): The attached images from the original message
-        '''
-        # Create embed
-        embed = discord.Embed(title=f'**Malignant requirements**', colour=0x7a7a7a)
-        embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
-        
-        # Convert image attachments to Discord files suitable for sending in a message
-        files: list[discord.File] = []
-        for attachment in images:
-            file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
-            files.append(file)
-
-        # Forward the attachments to a separate channel.
-        # This is required to avoid Discord deleting the image files as the original message is deleted
-        log_channel: discord.TextChannel = get_text_channel(self.bot, self.bot.config['malignant_logging_channel_id'])
-        fwd_msg: discord.Message = await log_channel.send((
-            'This message contains attachments that were sent as part of an application. '
-            'Please do not delete this message, otherwise the images may be removed from Discord and no longer be visible in the application embeds.'
-        ), files=files)
-
-        # Reload the attachments from the forwarded message to obtain links that will not expire
-        files = []
-        for attachment in fwd_msg.attachments:
-            file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
-            files.append(file)
-
-        # Set the message author ID and a reference to the forwarded message as the embed footer for future reference
-        embed.set_footer(text=f'User ID: {message.author.id}; Attachments reference: {fwd_msg.id}')
-
-        # Set the first image on the embed
-        # Subsequent images, if any, will be sent separately below the embed
-        embed.set_image(url=f'attachment://{files[0].filename}')
-
-        view: RequirementsView = RequirementsView(self.bot)
-        await message.channel.send(embed=embed, files=files, view=view)
-        await message.delete()
 
     @malignant_only()
     @malignant_mods()

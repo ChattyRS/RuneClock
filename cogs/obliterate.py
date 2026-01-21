@@ -285,7 +285,7 @@ class ApplicationView(discord.ui.View):
         applicant_role: discord.Role | None = member.guild.get_role(self.bot.config['obliterate_applicant_role_id'])
         bronze_role: discord.Role | None = member.guild.get_role(self.bot.config['obliterate_bronze_role_id'])
 
-        if (not applicant_role in member.roles) or (bronze_role in member.roles) or not bronze_role:
+        if not applicant_role or (not applicant_role in member.roles) or (bronze_role in member.roles) or not bronze_role:
             return f'Error: incorrect roles for applicant: `{member.display_name}`. Either they are not an applicant, or they are already bronze.'
         
         channel: discord.TextChannel | None = find_guild_text_channel(interaction.guild, self.bot.config['obliterate_promotions_channel_id'])
@@ -580,25 +580,6 @@ class Obliterate(Cog):
         
         if not found:
             self.bot.queue_message(QueueMessage(channel, f'The roster has **not** been updated, because the old value `{beforeName}` could not be found.'))
-
-    @app_commands.command()
-    @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
-    async def apply(self, interaction: discord.Interaction) -> None:
-        '''
-        Send a modal with the application form.
-        '''
-        if not interaction.guild or not isinstance(interaction.user, discord.Member):
-            await interaction.response.send_message(f'This command can only be used inside a server.', ephemeral=True)
-            return
-        applicant_role: discord.Role | None = interaction.guild.get_role(self.bot.config['obliterate_applicant_role_id'])
-        if not applicant_role or not applicant_role in interaction.user.roles:
-            await interaction.response.send_message(f'Must be an applicant to submit an application', ephemeral=True)
-            return
-        application_channel: discord.TextChannel | None = find_guild_text_channel(interaction.guild, self.bot.config['obliterate_applications_channel_id'])
-        if not application_channel or not interaction.channel == application_channel:
-            await interaction.response.send_message(f'Applications can only be submitted in the #applications channel', ephemeral=True)
-            return
-        await interaction.response.send_modal(AccountInfoModal(self.bot))
 
     @app_commands.command()
     @app_commands.guilds(discord.Object(id=config['obliterate_guild_id']), discord.Object(id=config['test_guild_id']))
