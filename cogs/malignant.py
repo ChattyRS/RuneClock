@@ -203,6 +203,13 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
         if not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message(f'Error, this can only be done in a text channel.', ephemeral=True)
             return
+        
+        upload: discord.ui.FileUpload = self.requirements.component # type: ignore we know that the component for this label is a file upload
+        attachment: discord.Attachment = upload.values[0]
+        if attachment.content_type is None or not attachment.content_type in ['image/jpg', 'image/jpeg', 'image/png']:
+            await interaction.response.send_message(f'Attachment type was invalid. Please upload an image file (JPG, PNG)', ephemeral=True)
+            return
+        
         embed: discord.Embed = discord.Embed(title=f'Malignant application', colour=0x00b2ff)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
         
@@ -253,8 +260,7 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
                 embed.add_field(name=application_fields['country'], value=country_name, inline=False)
 
         # Send the message with the application data and add view with accept / decline buttons for mods
-        upload: discord.ui.FileUpload = self.requirements.component # type: ignore we know that the component for this label is a file upload
-        file: discord.File = await upload.values[0].to_file(filename=upload.values[0].filename, description=upload.values[0].description, use_cached=True)
+        file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
         embed.set_image(url=f'attachment://{file.filename}')
         view = ApplicationView(self.bot)
         await interaction.followup.send(embed=embed, file=file, view=view)
