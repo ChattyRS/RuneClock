@@ -1,4 +1,4 @@
-discord.py==2.6.2
+discord.py @ git+https://github.com/rapptz/discord.py@master
 SQLAlchemy==2.0.32
 asyncpg==0.29.0
 gspread_asyncio==2.0.0
