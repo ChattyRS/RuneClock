@@ -94,15 +94,16 @@ class ApplicationView(discord.ui.View):
         if not isinstance(interaction.channel, discord.TextChannel):
             await interaction.response.send_message('Error: this can only done in a text channel.', ephemeral=True)
             return
-        
-        # Update message
-        embed: discord.Embed = interaction.message.embeds[0]
 
         # Defer interaction response to ensure timeouts cannot occur
         await interaction.response.defer()
 
-        # embed.set_image(url=embed.image.url)
+        # Update message
+        embed: discord.Embed = interaction.message.embeds[0]
+
         embed.set_footer(text=f'❌ Declined by {interaction.user.display_name}')
+        # Without re-setting the embed image, the image is duplicated for some reason
+        embed.set_image(url=f'attachment://image.png')
         await interaction.message.edit(embed=embed, view=None)
         await interaction.followup.send('Application declined successfully.', ephemeral=True)
 
@@ -172,6 +173,8 @@ class ApplicationView(discord.ui.View):
         
         # Update message
         embed.set_footer(text=f'✅ Accepted by {interaction.user.display_name}')
+        # Without re-setting the embed image, the image is duplicated for some reason
+        embed.set_image(url=f'attachment://image.png')
         await interaction.message.edit(embed=embed, view=None)
         
         if results:
@@ -206,7 +209,7 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
         
         upload: discord.ui.FileUpload = self.requirements.component # type: ignore we know that the component for this label is a file upload
         attachment: discord.Attachment = upload.values[0]
-        if attachment.content_type is None or not attachment.content_type in ['image/jpg', 'image/jpeg', 'image/png']:
+        if attachment.content_type is None or not attachment.content_type in ['image/png', 'image/jpeg']:
             await interaction.response.send_message(f'Attachment type was invalid. Please upload an image file (JPG, PNG)', ephemeral=True)
             return
         
@@ -260,8 +263,10 @@ class ApplicationModal(discord.ui.Modal, title='Malignant application'):
                 embed.add_field(name=application_fields['country'], value=country_name, inline=False)
 
         # Send the message with the application data and add view with accept / decline buttons for mods
-        file: discord.File = await attachment.to_file(filename=attachment.filename, description=attachment.description, use_cached=True)
-        embed.set_image(url=f'attachment://{file.filename}')
+        # Note the attachment name is always set to image.png here regardless of the actual extension / content type
+        # This is because when editing the embed later, we have to re-use this image url to avoid an odd bug where the image is duplicated.
+        file: discord.File = await attachment.to_file(filename='image.png', description=attachment.description, use_cached=True)
+        embed.set_image(url=f'attachment://image.png')
         view = ApplicationView(self.bot)
         await interaction.followup.send(embed=embed, file=file, view=view)
 
