@@ -422,7 +422,7 @@ class AchievementApplicationView(discord.ui.View):
 
         current_rank_role: discord.Role | None = next((r for r in applicant.roles if r.id in rank_roles.values()), None)
         if not current_rank_role:
-            await interaction.response.send_message('Error: rank role not found.', ephemeral=True)
+            await interaction.followup.send('Error: rank role not found.', ephemeral=True)
             return
         
         # Update roster
