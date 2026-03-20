@@ -699,7 +699,7 @@ class Malignant(Cog):
         await roster.update_cells(cell_list, nowait=True) # type: ignore - extra arg nowait is supported via an odd decorator
 
         # Construct list of members eligible for a promotion
-        eligible: list[list[str]] = []
+        eligible: list[dict[str, Any]] = []
         for m in members:
             rank: str = m[rank_col] # Bronze, Iron, Steel, Black, Mithril, Adamant, Rune, Dragon, Moderator, Owner
             join_date: datetime
@@ -709,14 +709,19 @@ class Malignant(Cog):
                 join_date = datetime.now(UTC)
             ehb: float = float(m[ehb_col]) if is_float(m[ehb_col]) else 0
             if rank in reqs:
-                req: dict[str, int] = reqs[rank]
-                if ehb >= req['ehb'] and join_date <= datetime.now(UTC) - timedelta(days=req['months']*30):
-                    eligible.append(m)
+                min_index: int = standard_ranks.index(rank)
+                max_iterable: list[int] = [standard_ranks.index(r)+1 for r in standard_ranks if standard_ranks.index(r) > min_index and r in reqs and ehb > reqs[r]['ehb'] and join_date <= (datetime.now(UTC) - timedelta(days=reqs[r]['months']*30))]
+                new_rank_index: int | None = max(max_iterable if len(max_iterable) > 0 else [-1])
+                if new_rank_index and new_rank_index != -1:
+                    new_rank: str = standard_ranks[new_rank_index]
+                    eligible.append({ 'member': m, 'rank': new_rank })
 
         # Send a message listing the eligible members, if any
         msg = '```'
-        for m in eligible:
-            msg += f'\n{m[rsn_col]}{" "*(12-len(m[rsn_col]))} {m[rank_col]}{" "*(7-len(m[rank_col]))} -> {standard_ranks[standard_ranks.index(m[rank_col])+1]}'
+        for m_dict in eligible:
+            m: list[str] = m_dict['member']
+            new_rank: str = m_dict['rank']
+            msg += f'\n{m[rsn_col]}{" "*(12-len(m[rsn_col]))} {m[rank_col]}{" "*(7-len(m[rank_col]))} -> {new_rank}'
         if not eligible:
             msg += '\nNo eligible members found.'
         msg += '\n```'
