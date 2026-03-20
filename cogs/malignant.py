@@ -412,10 +412,6 @@ class AchievementApplicationView(discord.ui.View):
         if not achievement_role:
             await interaction.response.send_message(f'Error: role for achievement rank `{achievement_rank}` was not found.', ephemeral=True)
             return
-        current_rank_role: discord.Role | None = next((r for r in interaction.user.roles if r.id in rank_roles.values()), None)
-        if not current_rank_role:
-            await interaction.response.send_message('Error: rank role not found.', ephemeral=True)
-            return
         
         # Defer interaction response because these operations will take some time
         await interaction.response.defer()
@@ -423,6 +419,11 @@ class AchievementApplicationView(discord.ui.View):
         # Get applicant discord user 
         user_id = int(embed.footer.text.replace('User ID: ', ''))
         applicant: discord.Member = await interaction.guild.fetch_member(user_id)
+
+        current_rank_role: discord.Role | None = next((r for r in applicant.roles if r.id in rank_roles.values()), None)
+        if not current_rank_role:
+            await interaction.response.send_message('Error: rank role not found.', ephemeral=True)
+            return
         
         # Update roster
         agc: AsyncioGspreadClient = await self.bot.agcm.authorize()
