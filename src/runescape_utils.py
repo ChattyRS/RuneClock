@@ -7,6 +7,7 @@ from src.number_utils import is_int
 from discord.ext import commands
 
 max_cash = 2147483647
+max_total: int = 2376
 
 item_emojis: list[list[str]] = [
     ['Uncharted island map', 'uncharted_island_map'],
