@@ -440,7 +440,7 @@ class AchievementApplicationView(discord.ui.View):
                 break
 
         if not member_index:
-            await interaction.response.send_message(f'Error: member not found on roster: {rsn}.', ephemeral=True)
+            await interaction.followup.send(f'Error: member not found on roster: {rsn}.', ephemeral=True)
             return
 
         await roster.update_cell(member_index, rank_col+1, achievement_rank)
@@ -518,24 +518,24 @@ class AchievementApplicationModal(discord.ui.Modal, title='Achievement applicati
 
         member: list[str] | None = next((m for m in members if m[discord_col] == interaction.user.name), None)
         if not member:
-            await interaction.response.send_message(f'Error: member not found: `{interaction.user.name}`', ephemeral=True)
+            await interaction.followup.send(f'Error: member not found: `{interaction.user.name}`', ephemeral=True)
             return
         
         rsn: str = member[rsn_col]
         rank: str = member[rank_col]
 
         if not is_valid_rsn(rsn):
-            await interaction.response.send_message(f'Error: invalid RSN: `{rsn}`', ephemeral=True)
+            await interaction.followup.send(f'Error: invalid RSN: `{rsn}`', ephemeral=True)
             return
         
         if rank in standard_ranks and standard_ranks.index(rank) < standard_ranks.index('Mithril'):
-            await interaction.response.send_message(f'Error: at least Mithril rank is required to be eligible for an achievement rank, found rank: `{rank}`', ephemeral=True)
+            await interaction.followup.send(f'Error: at least Mithril rank is required to be eligible for an achievement rank, found rank: `{rank}`', ephemeral=True)
             return
         if rank in staff_ranks:
-            await interaction.response.send_message(f'Error: staff are not eligible for achievement ranks, found staff rank: `{rank}`', ephemeral=True)
+            await interaction.followup.send(f'Error: staff are not eligible for achievement ranks, found staff rank: `{rank}`', ephemeral=True)
             return
         if rank == achievement_rank:
-            await interaction.response.send_message(f'Error: you already have the rank you are applying for: `{rank}`', ephemeral=True)
+            await interaction.followup.send(f'Error: you already have the rank you are applying for: `{rank}`', ephemeral=True)
             return
         
         embed: discord.Embed = discord.Embed(title=f'Achievement application', colour=0x00b2ff)
@@ -559,13 +559,13 @@ class AchievementApplicationModal(discord.ui.Modal, title='Achievement applicati
 
         # Validate requirements
         if achievement_rank == 'Maxed' and total < max_total:
-            await interaction.response.send_message(f'Error: total level of `{max_total}` is required for achievement rank `{achievement_rank}`, found total level `{total}`.', ephemeral=True)
+            await interaction.followup.send(f'Error: total level of `{max_total}` is required for achievement rank `{achievement_rank}`, found total level `{total}`.', ephemeral=True)
             return
         if achievement_rank == '800 EHB' and ehb < 800:
-            await interaction.response.send_message(f'Error: `800` EHB is required for achievement rank `{achievement_rank}`, found EHB `{ehb}`.', ephemeral=True)
+            await interaction.followup.send(f'Error: `800` EHB is required for achievement rank `{achievement_rank}`, found EHB `{ehb}`.', ephemeral=True)
             return
         if achievement_rank == '1200 EHB' and ehb < 1200:
-            await interaction.response.send_message(f'Error: `1200` EHB is required for achievement rank `{achievement_rank}`, found EHB `{ehb}`.', ephemeral=True)
+            await interaction.followup.send(f'Error: `1200` EHB is required for achievement rank `{achievement_rank}`, found EHB `{ehb}`.', ephemeral=True)
             return
 
         # Add data from WOM to the embed
