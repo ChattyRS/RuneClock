@@ -710,7 +710,7 @@ class Malignant(Cog):
             ehb: float = float(m[ehb_col]) if is_float(m[ehb_col]) else 0
             if rank in reqs:
                 min_index: int = standard_ranks.index(rank)
-                max_iterable: list[int] = [standard_ranks.index(r)+1 for r in standard_ranks if standard_ranks.index(r) > min_index and r in reqs and ehb > reqs[r]['ehb'] and join_date <= (datetime.now(UTC) - timedelta(days=reqs[r]['months']*30))]
+                max_iterable: list[int] = [standard_ranks.index(r)+1 for r in standard_ranks if standard_ranks.index(r) >= min_index and r in reqs and ehb >= reqs[r]['ehb'] and join_date <= (datetime.now(UTC) - timedelta(days=reqs[r]['months']*30))]
                 new_rank_index: int | None = max(max_iterable if len(max_iterable) > 0 else [-1])
                 if new_rank_index and new_rank_index != -1:
                     new_rank: str = standard_ranks[new_rank_index]
