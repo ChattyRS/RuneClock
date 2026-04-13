@@ -690,7 +690,7 @@ class Malignant(Cog):
         # Update EHB stats
         cell_list: list[gspread.Cell] = []
         for i, m in enumerate(members):
-            player: Any | None = next((p for p in player_details if p['username'].lower() == m[rsn_col].lower()), None)
+            player: Any | None = next((p for p in player_details if p['username'].replace('_', ' ').lower() == m[rsn_col].replace('_', ' ').lower()), None)
             if not player:
                 errors.append(f'WOM player not found: `{m[rsn_col]}`.')
                 continue
