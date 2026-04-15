@@ -39,12 +39,10 @@ class Bot(commands.AutoShardedBot):
     next_sinkhole: datetime | None
     next_merchant: datetime | None
     next_spotlight: datetime | None
-    next_wilderness_flash_event: datetime | None
 
     vos: dict[str, list[str]] | None
     merchant: str | None
     spotlight: str | None
-    wilderness_flash_event: dict | None
 
     events_logged: int = 0
     command_counter = 0

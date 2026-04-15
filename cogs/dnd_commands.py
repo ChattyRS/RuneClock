@@ -6,7 +6,7 @@ from discord.ext.commands import Cog
 import copy
 from src.bot import Bot
 from datetime import datetime, timedelta, UTC
-from src.runescape_utils import prif_districts, wilderness_flash_events, item_emojis
+from src.runescape_utils import prif_districts, item_emojis
 from src.date_utils import timedelta_to_string
 import praw
 import math
@@ -43,12 +43,10 @@ class DNDCommands(Cog):
         self.bot.next_sinkhole = None
         self.bot.next_merchant = None
         self.bot.next_spotlight = None
-        self.bot.next_wilderness_flash_event = None
 
         self.bot.vos = None
         self.bot.merchant = None
         self.bot.spotlight = None
-        self.bot.wilderness_flash_event = None
     
     def next_update(self) -> timedelta:
         now: datetime = datetime.now(UTC)
@@ -63,8 +61,7 @@ class DNDCommands(Cog):
             self.bot.next_goebies, 
             self.bot.next_sinkhole, 
             self.bot.next_merchant, 
-            self.bot.next_spotlight,
-            self.bot.next_wilderness_flash_event
+            self.bot.next_spotlight
         ]
         
         if all(t is None for t in next_times) and self.bot.vos is None and self.bot.merchant is None and self.bot.spotlight is None:
@@ -219,18 +216,6 @@ class DNDCommands(Cog):
         #             self.bot.next_spotlight = next_date
         # except Exception as e:
         #     print(f'Error getting minigame spotlight data: {type(e).__name__} : {e}')
-
-        # Update upcoming wilderness flash event
-        t_0 = datetime(2022, 10, 19, 14, 0, 0, tzinfo=UTC)
-        elapsed: timedelta | float | int = now - t_0
-        elapsed /= timedelta(hours=1)
-        elapsed = math.floor(elapsed)
-        current_flash_event = wilderness_flash_events[(elapsed-1)%len(wilderness_flash_events)]
-        upcoming_flash_event = wilderness_flash_events[elapsed%len(wilderness_flash_events)]
-        if not self.bot.wilderness_flash_event:
-            self.bot.wilderness_flash_event = {'current': None, 'next': upcoming_flash_event}
-        self.bot.wilderness_flash_event['current'] = current_flash_event
-        self.bot.wilderness_flash_event['next'] = upcoming_flash_event
         
         # Warbands schedule repeats weekly starting monday 02:00
         next_warband_start: datetime = (now - timedelta(days=now.weekday())).replace(hour=2, minute=0, second=0, microsecond=0)
@@ -245,7 +230,6 @@ class DNDCommands(Cog):
         self.bot.next_goebies = now + timedelta(hours=12) - timedelta(hours=(now.hour%12), minutes=now.minute, seconds=now.second)
         self.bot.next_sinkhole = now + timedelta(hours=1) - timedelta(minutes=((now.minute+30)%60), seconds=now.second)
         self.bot.next_merchant = self.bot.next_yews48
-        self.bot.next_wilderness_flash_event = now + timedelta(hours=1) - timedelta(minutes=now.minute, seconds=now.second)
 
 
     @commands.command()
@@ -269,7 +253,6 @@ class DNDCommands(Cog):
             f'{self.bot.config["sinkholeEmoji"]} **Sinkhole** will spawn in {timedelta_to_string(self.bot.next_sinkhole - now) if self.bot.next_sinkhole else 'N/A'}.\n'
             f'{self.bot.config["merchantEmoji"]} **Travelling merchant** stock will refresh in {timedelta_to_string(self.bot.next_merchant - now) if self.bot.next_merchant else 'N/A'}.\n'
             f'{self.bot.config["spotlightEmoji"]} **Minigame spotlight** will change in {timedelta_to_string(self.bot.next_spotlight - now) if self.bot.next_spotlight else 'N/A'}.\n'
-            f'{self.bot.config["wildernessflasheventsEmoji"]} **Wilderness flash event** will begin in {timedelta_to_string(self.bot.next_wilderness_flash_event - now) if self.bot.next_wilderness_flash_event else 'N/A'}.\n'
         )
         
         await ctx.send(msg)
@@ -547,26 +530,6 @@ class DNDCommands(Cog):
         self.peng_time = datetime.now(UTC)
 
         await ctx.send(embed=embed)
-    
-    @commands.command(aliases=['wilderness_flash_events', 'wilderness_flash_event', 'wilderness_flash', 'wildy_flash', 'wildy_flash_events', 'wildy_flash_event'])
-    async def flash(self, ctx: commands.Context) -> None:
-        '''
-        Returns the next wilderness flash event.
-        '''
-        self.bot.increment_command_counter()
-        
-        now: datetime = datetime.now(UTC)
-        now = now.replace(microsecond=0)
-
-        if not self.bot.wilderness_flash_event:
-            raise commands.CommandError('Wilderness flash event status not found. Please try again and contact an administrator if the problem persists.')
-        
-        txt: str = f'Current: {self.bot.wilderness_flash_event["current"]}\nNext: {self.bot.wilderness_flash_event["next"]}' if self.bot.wilderness_flash_event["current"] else f'Next: {self.bot.wilderness_flash_event["next"]}'
-        embed = discord.Embed(title='Wilderness flash event', colour=0x00b2ff, description=txt)
-        embed.set_footer(text=timedelta_to_string((self.bot.next_wilderness_flash_event if self.bot.next_wilderness_flash_event else datetime.now(UTC)) - now))
-        
-        await ctx.send(embed=embed)
-
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(DNDCommands(bot))

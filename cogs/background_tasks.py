@@ -31,7 +31,6 @@ class BackgroundTasks(Cog):
     notified_this_hour_yews_140: bool = False
     notified_this_hour_goebies: bool = False
     notified_this_hour_sinkhole: bool = False
-    notified_this_hour_wilderness_flash: bool = False
     notified_this_day_merchant: bool = False
     notified_this_day_spotlight: bool = False
     reset: bool = False
@@ -138,9 +137,6 @@ class BackgroundTasks(Cog):
                         continue
                     if 'Sinkhole' in m.content:
                         self.notified_this_hour_sinkhole = True
-                        continue
-                    if 'wilderness' in m.content.lower() and 'flash' in m.content.lower():
-                        self.notified_this_hour_wilderness_flash = True
                         continue
             else:
                 break
@@ -262,11 +258,6 @@ class BackgroundTasks(Cog):
                 msg = self.bot.config['msgSinkhole'] + '__role_mention__'
                 await self.send_notifications(msg, {'SINKHOLE': '__role_mention__'})
                 self.notified_this_hour_sinkhole = True
-            
-            if not self.notified_this_hour_wilderness_flash and now.minute >= 55 and now.minute <= 56 and self.bot.wilderness_flash_event:
-                msg = f'{self.bot.config["wildernessflasheventsEmoji"]} The next **Wilderness Flash Event** will start in 5 minutes: **{self.bot.wilderness_flash_event["next"]}**. __role_mention__'
-                await self.send_notifications(msg, {'WILDERNESSFLASHEVENT': '__role_mention__'})
-                self.notified_this_hour_wilderness_flash = True
 
             if now.minute > 1 and self.reset:
                 self.reset = False
@@ -278,7 +269,6 @@ class BackgroundTasks(Cog):
                 self.notified_this_hour_yews_140 = False
                 self.notified_this_hour_goebies = False
                 self.notified_this_hour_sinkhole = False
-                self.notified_this_hour_wilderness_flash = False
                 if now.hour == 0:
                     self.notified_this_day_merchant = False
                     self.notified_this_day_spotlight = False
