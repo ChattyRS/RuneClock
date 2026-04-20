@@ -1,8 +1,9 @@
 import asyncio
 from types import CodeType, ModuleType
-from typing import Any, Callable, Mapping, NamedTuple, Sequence
+from typing import Any, Callable, List, Mapping, NamedTuple, Sequence
 from aiohttp import ClientResponse
 import discord
+from discord.app_commands.models import AppCommand
 from discord.ext import commands
 from discord.ext.commands import Cog, Command as DiscordCommand
 from github.AuthenticatedUser import AuthenticatedUser
@@ -1169,11 +1170,13 @@ class Management(Cog):
             for guild_id in guild_ids:
                 guild: discord.Guild | None = self.bot.get_guild(int(guild_id))
                 if guild:
-                    await self.bot.tree.sync(guild=guild)
-                    await ctx.send(f'Synced application commands with guild: `{guild.name}`')
+                    synced_commands: List[AppCommand] = await self.bot.tree.sync(guild=guild)
+                    synced_commands_str: str = '\n'.join([cmd.name for cmd in synced_commands])
+                    await ctx.send(f'Synced application commands with guild: `{guild.name}`\n\n```\n{synced_commands_str}\n```')
         else:
-            await self.bot.tree.sync()
-            await ctx.send(f'Synced application commands globally')
+            synced_commands: List[AppCommand] = await self.bot.tree.sync()
+            synced_commands_str: str = '\n'.join([cmd.name for cmd in synced_commands])
+            await ctx.send(f'Synced application commands globally\n\n```\n{synced_commands_str}\n```')
 
     @commands.command(hidden=True)
     @is_owner()

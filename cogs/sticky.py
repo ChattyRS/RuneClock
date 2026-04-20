@@ -130,7 +130,7 @@ class Sticky(Cog):
         if not ctx.guild or not isinstance(ctx.author, discord.Member) or not isinstance(ctx.channel, discord.TextChannel):
             raise commands.CommandError('This command can only be used in a text channel in a server.')
 
-        await ctx.channel.typing()
+        await ctx.typing()
 
         # Get existing sticky message and either update or delete depending on parameter sticky_text
         sticky_message: StickyMessage | None = None

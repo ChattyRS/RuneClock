@@ -153,7 +153,7 @@ class Sheets(Cog):
         self.bot.add_view(SheetPageView(self.bot))
 
     @commands.hybrid_command(aliases=['sheet'])
-    async def display_sheet(self, ctx: commands.Context, key: str | None, sheet_name: str | None = None, number_of_value_columns: int | None = None) -> None:
+    async def display_sheet(self, ctx: commands.Context, key: str, sheet_name: str | None = None, number_of_value_columns: int | None = None) -> None:
         '''
         Displays info from a Google sheet.
 
@@ -163,7 +163,7 @@ class Sheets(Cog):
             value_columns (int | None, optional): The number of value columns to display. Defaults to None for auto-detect. Max number of value columns supported is 4, excluding the first column that is used as row title / name.
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
+        await ctx.typing()
 
         value_columns: int | None = int(number_of_value_columns) if number_of_value_columns else None
 

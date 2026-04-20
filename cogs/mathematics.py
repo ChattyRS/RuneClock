@@ -21,9 +21,9 @@ class Mathematics(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def math(self, ctx: commands.Context, *formulas) -> None:
+    async def math(self, ctx: commands.Context, *, formula: str) -> None:
         '''
         Calculates the result of a given mathematical problem.
         Supported operations:
@@ -44,9 +44,8 @@ class Mathematics(Cog):
         Product: product(start, end, f(x)) (start and end inclusive)
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
+        await ctx.typing()
         
-        formula: str = ' '.join(formulas).strip()
         if not formula:
             raise commands.CommandError(message=f'Required argument missing: `formula`.')
         try:
@@ -74,9 +73,9 @@ class Mathematics(Cog):
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression:\n```{e}```')
 
-    @commands.command(aliases=['plot'])
+    @commands.hybrid_command(aliases=['plot'])
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def graph(self, ctx: commands.Context, start: float, end: float, *formulas) -> None:
+    async def graph(self, ctx: commands.Context, start: float, end: float, *, formula: str) -> None:
         '''
         Plots a given mathematical function
         Arguments: start, end, f(x)
@@ -94,8 +93,8 @@ class Mathematics(Cog):
         Example: graph -10 10 x
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
-        formula: str = ' '.join(formulas).strip()
+        await ctx.typing()
+        
         if not is_float(start) or not is_float(end):
             raise commands.CommandError(message=f'Invalid argument(s): `start/end`.')
         elif start >= end:
@@ -149,9 +148,9 @@ class Mathematics(Cog):
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression: \n```{e}```')
 
-    @commands.command()
+    @commands.hybrid_command()
     @commands.cooldown(1, 10, commands.BucketType.user)
-    async def solve(self, ctx: commands.Context, *formulas) -> None:
+    async def solve(self, ctx: commands.Context, *, formula: str) -> None:
         '''
         Solves a given equation for x.
         Supported operations:
@@ -165,9 +164,8 @@ class Mathematics(Cog):
         Complex/imaginary numbers: i
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
+        await ctx.typing()
         
-        formula: str = ' '.join(formulas).strip()
         if not formula:
             raise commands.CommandError(message=f'Required argument missing: `formula`.')
         try:
@@ -207,14 +205,14 @@ class Mathematics(Cog):
         except Exception as e:
             raise commands.CommandError(message=f'Invalid mathematical expression:\n```{e}```')
 
-    @commands.command()
-    async def convert(self, ctx: commands.Context, value: str | float | int = '', unit: str = '', new_unit: str = '') -> None:
+    @commands.hybrid_command()
+    async def convert(self, ctx: commands.Context, value: float, unit: str, new_unit: str) -> None:
         '''
         Converts given unit to new unit.
         Default value = 1
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
+        await ctx.typing()
 
         if not value or not unit:
             raise commands.CommandError(message=f'Required argument(s) missing: `value/unit`.')
@@ -272,11 +270,17 @@ class Mathematics(Cog):
             new_value: str | float | int = value * factor
         else:
             new_value = eval(f'{value}{factor}')
-        new_value = str(new_value).replace('e', ' • 10^').replace('+', '')
+
+        new_value = str(new_value)
+
+        if 'e' in new_value or not is_float(new_value):
+            new_value = new_value.replace('e', ' • 10^').replace('+', '')
+        else:
+            new_value = format_float(float(new_value))
 
         await ctx.send(f'{value} {unit} = `{new_value} {new_unit}`')
 
-    @commands.command(name='units')
+    @commands.hybrid_command(name='units')
     async def get_units(self, ctx: commands.Context) -> None:
         '''
         List of units supported by convert command.
@@ -296,18 +300,18 @@ class Mathematics(Cog):
 
         await ctx.send(f'```{txt}```')
     
-    @commands.command(aliases=['sci'])
-    async def scientific(self, ctx: commands.Context, *number) -> None:
+    @commands.hybrid_command(aliases=['sci'])
+    async def scientific(self, ctx: commands.Context, *, number: str) -> None:
         '''
         Convert a number literal to scientific notation and vice versa.
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
+        await ctx.typing()
 
         if not number:
             raise commands.CommandError(message='No input. Please give a number literal as argument.')
         
-        input: str = ' '.join(number)
+        input: str = number
 
         input = input.replace(' ', '').replace(',', '')
         input = input.replace('*10^', 'e')
