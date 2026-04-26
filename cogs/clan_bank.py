@@ -67,7 +67,7 @@ class ConfirmView(discord.ui.View):
             return
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
-        embed.set_footer(text=f'Cancelled by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/cross-mark_274c.png')
+        embed.set_footer(text=f'❌ Cancelled by {interaction.user.display_name}')
         await interaction.message.edit(embed=embed, view=None)
         await interaction.response.send_message('Transaction cancelled successfully.', ephemeral=True)
         self.value = False
@@ -86,7 +86,7 @@ class ConfirmView(discord.ui.View):
             return
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
-        embed.set_footer(text=f'Confirmed by {interaction.user.display_name}', icon_url='https://emojipedia-us.s3.dualstack.us-west-1.amazonaws.com/thumbs/160/twitter/322/check-mark-button_2705.png')
+        embed.set_footer(text=f'✅ Confirmed by {interaction.user.display_name}')
         await interaction.message.edit(attachments=interaction.message.attachments, embed=embed, view=None)
         await interaction.response.send_message('Transaction confirmed successfully.', ephemeral=True)
         self.value = True
