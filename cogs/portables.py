@@ -288,9 +288,9 @@ class Portables(Cog):
         '''
         self.bot.increment_command_counter()
 
-        if ctx.invoked_with in [item for sublist in portable_aliases for item in sublist]:
+        if ctx.invoked_with.lower() in [item for sublist in portable_aliases for item in sublist]:
             input = (portable,) + input
-            portable = ctx.invoked_with
+            portable = ctx.invoked_with.lower()
         
         if any(thing for thing in input):
             edit_command: commands.Command | None = self.bot.get_command('edit')
