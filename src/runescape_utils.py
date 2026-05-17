@@ -5,6 +5,7 @@ from discord import User, Member
 from src.date_utils import timedelta_to_string
 from src.number_utils import is_int
 from discord.ext import commands
+from typing import Any
 
 max_cash = 2147483647
 max_total: int = 2376
@@ -43,6 +44,86 @@ item_emojis: list[list[str]] = [
     ['Large Menaphite gift offering', 'menaphos_reputation'],
     ['Anima crystal', 'anima_crystal']
 ]
+
+spotlight_minigames_list: list[str] = [
+    'Pest Control',
+    'Soul Wars',
+    'Fist of Guthix',
+    'Barbarian Assault',
+    'Conquest',
+    'Fishing Trawler',
+    'The Great Orb Project',
+    'Flash Powder Factory',
+    'Castle Wars',
+    'Stealing Creation',
+    'Cabbage Facepunch Bonanza',
+    'Heist',
+    'Soul Wars',
+    'Barbarian Assault',
+    'Conquest',
+    'Fist of Guthix',
+    'Castle Wars',
+    'Pest Control',
+    'Soul Wars',
+    'Fishing Trawler',
+    'The Great Orb Project',
+    'Flash Powder Factory',
+    'Stealing Creation',
+    'Cabbage Facepunch Bonanza',
+    'Heist',
+    'Trouble Brewing',
+    'Castle Wars'
+]
+
+def rotation_days(interval: int, rotation_count: int, offset: int) -> tuple[int, int]:
+    '''
+    Gets the current rotation and the number of days until the next rotation.
+    Implementation copied from RS wiki. See https://runescape.wiki/w/Module:Rotations
+
+    Args:
+        interval (int): The number of days per rotation.
+        rotation_count (int): The number of rotations available.
+        offset (int): The offset of days such that Tuesday 1 January 1970 - offset would be the starting day for rotation 1
+            (the absolute value of this should be less than interval * rotation_count)
+
+    Returns:
+        A number that can be used to identify the rotation.
+        Also returns a second value that determines how many days until the next rotation.
+    '''
+    days_after_utc: int = math.floor(datetime.now(UTC).timestamp() / (24 * 60 * 60))
+    days_into_period: int = (days_after_utc + offset) % (interval * rotation_count)
+
+    rotation: int = math.floor(days_into_period / interval)
+    days_until_next_rotation: int = interval - days_into_period % interval
+
+    return rotation, days_until_next_rotation
+
+def get_spotlight() -> str:
+    '''
+    Gets the current spotlighted minigame.
+
+    Returns:
+        str: The spotlighted minigame
+    '''
+    interval, offset = 3, -49
+    rotations: list[str] = spotlight_minigames_list
+    rotation, next_in = rotation_days(interval, len(rotations), offset)
+
+    return rotations[rotation]
+
+def get_next_spotlight() -> datetime:
+    '''
+    Gets the date and time at which the next minigame will be spotlighted.
+
+    Returns:
+        datetime: The date and time the minigame spotlight will change.
+    '''
+    interval, offset = 3, -49
+    rotations: list[str] = spotlight_minigames_list
+    rotation, next_in = rotation_days(interval, len(rotations), offset)
+
+    now: datetime = datetime.now(UTC).replace(microsecond=0)
+    return now + timedelta(days=next_in, hours=-now.hour, minutes=-now.minute, seconds=-now.second)
 
 def level_to_xp(level: int) -> int:
     '''
