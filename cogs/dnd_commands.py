@@ -34,7 +34,6 @@ class DNDCommands(Cog):
         # Initialize time values for D&D notifications
         self.bot.next_warband = None
         self.bot.next_vos = None
-        self.bot.next_cache = None
         self.bot.next_yews48 = None
         self.bot.next_yews140 = None
         self.bot.next_goebies = None
@@ -51,14 +50,13 @@ class DNDCommands(Cog):
         now = now.replace(microsecond=0)
 
         next_times: list[datetime | None] = [
-            self.bot.next_warband, 
-            self.bot.next_vos, 
-            self.bot.next_cache, 
-            self.bot.next_yews48, 
-            self.bot.next_yews140, 
-            self.bot.next_goebies, 
-            self.bot.next_sinkhole, 
-            self.bot.next_merchant, 
+            self.bot.next_warband,
+            self.bot.next_vos,
+            self.bot.next_yews48,
+            self.bot.next_yews140,
+            self.bot.next_goebies,
+            self.bot.next_sinkhole,
+            self.bot.next_merchant,
             self.bot.next_spotlight
         ]
         
@@ -199,7 +197,6 @@ class DNDCommands(Cog):
         self.bot.next_warband = next_warband_start
 
         # Update time values
-        self.bot.next_cache = now.replace(minute=0, second=0) + timedelta(hours=1)
         self.bot.next_yews48 = now.replace(hour=0, minute=0, second=0) + timedelta(days=1)
         self.bot.next_yews140 = now + timedelta(days=1) - timedelta(hours=((now.hour+7)%24), minutes=now.minute, seconds=now.second)
         self.bot.next_goebies = now + timedelta(hours=12) - timedelta(hours=(now.hour%12), minutes=now.minute, seconds=now.second)
@@ -221,7 +218,6 @@ class DNDCommands(Cog):
             f'Future:\n'
             f'{self.bot.config["warbandsEmoji"]} **Wilderness warbands** will begin in {timedelta_to_string(self.bot.next_warband - now) if self.bot.next_warband else 'N/A'}.\n'
             f'{self.bot.config["vosEmoji"]} **Voice of Seren** will change in {timedelta_to_string(self.bot.next_vos - now) if self.bot.next_vos else 'N/A'}.\n'
-            f'{self.bot.config["cacheEmoji"]} **Guthixian caches** will begin in {timedelta_to_string(self.bot.next_cache - now) if self.bot.next_cache else 'N/A'}.\n'
             f'{self.bot.config["yewsEmoji"]} **Divine yews** (w48 bu) will begin in {timedelta_to_string(self.bot.next_yews48 - now) if self.bot.next_yews48 else 'N/A'}.\n'
             f'{self.bot.config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {timedelta_to_string(self.bot.next_yews140 - now) if self.bot.next_yews140 else 'N/A'}.\n'
             f'{self.bot.config["goebiesEmoji"]} **Goebies supply run** will begin in {timedelta_to_string(self.bot.next_goebies - now) if self.bot.next_goebies else 'N/A'}.\n'
@@ -288,20 +284,6 @@ class DNDCommands(Cog):
         now = now.replace(microsecond=0)
         
         msg: str = self.bot.config['warbandsEmoji'] + " **Wilderness warbands** will begin in " + timedelta_to_string((self.bot.next_warband if self.bot.next_warband else datetime.now(UTC)) - now) + "."
-        
-        await ctx.send(msg)
-
-    @commands.command(aliases=['caches'])
-    async def cache(self, ctx: commands.Context) -> None:
-        '''
-        Returns the time until the next Guthixian cache.
-        '''
-        self.bot.increment_command_counter()
-        
-        now: datetime = datetime.now(UTC)
-        now = now.replace(microsecond=0)
-        
-        msg: str = self.bot.config['cacheEmoji'] + " **Guthixian caches** will begin in " + timedelta_to_string((self.bot.next_cache if self.bot.next_cache else datetime.now(UTC)) - now) + "."
         
         await ctx.send(msg)
 

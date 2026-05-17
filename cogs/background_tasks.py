@@ -26,7 +26,6 @@ class BackgroundTasks(Cog):
 
     notified_this_hour_warbands: bool = False
     notified_this_hour_vos: bool = False
-    notified_this_hour_cache: bool = False
     notified_this_hour_yews_48: bool = False
     notified_this_hour_yews_140: bool = False
     notified_this_hour_goebies: bool = False
@@ -122,9 +121,6 @@ class BackgroundTasks(Cog):
                         if current_time.minute <= 1:
                             self.reset = True
                         self.notified_this_hour_vos = True
-                        continue
-                    if 'Cache' in m.content:
-                        self.notified_this_hour_cache = True
                         continue
                     if 'yew' in m.content:
                         if '48' in m.content:
@@ -233,11 +229,6 @@ class BackgroundTasks(Cog):
                 msg = self.bot.config['msgWarbands'] + '__role_mention__'
                 await self.send_notifications(msg, {'WARBAND': '__role_mention__'})
                 self.notified_this_hour_warbands = True
-                        
-            if not self.notified_this_hour_cache and now.minute >= 55 and now.minute <= 56:
-                msg = self.bot.config['msgCache'] + '__role_mention__'
-                await self.send_notifications(msg, {'CACHE': '__role_mention__'})
-                self.notified_this_hour_cache = True
 
             if not self.notified_this_hour_yews_48 and now.hour == 23 and now.minute >= 45 and now.minute <= 46:
                 msg = self.bot.config['msgYews48'] + '__role_mention__'
@@ -264,7 +255,6 @@ class BackgroundTasks(Cog):
             if now.minute == 0 and not self.reset:
                 self.notified_this_hour_warbands = False
                 self.notified_this_hour_vos = False
-                self.notified_this_hour_cache = False
                 self.notified_this_hour_yews_48 = False
                 self.notified_this_hour_yews_140 = False
                 self.notified_this_hour_goebies = False

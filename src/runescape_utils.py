@@ -299,7 +299,7 @@ def rots(t: datetime) -> tuple[list[list[str]], str]:
 prif_districts: list[str] = ['Cadarn', 'Amlodd', 'Crwys', 'Ithell', 'Hefin', 'Meilyr', 'Trahaearn', 'Iorwerth']
 
 # variable used for role management
-dnd_names: list[str] = ['Warbands', 'Cache', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight']
+dnd_names: list[str] = ['Warbands', 'Sinkhole', 'Yews', 'Goebies', 'Merchant', 'Spotlight']
 for d in prif_districts:
     dnd_names.append(d)
 
