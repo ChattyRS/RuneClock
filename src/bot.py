@@ -37,11 +37,9 @@ class Bot(commands.AutoShardedBot):
     next_yews140: datetime | None
     next_goebies: datetime | None
     next_sinkhole: datetime | None
-    next_merchant: datetime | None
     next_spotlight: datetime | None
 
     vos: dict[str, list[str]] | None
-    merchant: str | None
     spotlight: str | None
 
     events_logged: int = 0

@@ -38,11 +38,9 @@ class DNDCommands(Cog):
         self.bot.next_yews140 = None
         self.bot.next_goebies = None
         self.bot.next_sinkhole = None
-        self.bot.next_merchant = None
         self.bot.next_spotlight = None
 
         self.bot.vos = None
-        self.bot.merchant = None
         self.bot.spotlight = None
     
     def next_update(self) -> timedelta:
@@ -56,11 +54,10 @@ class DNDCommands(Cog):
             self.bot.next_yews140,
             self.bot.next_goebies,
             self.bot.next_sinkhole,
-            self.bot.next_merchant,
             self.bot.next_spotlight
         ]
         
-        if all(t is None for t in next_times) and self.bot.vos is None and self.bot.merchant is None and self.bot.spotlight is None:
+        if all(t is None for t in next_times) and self.bot.vos is None and self.bot.spotlight is None:
             # If all of the time values are None, return a timedelta of 0, indicating that the times must be updated
             return timedelta(seconds=0)
         elif all(t < now if isinstance(t, datetime) else True for t in next_times):
@@ -142,48 +139,6 @@ class DNDCommands(Cog):
                     self.bot.vos = {'vos': current, 'next': next_vos}
         except Exception as e:
             print(f'Error getting VOS data: {type(e).__name__} : {e}')
-
-        # Update merchant
-        if not self.bot.merchant or not self.bot.next_merchant or self.bot.next_merchant <= now:
-            url: str = f'https://runescape.wiki/api.php?action=parse&disablelimitreport=1&format=json&prop=text&contentmodel=wikitext&text=%7B%7BTravelling+Merchant%2Fapi%7Cformat%3Dsimple%7D%7D'
-
-            r = await self.bot.aiohttp.get(url, headers=wiki_headers)
-            error = False
-            data: Any = None
-            async with r:
-                if r.status != 200:
-                    error = True
-                else:
-                    data = await r.json()
-
-            if not error:
-                data = data['parse']['text']['*']
-
-                data = data.replace('<div class=\"mw-parser-output"><p>', '').replace('</p></div>', '')
-                data = data.replace('@', '').replace('\n', '').replace('&amp;', '&')
-
-                data = data.replace('Distraction & Diversion reset token (daily)', 'Daily D&D token')
-                data = data.replace('Distraction & Diversion reset token (weekly)', 'Weekly D&D token')
-                data = data.replace('Distraction & Diversion reset token (monthly)', 'Monthly D&D token')
-                data = data.replace('Menaphite gift offering (small)', 'Small Menaphite gift offering')
-                data = data.replace('Menaphite gift offering (medium)', 'Medium Menaphite gift offering')
-                data = data.replace('Menaphite gift offering (large)', 'Large Menaphite gift offering')
-                data = data.replace('Livid plant (Deep Sea Fishing)', 'Livid plant')
-                data = data.replace('Message in a bottle (Deep Sea Fishing)', 'Message in a bottle')
-                data = data.replace('Sacred clay (Deep Sea Fishing)', 'Sacred clay')
-
-                items: list = ['Uncharted island map'] + data.split('¦')
-
-                txt: str = ''
-                for item in items:
-                    for e in item_emojis:
-                        if item == e[0]:
-                            txt += self.bot.config[e[1]] + ' '
-                            break
-                    txt += item + '\n'
-                txt = txt.strip()
-
-                self.bot.merchant = txt
         
         # Update spotlight and spotlight time
         if not self.bot.spotlight or not self.bot.next_spotlight or self.bot.next_spotlight <= now:
@@ -201,7 +156,6 @@ class DNDCommands(Cog):
         self.bot.next_yews140 = now + timedelta(days=1) - timedelta(hours=((now.hour+7)%24), minutes=now.minute, seconds=now.second)
         self.bot.next_goebies = now + timedelta(hours=12) - timedelta(hours=(now.hour%12), minutes=now.minute, seconds=now.second)
         self.bot.next_sinkhole = now + timedelta(hours=1) - timedelta(minutes=((now.minute+30)%60), seconds=now.second)
-        self.bot.next_merchant = self.bot.next_yews48
 
 
     @commands.command()
@@ -222,7 +176,6 @@ class DNDCommands(Cog):
             f'{self.bot.config["yewsEmoji"]} **Divine yews** (w140 bu) will begin in {timedelta_to_string(self.bot.next_yews140 - now) if self.bot.next_yews140 else 'N/A'}.\n'
             f'{self.bot.config["goebiesEmoji"]} **Goebies supply run** will begin in {timedelta_to_string(self.bot.next_goebies - now) if self.bot.next_goebies else 'N/A'}.\n'
             f'{self.bot.config["sinkholeEmoji"]} **Sinkhole** will spawn in {timedelta_to_string(self.bot.next_sinkhole - now) if self.bot.next_sinkhole else 'N/A'}.\n'
-            f'{self.bot.config["merchantEmoji"]} **Travelling merchant** stock will refresh in {timedelta_to_string(self.bot.next_merchant - now) if self.bot.next_merchant else 'N/A'}.\n'
             f'{self.bot.config["spotlightEmoji"]} **Minigame spotlight** will change in {timedelta_to_string(self.bot.next_spotlight - now) if self.bot.next_spotlight else 'N/A'}.\n'
         )
         
@@ -254,22 +207,6 @@ class DNDCommands(Cog):
         colour = 0x00b2ff
         embed = discord.Embed(title=title, colour=colour, description=current_txt)
         embed.add_field(name=f'Up next ({time_to_vos})', value=next_txt, inline=False)
-        
-        await ctx.send(embed=embed)
-
-    @commands.command()
-    async def merchant(self, ctx: commands.Context) -> None:
-        '''
-        Returns the current travelling merchant stock.
-        '''
-        self.bot.increment_command_counter()
-
-        now: datetime = datetime.now(UTC)
-        now = now.replace(microsecond=0)
-
-        embed = discord.Embed(title='Traveling Merchant\'s Shop', colour=0x00b2ff, timestamp=datetime.now(UTC), url='https://runescape.wiki/w/Travelling_Merchant%27s_Shop', description=self.bot.merchant)
-        embed.set_thumbnail(url='https://runescape.wiki/images/b/bc/Wiki.png')
-        embed.set_footer(text=f'Reset in {timedelta_to_string((self.bot.next_merchant if self.bot.next_merchant else datetime.now(UTC)) - now)}.')
         
         await ctx.send(embed=embed)
 

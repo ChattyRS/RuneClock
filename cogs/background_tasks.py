@@ -30,7 +30,6 @@ class BackgroundTasks(Cog):
     notified_this_hour_yews_140: bool = False
     notified_this_hour_goebies: bool = False
     notified_this_hour_sinkhole: bool = False
-    notified_this_day_merchant: bool = False
     notified_this_day_spotlight: bool = False
     reset: bool = False
 
@@ -107,9 +106,6 @@ class BackgroundTasks(Cog):
         current_time: datetime = datetime.now(UTC)
         async for m in self.test_notification_channel.history(limit=100):
             if m.created_at.day == current_time.day:
-                if 'Merchant' in m.content:
-                    self.notified_this_day_merchant = True
-                    continue
                 if 'spotlight' in m.content:
                     self.notified_this_day_spotlight = True
                     continue
@@ -209,11 +205,6 @@ class BackgroundTasks(Cog):
         try:
             now: datetime = datetime.now(UTC)
 
-            if not self.notified_this_day_merchant and now.hour <= 2 and self.bot.next_merchant and self.bot.next_merchant > now + timedelta(hours=1):
-                msg: str = f'__role_mention__\n**Traveling Merchant** stock {now.strftime("%d %b")}\n{self.bot.merchant}'
-                await self.send_notifications(msg, {'MERCHANT': '__role_mention__'})
-                self.notified_this_day_merchant = True
-
             if not self.notified_this_day_spotlight and now.hour <= 1 and self.bot.next_spotlight and self.bot.next_spotlight > now + timedelta(days=2, hours=1):
                 msg = f'{self.bot.config["spotlightEmoji"]} **{self.bot.spotlight}** is now the spotlighted minigame. __role_mention__'
                 await self.send_notifications(msg, {'SPOTLIGHT': '__role_mention__'})
@@ -260,7 +251,6 @@ class BackgroundTasks(Cog):
                 self.notified_this_hour_goebies = False
                 self.notified_this_hour_sinkhole = False
                 if now.hour == 0:
-                    self.notified_this_day_merchant = False
                     self.notified_this_day_spotlight = False
                 self.reset = True
         except Exception as e:
