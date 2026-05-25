@@ -99,7 +99,7 @@ class Management(Cog):
                 return
             else:
                 param_text: str = ' '.join([f'[{param}]' for param in cmd.clean_params])
-                alias_str: str = ' | '.join(cmd.aliases) if cmd.aliases else ''
+                alias_str: str = (' | ' + ' | '.join(cmd.aliases)) if cmd.aliases else ''
                 embed = discord.Embed(title=f'Help', description=f'`{cmd.name}{alias_str} {param_text}`\n{cmd.help}', colour=0x00e400, timestamp=datetime.now(UTC))
                 embed.set_author(name=f'{ctx.me.display_name}', url=self.bot.config['github_link'], icon_url=ctx.me.display_avatar.url)
                 embed.set_footer(text=f'For more help, use the support command')
