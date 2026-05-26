@@ -467,7 +467,7 @@ class ModCommands(Cog):
             raise CommandError(message=f'Invalid argument: `{username}`. Forbidden character(s) found. Username must be a valid RSN.')
         
         if ctx.author.top_role > ctx.guild.me.top_role:
-                raise CommandError(message=f'Cannot edit user nickname. Top role `{ctx.author.top_role.name}` is higher than the bot\'s top role `{ctx.guild.me.top_role.name}`')
+                raise CommandError(message=f'Cannot edit nickname. Top role `{ctx.author.top_role.name}` is higher than the bot\'s top role `{ctx.guild.me.top_role.name}`')
         try:
             await ctx.author.edit(nick=username)
             await ctx.send(f'Your nickname has been changed to `{username}`.')
