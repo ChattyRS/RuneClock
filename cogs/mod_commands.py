@@ -14,6 +14,7 @@ from src.discord_utils import get_guild_text_channel
 from src.number_utils import is_int
 from src.checks import is_admin
 from discord.abc import GuildChannel
+from src.runescape_utils import is_valid_rsn
 
 class ModCommands(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -435,8 +436,8 @@ class ModCommands(Cog):
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `edit_role`.')
 
-    @commands.command(aliases=['changenick', 'nick'])
-    async def setnick(self, ctx: Context, *, username: str | None) -> None:
+    @commands.hybrid_command(aliases=['nick', 'setnick', 'changenick'])
+    async def nickname(self, ctx: Context, *, username: str | None) -> None:
         '''
         Changes the user's nickname.
         Arguments: nickname
@@ -444,25 +445,32 @@ class ModCommands(Cog):
         Constraints: nickname must be a valid RSN
         '''
         self.bot.increment_command_counter()
+        await ctx.typing()
 
-        if not isinstance(ctx.author, discord.Member):
+        if not isinstance(ctx.author, discord.Member) or not ctx.guild:
             raise CommandError(message=f'User is not a guild member.')
         
-        username = username.replace('_', '').strip() if username else None
+        username = username.strip() if username else None
         if not username:
+            if ctx.author.top_role > ctx.guild.me.top_role:
+                raise CommandError(message=f'Cannot edit nickname. Top role `{ctx.author.top_role.name}` is higher than the bot\'s top role `{ctx.guild.me.top_role.name}`')
             try:
                 await ctx.author.edit(nick=None)
                 await ctx.send(f'Your nickname has been removed.')
                 return
             except discord.Forbidden:
                 raise CommandError(message=f'Missing permissions: `manage_nicknames`.')
+            
         if len(username) > 12:
-            raise CommandError(message=f'Invalid argument: `{username}`. Character limit exceeded.')
-        if re.match(r'^[A-z0-9 -]+$', username) is None:
-            raise CommandError(message=f'Invalid argument: `{username}`. Forbidden character.')
+            raise CommandError(message=f'Invalid argument: `{username}`. Character limit exceeded. RSNs cannot exceed a length of 12 characters')
+        if not is_valid_rsn(username):
+            raise CommandError(message=f'Invalid argument: `{username}`. Forbidden character(s) found. Username must be a valid RSN.')
+        
+        if ctx.author.top_role > ctx.guild.me.top_role:
+                raise CommandError(message=f'Cannot edit user nickname. Top role `{ctx.author.top_role.name}` is higher than the bot\'s top role `{ctx.guild.me.top_role.name}`')
         try:
             await ctx.author.edit(nick=username)
-            await ctx.send(f'Your nickname has been changed to **{username}**.')
+            await ctx.send(f'Your nickname has been changed to `{username}`.')
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `manage_nicknames`.')
     

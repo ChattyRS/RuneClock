@@ -448,4 +448,11 @@ def is_valid_rsn(input: str) -> bool:
     Returns:
         bool: True iff the input could be a valid RSN.
     '''
-    return re.match(r'^[A-z0-9 -]+$', input) is not None
+    # Below pattern rejects "mod" and "jagex" substrings
+    # Cannot start or end with a special character
+    # Length between 1-12 characters
+    pattern: re.Pattern[str] = re.compile(
+        r'^(?!.*(?:mod|jagex))(?![ _-])(?!.*[ _-]$)[A-Za-z0-9 _-]{1,12}$',
+        re.IGNORECASE
+    )
+    return re.match(pattern, input) is not None
