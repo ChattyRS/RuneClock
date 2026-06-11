@@ -89,7 +89,7 @@ class Cache():
         Returns:
             OSRSItem | None: Best matching OSRS item, if any
         '''
-        matching_items: list[OSRSItem] = [item for item in self.osrs_items.values() if name in item.name]
+        matching_items: list[OSRSItem] = [item for item in self.osrs_items.values() if name.lower() in item.name.lower()]
         if not matching_items:
             return None
         # Get the best match by picking the item with the shortest name: i.e. the one closest to the provided input
@@ -106,7 +106,7 @@ class Cache():
         Returns:
             RS3Item | None: Best matching RS3 item, if any
         '''
-        matching_items: list[RS3Item] = [item for item in self.rs3_items.values() if name in item.name]
+        matching_items: list[RS3Item] = [item for item in self.rs3_items.values() if name.lower() in item.name.lower()]
         if not matching_items:
             return None
         # Get the best match by picking the item with the shortest name: i.e. the one closest to the provided input
