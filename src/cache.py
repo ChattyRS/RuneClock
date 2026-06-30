@@ -79,6 +79,25 @@ class Cache():
         '''
         self.guilds[guild.id] = guild
 
+    def get_osrs_items_by_name(self, name: str) -> list[OSRSItem]:
+        '''
+        Get a list of OSRS items from cache where the name contains the given input.
+        Results are sorted by the accuracy of the match.
+
+        Args:
+            name (str): The item name to search for
+
+        Returns:
+            list[OSRSItem]: OSRS items sorted by match accuracy.
+        '''
+        matching_items: list[OSRSItem] = [item for item in self.osrs_items.values() if name.lower() in item.name.lower()]
+        if not matching_items:
+            return []
+        # Get the best matches by sorting the item with the shortest name: i.e. the one closest to the provided input
+        # We apply a further preference to item names which start with the given input, by doubling the sort priority of any other items.
+        sorted_matches: list[OSRSItem] = sorted(matching_items, key=lambda i: len(i.name) if i.name.lower().startswith(name.lower()) else 2*len(i.name))
+        return sorted_matches
+
     def get_osrs_item_by_name(self, name: str) -> OSRSItem | None:
         '''
         Get OSRS item from cache with name closest to the given input, if any.
@@ -89,12 +108,9 @@ class Cache():
         Returns:
             OSRSItem | None: Best matching OSRS item, if any
         '''
-        matching_items: list[OSRSItem] = [item for item in self.osrs_items.values() if name.lower() in item.name.lower()]
-        if not matching_items:
-            return None
         # Get the best match by picking the item with the shortest name: i.e. the one closest to the provided input
-        sorted_matches: list[OSRSItem] = sorted(matching_items, key=lambda i: len(i.name))
-        return sorted_matches[0]
+        sorted_matches: list[OSRSItem] = self.get_osrs_items_by_name(name)
+        return sorted_matches[0] if len(sorted_matches) > 0 else None
     
     def get_rs3_item_by_name(self, name: str) -> RS3Item | None:
         '''

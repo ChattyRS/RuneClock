@@ -1,6 +1,7 @@
 from typing import Any, Iterator, Sequence
 from aiohttp import ClientResponse
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 from discord.ext.commands import Cog
 from imageio.core.util import Array
@@ -384,21 +385,43 @@ class Runescape(Cog):
             embed.add_field(name=post.title, value=post.link + '\n' + post.description, inline=False)
 
         await ctx.send(embed=embed)
+    
+    @app_commands.command(name='price')
+    async def _07price_app_command(self, interaction: discord.Interaction, item: str, days: app_commands.Range[int, 1, 180] = 30) -> None:
+        '''
+        Gets the OSRS GE price for an item.
+
+        Args:
+            interaction (discord.Interaction): The interaction context
+            item (str): The item to check the price for.
+            days (int, optional): Number of days to provide price history for in the graph. Defaults to 30.
+        '''
+        osrs_item: OSRSItem | None = self.bot.cache.get_osrs_item_by_name(item)
+        if not osrs_item:
+            await interaction.response.send_message(f'Could not find item: `{item}`.', ephemeral=True)
+            return
+        
+        ctx: commands.Context = await commands.Context.from_interaction(interaction)
+
+        await self._07price_generic_implementation(ctx, osrs_item, days)
+
+    @_07price_app_command.autocomplete('item')
+    async def action_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+        # Only actually search item if the search string is at least 2 characters long
+        items: list[OSRSItem] = self.bot.cache.get_osrs_items_by_name(current) if len(current) > 2 else []
+        items = items[:25] if len(items) > 25 else items # Autocomplete can only show up to 25 items, so filter out any surplus
+        return [app_commands.Choice(name=item.name, value=item.name) for item in items]
 
     @commands.command(name='07price', aliases=['osrsprice'])
-    async def _07price(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
+    async def _07price_text_command(self, ctx: commands.Context, days_or_item: str = '30', *, item_name: str | None) -> None:
         '''
         Get the OSRS GE price for an item.
         Argument "days" is optional, default is 30.
         '''
-        self.bot.increment_command_counter()
-        await ctx.channel.typing()
-
         if is_int(days_or_item):
             days: int = int(days_or_item)
             if days < 1 or days > 180:
-                await ctx.send('Graph period must be between 1 and 180 days. Defaulted to 30.')
-                days = 30
+                raise commands.CommandError(message=f'Graph period must be between 1 and 180 days. Got: `{days}`.')
         else:
             item_name = days_or_item + (' ' + item_name if item_name else '')
             days = 30
@@ -411,6 +434,21 @@ class Runescape(Cog):
         item: OSRSItem | None = self.bot.cache.get_osrs_item_by_name(item_name)
         if not item:
             raise commands.CommandError(message=f'Could not find item: `{item_name}`.')
+        
+        await self._07price_generic_implementation(ctx, item, days)
+
+    async def _07price_generic_implementation(self, ctx: commands.Context, item: OSRSItem, days: int = 30) -> None:
+        '''
+        Generic implementation for _07price_app_command and _07price_text_command.
+        This split is required to be able to handle parameters slightly differently.
+
+        Args:
+            ctx (commands.Context): The commands context.
+            item (OSRSItem): The OSRS item to lookup the price for.
+            days (int, optional): The number of days to show price history for. Defaults to 30.
+        '''
+        self.bot.increment_command_counter()
+        await ctx.typing()
 
         item_name = item.name
         price: str = f'{int(item.current.replace(' ', '')):,}'
