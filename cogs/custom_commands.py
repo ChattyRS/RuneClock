@@ -36,6 +36,7 @@ class CustomCommands(Cog):
         {delete} will delete the message.
         {require:role} restricts usage of the command to users with a specific role by name.
         {!command} calls a built-in bot command (no custom commands).
+        {impersonate:userid} change the user id in the context for the duration of the command. (Owner only)
         '''
         self.bot.increment_command_counter()
         if not ctx.guild:
@@ -65,6 +66,9 @@ class CustomCommands(Cog):
         custom_command: commands.Command = get_custom_command(self.bot)
         if cmd and cmd != custom_command:
             raise CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
+
+        if '{impersonate:' in command and ctx.author.id != self.bot.config['owner']:
+            raise CommandError(message='Insufficient permissions: `Owner`')
         
         async with self.bot.db.get_session() as session:
             custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id, Command.name == name))).scalar_one_or_none()
@@ -120,6 +124,21 @@ class CustomCommands(Cog):
             command = command.replace('{require:' + input + '}', '')
             if not role in ctx.author.roles:
                 raise CommandError(message=f'Insufficient permissions: `{role_name}`.')
+
+        if '{impersonate:' in command:
+            begin: int = command.index('{impersonate:')
+            end: int = command.find('}', begin)
+            if end == -1:
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+            input: str = command[begin+13:end]
+            impersonation_user_id_str: str = input.strip()
+            if not is_int(impersonation_user_id_str):
+                raise CommandError(message=f'Invalid user ID: `{str(impersonation_user_id_str)}`. Must be an integer.')
+            impersonation_user_id: int = int(impersonation_user_id_str)
+            user: discord.Member = await ctx.guild.fetch_member(impersonation_user_id)
+            ctx.author = user
+            ctx.message.author = user
+            command = command.replace('{impersonate:' + input + '}', '')
 
         # {user} will add the name of the user calling the command
         command = command.replace('{user}', ctx.author.name)
@@ -251,7 +270,7 @@ class CustomCommands(Cog):
                         raise CommandError(message='Error: `Insufficient permissions`.')
                 await cmd.callback(self, ctx, **cmd_args) # type: ignore MaybeCoro can be awaited
             except Exception as e:
-                raise CommandError(message=f'Error: `{type(e).__name__}`:\n```\n{e}\n```.')
+                raise CommandError(message=f'Error: `{type(e).__name__}`:\n```\n{e}\n```')
 
         # {delete} will delete the message
         if '{delete}' in command:
