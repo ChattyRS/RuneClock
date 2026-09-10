@@ -4,7 +4,7 @@ from typing import Any, Sequence
 import discord
 from discord.ext import commands
 from sqlalchemy import select
-from src.discord_utils import get_text_channel
+from src.discord_utils import get_text_channel, get_custom_command
 from src.database import Database, Guild, Command
 from src.configuration import get_config
 from src.auth_utils import get_google_sheets_credentials
@@ -149,3 +149,9 @@ class Bot(commands.AutoShardedBot):
                     if not alias in aliases:
                         aliases.append(alias)
         return aliases
+
+    async def refresh_custom_command_aliases(self) -> None:
+        custom_command: commands.Command = get_custom_command(self.bot)
+        self.bot.remove_command(custom_command.name)
+        custom_command.aliases = await self.get_custom_command_aliases()
+        self.bot.add_command(custom_command)

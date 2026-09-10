@@ -251,7 +251,7 @@ class CustomCommands(Cog):
                         raise CommandError(message='Error: `Insufficient permissions`.')
                 await cmd.callback(self, ctx, **cmd_args) # type: ignore MaybeCoro can be awaited
             except Exception as e:
-                raise CommandError(message=f'Error: `{type(e).__name__} : {e}`.')
+                raise CommandError(message=f'Error: `{type(e).__name__}`:\n```\n{e}\n```.')
 
         # {delete} will delete the message
         if '{delete}' in command:

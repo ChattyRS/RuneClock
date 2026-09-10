@@ -719,6 +719,8 @@ class Management(Cog):
         self.bot.increment_command_counter()
         try:
             await self.bot.reload_extension(f'cogs.{module}')
+            if module == 'custom_commands':
+                await self.bot.refresh_custom_command_aliases()
         except:
             raise commands.CommandError(message=f'Error:\n```py\n{traceback.format_exc()}\n```')
         else:

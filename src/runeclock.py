@@ -9,7 +9,7 @@ import string
 import traceback
 from src.message_queue import QueueMessage
 from src.database import Guild, Uptime
-from src.discord_utils import find_text_channel, get_custom_command
+from src.discord_utils import find_text_channel
 from src.database_utils import find_or_create_db_guild
 from src.startup_tasks import role_setup, check_guilds
 
@@ -118,12 +118,6 @@ class RuneClock(Bot):
 
         if 'Failed' in msg and isinstance(channel, discord.TextChannel):
             self.queue_message(QueueMessage(channel, discord_msg))
-
-    async def refresh_custom_command_aliases(self) -> None:
-        custom_command: commands.Command = get_custom_command(self.bot)
-        self.bot.remove_command(custom_command.name)
-        custom_command.aliases = await self.get_custom_command_aliases()
-        self.bot.add_command(custom_command)
 
     async def on_message(self, message: discord.Message) -> None:
         '''
