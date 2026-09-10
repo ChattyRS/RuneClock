@@ -35,7 +35,7 @@ from src.date_utils import timedelta_to_string, uptime_fraction
 from src.string_utils import remove_code_blocks
 from src.exception_utils import format_syntax_error
 from src.discord_utils import find_guild_text_channel, find_text_channel_by_name, get_custom_command, get_guild_text_channel, get_text_channel_by_name
-from src.discord_utils import send_code_block_over_multiple_messages
+from src.discord_utils import send_code_block_over_multiple_messages, get_command_arguments
 from src.database_utils import find_custom_db_command, get_db_guild, find_osrs_item_by_id, get_osrs_item_by_id, find_rs3_item_by_id, get_rs3_item_by_id
 
 class Management(Cog):
@@ -1140,25 +1140,16 @@ class Management(Cog):
             channel: discord.TextChannel = get_guild_text_channel(ctx.guild, val)
             ctx.channel = channel
             ctx.message.channel = channel
-        
-        ctx.message.content = command
-        if args:
-            ctx.message.content += " " + " ".join(args)
+
+        command_arguments_index: int = ctx.message.clean_content.index(command)
+        command_arguments: str = ctx.message.clean_content[command_arguments_index:].replace(command, '', 1).strip()
+        ctx.message.content = (command + ' ' + command_arguments).strip()
         
         ctx.invoked_with = command
 
         if await cmd.can_run(ctx):
-            num_params: int = len(cmd.clean_params)
-            if num_params == 0:
-                await cmd.callback(self, ctx) # type: ignore
-            else:
-                cmd_args: dict[str, Any] = {}
-                for i, param in enumerate(cmd.params):
-                    if len(args) > i:
-                        cmd_args[param] = args[i]
-                    else:
-                        break
-                await cmd.callback(self, ctx, **cmd_args) # type: ignore
+            cmd_args: dict[str, Any] = get_command_arguments(cmd, command_arguments)
+            await cmd.callback(self, ctx, **cmd_args) # type: ignore
     
     @commands.command(hidden=True)
     @is_owner()

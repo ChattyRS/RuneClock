@@ -8,7 +8,7 @@ from src.database import Command
 import re
 from src.checks import is_admin
 from src.number_utils import is_int
-from src.discord_utils import get_custom_command
+from src.discord_utils import get_custom_command, get_command_arguments
 from src.database_utils import get_custom_db_commands, find_custom_db_command
 
 class CustomCommands(Cog):
@@ -239,11 +239,18 @@ class CustomCommands(Cog):
         # {!command} calls a built-in bot command (no custom commands)
         while '{!' in command:
             begin = command.index('{!')
-            end = command.find('}', begin)
-            if end == -1:
+            # Brackets can be escaped with backslash: \}
+            # Find the index of the first non-escaped closing brackets
+            end = begin + 2
+            while end < len(command):
+                if command[end] == '}' and command[end - 1] != '\\':
+                    break
+                end += 1
+            if end >= len(command):
                 raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             command_string: str = command[begin+2:end]
             command = command.replace('{!' + command_string + '}', '')
+            command_string = command_string.replace(r'\}', '}') # Unescape command string
             space: int = command_string.find(' ')
             if space == -1:
                 space = len(command_string)
@@ -257,20 +264,16 @@ class CustomCommands(Cog):
             custom_command: commands.Command | None = get_custom_command(self.bot)
             if cmd == custom_command:
                 raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            arguments = command_arguments.split()
-            cmd_args: dict[str, Any] = {}
-            for i, param in enumerate(cmd.params):
-                if len(arguments) > i:
-                    cmd_args[param] = arguments[i]
-                else:
-                    break
+
+            cmd_args: dict[str, Any] = get_command_arguments(cmd, command_arguments)
             try:
                 for check in cmd.checks:
                     if not await check(ctx): # type: ignore MaybeCoro can be awaited
                         raise CommandError(message='Error: `Insufficient permissions`.')
                 await cmd.callback(self, ctx, **cmd_args) # type: ignore MaybeCoro can be awaited
             except Exception as e:
-                raise CommandError(message=f'Error: `{type(e).__name__}`:\n```\n{e}\n```')
+                err_msg: str = str(e) if '```' in str(e) else f'```\n{e}\n```'
+                raise CommandError(message=f'Error: `{type(e).__name__}`:\n{err_msg}')
 
         # {delete} will delete the message
         if '{delete}' in command:

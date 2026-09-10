@@ -1,6 +1,8 @@
 from discord import Embed, Guild, Permissions, Role, TextChannel, Thread
 from discord.abc import GuildChannel, PrivateChannel
 from discord.ext.commands import Command, CommandError, Context, AutoShardedBot as Bot
+from typing import Any
+from inspect import Signature, signature, Parameter
 
 max_message_length: int = 2000
 max_embed_description_length: int = 4096
@@ -262,3 +264,43 @@ def perm_string(p: Permissions) -> str:
         s: str = s[:len(s)-2]
 
     return s
+
+def get_command_arguments(cmd: Command, command_arguments: str) -> dict[str, Any]:
+    '''
+    Maps command arguments to command callback function parameters
+
+    Args:
+        cmd (Any): The command
+        command_arguments (list[str]): The provided command arguments
+
+    Returns:
+        dict[str, Any]: Dictionary mapping the function argument name to the corresponding value.
+    '''
+    sig: Signature = signature(cmd.callback)
+    parameters: list[Parameter] = list(sig.parameters.values())
+
+    arguments: list[str] = command_arguments.split()
+    cmd_args: dict[str, Any] = {}
+
+    for param in parameters:
+        # self and ctx are supplied explicitly, we can skip them here
+        if param.name in ('self', 'ctx'):
+            continue
+
+        if param.kind == Parameter.KEYWORD_ONLY:
+            # e.g.: `*, param_name: str = ''`
+            # Everything remaining belongs to this parameter.
+            cmd_args[param.name] = command_arguments
+            break
+
+        elif param.kind == Parameter.VAR_POSITIONAL:
+            # e.g.: `*param_name`
+            # Everything remaining becomes the value of this *args parameter.
+            cmd_args[param.name] = tuple(arguments)
+            break
+
+        elif arguments:
+            # Normal positional parameter
+            cmd_args[param.name] = arguments.pop(0)
+
+    return cmd_args
