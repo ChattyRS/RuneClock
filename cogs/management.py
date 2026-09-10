@@ -1149,13 +1149,16 @@ class Management(Cog):
 
         if await cmd.can_run(ctx):
             num_params: int = len(cmd.clean_params)
-            if num_params >= len(args):
-                await cmd.callback(self, ctx, *args) # type: ignore
-            elif num_params == 0:
-                await cmd.callback(ctx) # type: ignore
+            if num_params == 0:
+                await cmd.callback(self, ctx) # type: ignore
             else:
-                args = args[:num_params]
-                await cmd.callback(self, ctx, *args) # type: ignore
+                cmd_args: dict[str, Any] = {}
+                for i, param in enumerate(cmd.params):
+                    if len(args) > i:
+                        cmd_args[param] = args[i]
+                    else:
+                        break
+                await cmd.callback(self, ctx, **cmd_args) # type: ignore
     
     @commands.command(hidden=True)
     @is_owner()
