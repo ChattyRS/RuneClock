@@ -67,7 +67,7 @@ class CustomCommands(Cog):
             raise CommandError(message=f'Command name `{name}` is already taken, please choose a different one.')
         
         async with self.bot.db.get_session() as session:
-            custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id, Command.name == command))).scalar_one_or_none()
+            custom_db_command: Command | None = (await session.execute(select(Command).where(Command.guild_id == ctx.guild.id, Command.name == name))).scalar_one_or_none()
             if custom_db_command:
                 edit = True
                 custom_db_command.function = command
