@@ -135,13 +135,16 @@ class General(Cog):
             if not member_name:
                 raise commands.CommandError(message=f'Required argument missing: `member`.')
             else:
-                for n in member_name:
-                    name += n + ' '
-                name = name.strip()
+                name = ' '.join(member_name).strip()
                 for m in ctx.guild.members:
                     if m.name.upper() == name.upper():
                         member = m
                         break
+                    global_name: str | None = m.global_name
+                    if global_name:
+                        if global_name.upper() == name.upper():
+                            member = m
+                            break
                     nick: str | None = m.nick
                     if nick:
                         if nick.upper() == name.upper():
@@ -152,6 +155,11 @@ class General(Cog):
                         if name.upper() in m.name.upper():
                             member = m
                             break
+                        global_name = m.global_name
+                        if global_name:
+                            if name.upper() in global_name.upper():
+                                member = m
+                                break
                         nick = m.nick
                         if nick:
                             if name.upper() in nick.upper():
