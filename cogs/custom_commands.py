@@ -1,4 +1,4 @@
-from typing import Sequence, Tuple
+from typing import Any, Sequence, Tuple
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog, CommandError, Context
@@ -239,11 +239,17 @@ class CustomCommands(Cog):
             if cmd == custom_command:
                 raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
             arguments = command_arguments.split()
+            cmd_args: dict[str, Any] = {}
+            for i, param in enumerate(cmd.params):
+                if len(arguments) > i:
+                    cmd_args[param] = arguments[i]
+                else:
+                    break
             try:
                 for check in cmd.checks:
                     if not await check(ctx): # type: ignore MaybeCoro can be awaited
                         raise CommandError(message='Error: `Insufficient permissions`.')
-                await cmd.callback(self, ctx, *arguments) # type: ignore MaybeCoro can be awaited
+                await cmd.callback(self, ctx, **cmd_args) # type: ignore MaybeCoro can be awaited
             except Exception as e:
                 raise CommandError(message=f'Error: `{type(e).__name__} : {e}`.')
 

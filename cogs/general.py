@@ -14,10 +14,10 @@ import validators
 from src.date_utils import months
 from src.discord_utils import get_guild_text_channel, perm_string, num_emoji
 
-class General(Cog):
-    rps_items: list[str] = ['Rock', 'Paper', 'Scissors']
-    rps_items_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
+rps_items: list[str] = ['Rock', 'Paper', 'Scissors']
+rps_items_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
 
+class General(Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
@@ -65,20 +65,20 @@ class General(Cog):
         await ctx.send(f'{ctx.author.mention} You rolled {result}!')
 
     @commands.command()
-    async def rps(self, ctx: commands.Context, choice='') -> None:
+    async def rps(self, ctx: commands.Context, choice: str = '') -> None:
         '''
         Play rock, paper, scissors.
         '''
         self.bot.increment_command_counter()
         
-        if not choice.upper() in self.rps_items_upper:
+        if not choice.upper() in rps_items_upper:
             raise commands.CommandError(message=f'Invalid argument: `{choice}`.')
         
-        for x in self.rps_items:
+        for x in rps_items:
             if choice.upper() == x.upper():
                 choice = x
         i: int = random.randint(0,2)
-        myChoice: str = self.rps_items[i]
+        myChoice: str = rps_items[i]
         result: str = f'You chose **{choice}**. I choose **{myChoice}**.\n'
         choices: list[str] = [myChoice, choice]
         if choice == myChoice:
@@ -117,7 +117,7 @@ class General(Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(alias=['userinfo', 'memberinfo'])
+    @commands.command(aliases=['userinfo', 'memberinfo'])
     async def whois(self, ctx: commands.Context, *member_name) -> None:
         '''
         Get info on a member.
