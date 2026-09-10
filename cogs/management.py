@@ -35,6 +35,7 @@ from src.date_utils import timedelta_to_string, uptime_fraction
 from src.string_utils import remove_code_blocks
 from src.exception_utils import format_syntax_error
 from src.discord_utils import find_guild_text_channel, find_text_channel_by_name, get_custom_command, get_guild_text_channel, get_text_channel_by_name
+from src.discord_utils import send_code_block_over_multiple_messages
 from src.database_utils import find_custom_db_command, get_db_guild, find_osrs_item_by_id, get_osrs_item_by_id, find_rs3_item_by_id, get_rs3_item_by_id
 
 class Management(Cog):
@@ -678,9 +679,9 @@ class Management(Cog):
 
             if ret is None:
                 if value:
-                    await ctx.send(f'```py\n{value}\n```')
+                    await send_code_block_over_multiple_messages(ctx, f'\n{value}')
             else:
-                await ctx.send(f'```py\n{value}{ret}\n```')
+                await send_code_block_over_multiple_messages(ctx, f'{value}{ret}')
 
     @commands.command(hidden=True)
     @is_owner()
@@ -796,21 +797,18 @@ class Management(Cog):
                         result = await result
             except Exception as e:
                 value: str = stdout.getvalue()
-                fmt = f'```py\n{value}{traceback.format_exc()}\n```'
+                fmt = f'{value}{traceback.format_exc()}'
             else:
                 value = stdout.getvalue()
                 if result is not None:
-                    fmt = f'```py\n{value}{result}\n```'
+                    fmt = f'{value}{result}'
                     variables['_'] = result
                 elif value:
-                    fmt = f'```py\n{value}\n```'
+                    fmt = f'{value}'
 
             try:
                 if fmt is not None:
-                    if len(fmt) > 2000:
-                        await ctx.send('Content too big to be printed.')
-                    else:
-                        await ctx.send(fmt)
+                    await send_code_block_over_multiple_messages(ctx, fmt)
             except discord.Forbidden:
                 pass
             except discord.HTTPException as e:

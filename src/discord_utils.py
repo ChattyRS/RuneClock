@@ -168,10 +168,32 @@ def get_text_channel_by_name(guild: Guild, channel_name: str) -> TextChannel:
     return channel
 
 async def send_code_block_over_multiple_messages(ctx: Context, message: str) -> None:
-    # https://stackoverflow.com/questions/13673060/split-string-into-strings-by-length
     chunk_size: int = max_message_length - 6 # We have 6 "`"" chars
-    characters: int = len(message) # number of chunks is initialized at the length of the message
-    message_chunks: list[str] = [message[i:i+chunk_size] for i in range(0, characters, chunk_size)]
+
+    message_chunks: list[str] = []
+    current_chunk: str = ""
+
+    for line in message.splitlines(keepends=True):
+        # If this single line is longer than the maximum, split it by length.
+        if len(line) > chunk_size:
+            if current_chunk:
+                message_chunks.append(current_chunk)
+                current_chunk = ""
+
+            for i in range(0, len(line), chunk_size):
+                message_chunks.append(line[i:i + chunk_size])
+            continue
+
+        # Add the line to the current chunk if it still fits.
+        if len(current_chunk) + len(line) <= chunk_size:
+            current_chunk += line
+        else:
+            message_chunks.append(current_chunk)
+            current_chunk = line
+
+    if current_chunk:
+        message_chunks.append(current_chunk)
+
     for message_chunk in message_chunks:
         await ctx.send(f'```{message_chunk}```')
 
