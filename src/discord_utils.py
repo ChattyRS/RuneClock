@@ -265,7 +265,7 @@ def perm_string(p: Permissions) -> str:
 
     return s
 
-def get_command_arguments(cmd: Command, command_arguments: str) -> dict[str, Any]:
+def get_command_arguments(cmd: Command, command_arguments: str) -> tuple[tuple[Any, ...], dict[str, Any]]:
     '''
     Maps command arguments to command callback function parameters
 
@@ -280,7 +280,8 @@ def get_command_arguments(cmd: Command, command_arguments: str) -> dict[str, Any
     parameters: list[Parameter] = list(sig.parameters.values())
 
     arguments: list[str] = command_arguments.split()
-    cmd_args: dict[str, Any] = {}
+    positional_args: tuple[Any, ...] = ()
+    named_args: dict[str, Any] = {}
 
     for param in parameters:
         # self and ctx are supplied explicitly, we can skip them here
@@ -290,17 +291,17 @@ def get_command_arguments(cmd: Command, command_arguments: str) -> dict[str, Any
         if param.kind == Parameter.KEYWORD_ONLY:
             # e.g.: `*, param_name: str = ''`
             # Everything remaining belongs to this parameter.
-            cmd_args[param.name] = command_arguments
+            named_args[param.name] = command_arguments
             break
 
         elif param.kind == Parameter.VAR_POSITIONAL:
             # e.g.: `*param_name`
             # Everything remaining becomes the value of this *args parameter.
-            cmd_args[param.name] = tuple(arguments)
+            positional_args = tuple(arguments)
             break
 
         elif arguments:
             # Normal positional parameter
-            cmd_args[param.name] = arguments.pop(0)
+            named_args[param.name] = arguments.pop(0)
 
-    return cmd_args
+    return (positional_args, named_args)
