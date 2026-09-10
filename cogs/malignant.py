@@ -230,7 +230,7 @@ class ApplicationView(discord.ui.View):
 
         date_str: str = datetime.now(UTC).strftime('%d %b %Y')
         date_str = date_str if not date_str.startswith('0') else date_str[1:]
-        new_row: list[str | None] = [rsn, 'Bronze', applicant.name, translate_wom_player_type_to_sheet[account_type.lower()] if account_type else 'No', date_str, ehb, total]
+        new_row: list[str | None] = [rsn, 'Bronze', applicant.name, translate_wom_player_type_to_sheet[account_type.lower()] if account_type else 'No', date_str, ehb]
         await update_row(roster, rows+1, new_row)
 
         results: list[str] = []
