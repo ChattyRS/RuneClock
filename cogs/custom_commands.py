@@ -110,21 +110,7 @@ class CustomCommands(Cog):
 
         self.bot.increment_command_counter()
 
-        # {require:RoleName} makes this custom command only usable by members who have a role with the given name
-        while '{require:' in command:
-            begin: int = command.index('{require:')
-            end: int = command.find('}', begin)
-            if end == -1:
-                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
-            input: str = command[begin+9:end]
-            role_name: str = input.strip()
-            role: discord.Role | None = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
-            if not role:
-                raise CommandError(message=f'Missing role: `{str(role_name)}`. Please verify that the role name is spelled correctly.')
-            command = command.replace('{require:' + input + '}', '')
-            if not role in ctx.author.roles:
-                raise CommandError(message=f'Insufficient permissions: `{role_name}`.')
-
+        # {impersonate:userid} executes any commands in the custom command context as if a different user initiated them
         if '{impersonate:' in command:
             begin: int = command.index('{impersonate:')
             end: int = command.find('}', begin)
@@ -139,6 +125,21 @@ class CustomCommands(Cog):
             ctx.author = user
             ctx.message.author = user
             command = command.replace('{impersonate:' + input + '}', '')
+
+        # {require:RoleName} makes this custom command only usable by members who have a role with the given name
+        while '{require:' in command:
+            begin: int = command.index('{require:')
+            end: int = command.find('}', begin)
+            if end == -1:
+                raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
+            input: str = command[begin+9:end]
+            role_name: str = input.strip()
+            role: discord.Role | None = discord.utils.find(lambda r: r.name == role_name, ctx.guild.roles)
+            if not role:
+                raise CommandError(message=f'Missing role: `{str(role_name)}`. Please verify that the role name is spelled correctly.')
+            command = command.replace('{require:' + input + '}', '')
+            if not role in ctx.author.roles:
+                raise CommandError(message=f'Insufficient permissions: `{role_name}`.')
 
         # {user} will add the name of the user calling the command
         command = command.replace('{user}', ctx.author.name)
