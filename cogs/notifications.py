@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import select
 from src.bot import Bot
-from src.database import Guild, Notification, OnlineNotification
+from src.database import Guild, Notification, OnlineNotification, User
 from datetime import datetime, timedelta, UTC
 from src.database_utils import get_db_guild
 from src.discord_utils import find_text_channel, find_guild_text_channel, get_text_channel_by_name, send_code_block_over_multiple_messages
@@ -416,6 +416,10 @@ class Notifications(Cog):
         if not ctx.guild:
             raise commands.CommandError(message=f'This command can only be used in a server.')
 
+        user_to_track: User | None = self.bot.cache.get_user(member)
+        if user_to_track and user_to_track.opt_out_presence:
+            raise commands.CommandError(message=f'Error: `{member.display_name}` has opted out of presence tracking. RuneClock cannot track their online status.')
+
         if type in [1,2,3] and str(member.status) == 'online':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already online.')
         elif type in [2,3] and str(member.status) == 'idle':
@@ -448,6 +452,9 @@ class Notifications(Cog):
         Notify users of status updates.
         '''
         if before.status == after.status:
+            return
+        db_user: User | None = self.bot.cache.get_user(after)
+        if db_user and db_user.opt_out_presence:
             return
         
         async with self.bot.db.get_session() as session:
