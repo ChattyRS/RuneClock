@@ -1,6 +1,6 @@
 from typing import Sequence
-from discord import Guild as DiscordGuild
-from src.database import ClanBankTransaction, CustomRoleReaction, Guild, Command, Mute, Notification, OSRSItem, OnlineNotification, Poll, RS3Item, Repository, Role, StickyMessage
+from discord import Guild as DiscordGuild, User as DiscordUser, Member
+from src.database import ClanBankTransaction, CustomRoleReaction, Guild, Command, Mute, Notification, OSRSItem, OnlineNotification, Poll, RS3Item, Repository, Role, StickyMessage, User
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select
 from discord.ext.commands import CommandError
@@ -228,3 +228,17 @@ async def get_sticky_messages(session: AsyncSession, guild_id: int, channel_id: 
     if channel_id:
         return (await session.execute(select(StickyMessage).where(StickyMessage.guild_id == guild_id).where(StickyMessage.channel_id == channel_id))).scalars().all()
     return (await session.execute(select(StickyMessage).where(StickyMessage.guild_id == guild_id))).scalars().all()
+
+async def find_db_user(session: AsyncSession, user_or_id: DiscordUser | Member | int | None) -> User | None:
+    '''
+    Finds a database User.
+
+    Args:
+        session (Bot): The async session
+        user_or_id (DiscordGuild | int | None): The discord User or id
+
+    Returns:
+        User | None: The database User if found
+    '''
+    id: int | None = user_or_id.id if isinstance(user_or_id, DiscordUser) or isinstance(user_or_id, Member) else user_or_id
+    return (await session.execute(select(User).where(User.id == id))).scalar_one_or_none()

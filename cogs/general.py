@@ -1,11 +1,12 @@
 from typing import Any
 from aiohttp import ClientResponse
 import discord
+from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import select
 from src.bot import Bot
-from src.database import Poll
+from src.database import Poll, User
 import random
 from datetime import datetime, timedelta, UTC
 from operator import attrgetter
@@ -13,6 +14,7 @@ from src.number_utils import is_int
 import validators
 from src.date_utils import months
 from src.discord_utils import get_guild_text_channel, perm_string, num_emoji
+from src.database_utils import find_db_user
 
 rps_items: list[str] = ['Rock', 'Paper', 'Scissors']
 rps_items_upper: list[str] = ['ROCK', 'PAPER', 'SCISSORS']
@@ -515,6 +517,72 @@ class General(Cog):
         embed = discord.Embed(title='**Poll Results**', description=txt, timestamp=datetime.now(UTC))
         await ctx.send(embed=embed)
 
+    @app_commands.command(name='opt_out')
+    async def opt_out(self, interaction: discord.Interaction, intent: str) -> None:
+        '''
+        Opt out of privileged intent tracking.
+        '''
+        self.bot.increment_command_counter()
+        # Validation
+        if not intent in ['presence', 'message_content']:
+            await interaction.response.send_message(f'Invalid intent: `{intent}`', ephemeral=True)
+            return
+        
+        async with self.bot.db.get_session() as session:
+            user: User | None = await find_db_user(session, interaction.user)
+            if user:
+                user.opt_out_presence = user.opt_out_presence or intent == 'presence'
+                user.opt_out_message = user.opt_out_message or intent == 'message_content'
+            else:
+                user = User(id=interaction.user.id, opt_out_presence=intent=='presence', opt_out_message=intent=='message_content')
+                session.add(user)
+            await session.commit()
+
+        if intent == 'presence':
+            await interaction.response.send_message(f'{interaction.user.mention} You have successfully opted out of the **Presence** intent. Your presence will no longer be tracked by RuneClock.')
+        elif intent == 'message_content':
+            await interaction.response.send_message(f'{interaction.user.mention} You have successfully opted out of the **Message Content** intent. Your message content will no longer be tracked by RuneClock.')
+
+    @app_commands.command(name='opt_in')
+    async def opt_in(self, interaction: discord.Interaction, intent: str) -> None:
+        '''
+        Opt in to privileged intent tracking.
+        Note these intents are turned on by default, 
+        so this command is useful if you have explicitly opted out previously.
+        '''
+        self.bot.increment_command_counter()
+        # Validation
+        if not intent in ['presence', 'message_content']:
+            await interaction.response.send_message(f'Invalid intent: `{intent}`', ephemeral=True)
+            return
+        
+        async with self.bot.db.get_session() as session:
+            user: User | None = await find_db_user(session, interaction.user)
+            if user:
+                user.opt_out_presence = user.opt_out_presence and intent != 'presence'
+                user.opt_out_message = user.opt_out_message and intent != 'message_content'
+            else:
+                user = User(id=interaction.user.id, opt_out_presence=False, opt_out_message=False)
+                session.add(user)
+            await session.commit()
+
+        if intent == 'presence':
+            await interaction.response.send_message(f'{interaction.user.mention} You have successfully opted in to the **Presence** intent. Your presence will now be tracked by RuneClock.')
+        elif intent == 'message_content':
+            await interaction.response.send_message(f'{interaction.user.mention} You have successfully opted in to the **Message Content** intent. Your message content will now be tracked by RuneClock.')
+
+    @opt_out.autocomplete('intent')
+    @opt_in.autocomplete('intent')
+    async def action_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        intents: list[str] = ['presence', 'message_content']
+        return [
+            app_commands.Choice(name=intent, value=intent)
+            for intent in intents if current.lower() in intent.lower()
+        ]
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(General(bot))

@@ -18,6 +18,8 @@ class User(Base):
     rsn: Mapped[Optional[str]] = mapped_column(String)
     osrs_rsn: Mapped[Optional[str]] = mapped_column(String)
     timezone: Mapped[Optional[str]] = mapped_column(String)
+    opt_out_presence: Mapped[bool] = mapped_column(Boolean)
+    opt_out_message: Mapped[bool] = mapped_column(Boolean)
 
 class Guild(Base):
     __tablename__: str = 'guilds'
