@@ -103,7 +103,7 @@ class Roles(Cog):
                 break
         if not valid_rank:
             async with self.bot.db.get_session() as session:
-                db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
+                db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name.ilike(rank)))).scalar_one_or_none()
             if not db_role:
                 raise commands.CommandError(message=f'Could not find rank: `{rank}`.')
             role: discord.Role | None = ctx.guild.get_role(db_role.role_id)
@@ -152,7 +152,7 @@ class Roles(Cog):
                 raise commands.CommandError(message=f'Missing permissions: `create_roles`.')
         
         async with self.bot.db.get_session() as session:
-            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
+            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name.ilike(rank)))).scalar_one_or_none()
             if not db_role:
                 session.add(Role(guild_id=ctx.guild.id, name=rank.lower(), role_id=role.id))
                 await session.commit()
@@ -178,7 +178,7 @@ class Roles(Cog):
             raise commands.CommandError(message=f'Required argument missing: `rank`.')
         
         async with self.bot.db.get_session() as session:
-            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name == rank.lower()))).scalar_one_or_none()
+            db_role: Role | None = (await session.execute(select(Role).where(Role.guild_id == ctx.guild.id, Role.name.ilike(rank)))).scalar_one_or_none()
             if db_role:
                 await session.delete(db_role)
                 await session.commit()

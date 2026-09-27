@@ -260,14 +260,15 @@ class Management(Cog):
         elif channel_name:
             channel = get_text_channel_by_name(ctx.guild, channel_name)
         else:
+            log_channel_id: int | None = None
             async with self.bot.db.get_session() as session:
                 guild: Guild = await get_db_guild(session, ctx.guild)
-                
+                log_channel_id = guild.log_channel_id
                 if guild.log_channel_id:
                     guild.log_channel_id = None
                     await session.commit()
                     self.bot.cache.guild(guild)
-            if not guild.log_channel_id:
+            if not log_channel_id:
                 await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
                 return
             await ctx.send(f'I will no longer send logging messages in server **{ctx.guild.name}**.')
