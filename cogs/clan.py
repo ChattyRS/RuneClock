@@ -58,6 +58,7 @@ class WOMSetupModal(discord.ui.Modal, title='Wise Old Man: setup'):
             guild.wom_group_id = group_id
             guild.wom_verification_code = verification_code
             await session.commit()
+            self.bot.cache.guild(guild)
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Wise Old Man**', colour=0x00e400)
@@ -90,6 +91,7 @@ class Dropdown(discord.ui.Select):
             guild: Guild = await get_db_guild(session, interaction.guild)
             guild.wom_role_id = role.id
             await session.commit()
+            self.bot.cache.guild(guild)
         await interaction.response.send_message(f'The WOM management role has been set to `{role.name}`', ephemeral=True)
 
 class SelectRoleView(discord.ui.View):
@@ -124,8 +126,10 @@ class AddToWOMModal(discord.ui.Modal, title='Wise Old Man: add'):
 
         # Get WOM group
         group = None
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, interaction.guild)
+        guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+        if not guild:
+            await interaction.followup.send(f'Guild with id {id} was not found.', ephemeral=True)
+            return
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
@@ -182,8 +186,10 @@ class RemoveFromWOMModal(discord.ui.Modal, title='Wise Old Man: remove'):
 
         # Get WOM group
         group = None
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, interaction.guild)
+        guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+        if not guild:
+            await interaction.followup.send(f'Guild with id {id} was not found.', ephemeral=True)
+            return
         url: str = f'https://api.wiseoldman.net/v2/groups/{guild.wom_group_id}'
         async with self.bot.aiohttp.get(url, headers={'x-user-agent': self.bot.config['wom_user_agent'], 'x-api-key': self.bot.config['wom_api_key']}) as r:
             if r.status != 200:
@@ -247,8 +253,10 @@ class WOMCompetitionModal(discord.ui.Modal, title='Wise Old Man: competition'):
         await interaction.response.defer()
 
         # Get guild info from database
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, interaction.guild)
+        guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+        if not guild:
+            await interaction.followup.send(f'Guild with id {id} was not found.', ephemeral=True)
+            return
 
         # Calculate start and end datetimes
         now: datetime = datetime.now(UTC)
@@ -311,8 +319,10 @@ class RandomMetricView(discord.ui.View):
             return
         # Reroll result
         type: str = interaction.message.embeds[0].title.replace('*', '').lower().strip() if interaction.message and interaction.message.embeds[0].title else ''
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, interaction.guild)
+        guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+        if not guild:
+            await interaction.response.send_message(f'Guild with id {id} was not found.', ephemeral=True)
+            return
         exclude: list[str] = await get_excluded_metrics(guild) + ([interaction.message.embeds[0].description] if interaction.message and interaction.message.embeds[0].description else [])
         try:
             metric: str = choose_metric(exclude, type)
@@ -345,6 +355,7 @@ class WOMExcludeModal(discord.ui.Modal, title='Wise Old Man: exclude metrics'):
             guild: Guild = await get_db_guild(session, interaction.guild)
             guild.wom_excluded_metrics = ','.join(metrics_to_exclude)
             await session.commit()
+            self.bot.cache.guild(guild)
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Wise Old Man**', colour=0xff0000)
@@ -380,8 +391,10 @@ class Clan(Cog):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(f'You do not have permission to use this command.', ephemeral=True)
             return
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, interaction.guild)
+        guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+        if not guild:
+            await interaction.response.send_message(f'Guild with id {id} was not found.', ephemeral=True)
+            return
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
             wom_role: discord.Role | None = None
             if guild.wom_role_id:
@@ -461,8 +474,10 @@ class Clan(Cog):
     async def random_skill(self, interaction: discord.Interaction):
         # Choose a random skill
         try:
-            async with self.bot.db.get_session() as session:
-                guild: Guild = await get_db_guild(session, interaction.guild)
+            guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+            if not guild:
+                await interaction.response.send_message(f'Guild with id {id} was not found.', ephemeral=True)
+                return
             metric: str = choose_metric(await get_excluded_metrics(guild), 'skill')
         except:
             await interaction.response.send_message('Error choosing random skill.', ephemeral=True)
@@ -477,8 +492,10 @@ class Clan(Cog):
     async def random_boss(self, interaction: discord.Interaction) -> None:
         # Choose a random boss
         try:
-            async with self.bot.db.get_session() as session:
-                guild: Guild = await get_db_guild(session, interaction.guild)
+            guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+            if not guild:
+                await interaction.response.send_message(f'Guild with id {id} was not found.', ephemeral=True)
+                return
             metric: str = choose_metric(await get_excluded_metrics(guild), 'boss')
         except:
             await interaction.response.send_message('Error choosing random boss.', ephemeral=True)

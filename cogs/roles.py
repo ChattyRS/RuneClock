@@ -39,6 +39,7 @@ class Roles(Cog):
                 old_role_channel_id = guild.role_channel_id
                 guild.role_channel_id = None
                 await session.commit()
+                self.bot.cache.guild(guild)
             if not old_role_channel_id:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')
             await ctx.send(f'I will no longer manage roles on server **{ctx.guild.name}**.')
@@ -76,6 +77,7 @@ class Roles(Cog):
             guild: Guild = await get_db_guild(session, ctx.guild)
             guild.role_channel_id = channel.id
             await session.commit()
+            self.bot.cache.guild(guild)
 
         await ctx.send(f'The role management channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
 

@@ -37,6 +37,7 @@ class Dropdown(discord.ui.Select):
             guild: Guild = await get_db_guild(session, interaction.guild.id)
             guild.bank_role_id = role.id
             await session.commit()
+            self.bot.cache.guild(guild)
             
         await interaction.response.send_message(f'The bank management role has been set to `{role.name}`', ephemeral=True)
 
@@ -231,8 +232,10 @@ class ClanBank(Cog):
             await interaction.response.send_message(f'This command can only be used in a server', ephemeral=True)
             return
         if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.config['owner']:
-            async with self.bot.db.get_session() as session:
-                guild: Guild = await get_db_guild(session, interaction.guild)
+            guild: Guild | None = self.bot.cache.get_guild(interaction.guild)
+            if not guild:
+                await interaction.response.send_message(f'Guild with id {id} was not found.', ephemeral=True)
+                return
             bank_role = None
             if guild.bank_role_id:
                 bank_role: discord.Role | None = interaction.guild.get_role(guild.bank_role_id)

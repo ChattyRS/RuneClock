@@ -13,7 +13,6 @@ from datetime import datetime, timedelta, UTC
 import re
 import gspread
 import traceback
-from src.database_utils import find_db_guild
 from src.discord_utils import find_guild_text_channel, get_guild_text_channel, get_text_channel
 from src.number_utils import is_int
 from src.checks import obliterate_only, obliterate_mods
@@ -533,8 +532,7 @@ class Obliterate(Cog):
         if not after.id in [member.id for member in obliterate.members]:
             return
         
-        async with self.bot.db.get_session() as session:
-            guild: Guild | None = await find_db_guild(session, obliterate)
+        guild: Guild | None = self.bot.cache.get_guild(obliterate)
         if not guild or not guild.log_channel_id:
             return
         

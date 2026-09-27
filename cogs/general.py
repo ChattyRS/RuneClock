@@ -537,6 +537,7 @@ class General(Cog):
                 user = User(id=interaction.user.id, opt_out_presence=intent=='presence', opt_out_message=intent=='message_content')
                 session.add(user)
             await session.commit()
+            self.bot.cache.user(user)
 
         if intent == 'presence':
             await interaction.response.send_message(f'{interaction.user.mention} You have successfully opted out of the **Presence** intent. Your presence will no longer be tracked by RuneClock.')
@@ -565,6 +566,7 @@ class General(Cog):
                 user = User(id=interaction.user.id, opt_out_presence=False, opt_out_message=False)
                 session.add(user)
             await session.commit()
+            self.bot.cache.user(user)
 
         if intent == 'presence':
             await interaction.response.send_message(f'{interaction.user.mention} You have successfully opted in to the **Presence** intent. Your presence will now be tracked by RuneClock.')

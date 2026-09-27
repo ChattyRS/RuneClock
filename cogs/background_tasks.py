@@ -147,9 +147,7 @@ class BackgroundTasks(Cog):
             _type_: A list of coroutines which can be awaited to send the notifications.
         '''
 
-        async with self.bot.db.get_session() as session:
-            guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.notification_channel_id.is_not(None)))).scalars().all()
-        
+        guilds: list[Guild] = [g for g in self.bot.cache.guilds.values() if g.notification_channel_id]
         channels: list[discord.TextChannel] = [channel for channel in [find_text_channel(self.bot, guild.notification_channel_id) for guild in guilds] if channel]
 
         for c in channels:
@@ -179,13 +177,11 @@ class BackgroundTasks(Cog):
         if post.image_url:
             embed.set_image(url=post.image_url)
 
-        guilds: Sequence[Guild]
-
-        async with self.bot.db.get_session() as session:
-            if osrs:
-                guilds = (await session.execute(select(Guild).where(Guild.osrs_news_channel_id.is_not(None)))).scalars().all()
-            else:
-                guilds = (await session.execute(select(Guild).where(Guild.rs3_news_channel_id.is_not(None)))).scalars().all()
+        guilds: list[Guild]
+        if osrs:
+            guilds = [g for g in self.bot.cache.guilds.values() if g.osrs_news_channel_id]
+        else:
+            guilds = [g for g in self.bot.cache.guilds.values() if g.rs3_news_channel_id]
 
         for guild in guilds:
             news_channel: discord.TextChannel | None = find_text_channel(self.bot, guild.osrs_news_channel_id) if osrs else find_text_channel(self.bot, guild.rs3_news_channel_id)

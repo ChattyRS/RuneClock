@@ -31,10 +31,9 @@ class Notifications(Cog):
         user: discord.Member = await channel.guild.fetch_member(payload.user_id)
         if user.bot:
             return
-        
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, channel.guild)
-        if guild.role_channel_id != channel.id:
+
+        guild: Guild | None = self.bot.cache.get_guild(channel.guild)
+        if not guild or guild.role_channel_id != channel.id:
             return
         
         emoji: discord.PartialEmoji = payload.emoji
@@ -64,9 +63,8 @@ class Notifications(Cog):
         if user.bot:
             return
         
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, channel.guild)
-        if guild.role_channel_id != channel.id:
+        guild: Guild | None = self.bot.cache.get_guild(channel.guild)
+        if not guild or guild.role_channel_id != channel.id:
             return
 
         emoji: discord.PartialEmoji = payload.emoji
@@ -107,6 +105,7 @@ class Notifications(Cog):
             if channel:
                 guild.rs3_news_channel_id = channel.id
                 await session.commit()
+        self.bot.cache.guild(guild)
 
         if not channel and not old_news_channel_id:
             raise commands.CommandError(message=f'Required argument missing: `channel`.')
@@ -141,6 +140,7 @@ class Notifications(Cog):
             if channel:
                 guild.osrs_news_channel_id = channel.id
                 await session.commit()
+        self.bot.cache.guild(guild)
 
         if not channel and not old_news_channel_id:
             raise commands.CommandError(message=f'Required argument missing: `channel`.')
@@ -184,6 +184,7 @@ class Notifications(Cog):
             if channel:
                 guild.notification_channel_id = channel.id
                 await session.commit()
+        self.bot.cache.guild(guild)
 
         if not channel and not old_channel_id:
                 raise commands.CommandError(message=f'Required argument missing: `channel`.')

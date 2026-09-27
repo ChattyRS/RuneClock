@@ -1,13 +1,13 @@
 from typing import Sequence
 import discord
 from sqlalchemy import select
-import src.bot
-from src.database import Database, Guild, OSRSItem, RS3Item
+from src.database import Database, Guild, OSRSItem, RS3Item, User
 
 class Cache():
     db: Database
 
     guilds: dict[int, Guild] = {}
+    users: dict[int, User] = {}
     osrs_items: dict[int, OSRSItem] = {}
     rs3_items: dict[int, RS3Item] = {}
 
@@ -19,10 +19,12 @@ class Cache():
         Builds caches for the bot from data stored in the database.
         Currently caching:
         - Guild
+        - User
         - OSRSItem
         - RS3Item
         '''
         await self.__cache_guilds()
+        await self.__cache_users()
         await self.__cache_items_osrs()
         await self.__cache_items_rs3()
 
@@ -36,6 +38,17 @@ class Cache():
             guilds: Sequence[Guild] = (await session.execute(select(Guild))).scalars().all()
         for g in guilds:
             self.guilds[g.id] = g
+
+    async def __cache_users(self) -> None:
+        '''
+        Initialize user cache
+        This is used to keep track of user preferences without needing to perform database requests for each message
+        '''
+        users: Sequence[User] = []
+        async with self.db.get_session() as session:
+            users: Sequence[User] = (await session.execute(select(User))).scalars().all()
+        for u in users:
+            self.users[u.id] = u
 
     async def __cache_items_osrs(self) -> None:
         '''
@@ -78,6 +91,28 @@ class Cache():
             guild (Guild): The guild to add to the cache.
         '''
         self.guilds[guild.id] = guild
+
+    def get_user(self, user_or_id: discord.User | discord.Member | int | None) -> User | None:
+        '''
+        Get a db user from the cache.
+
+        Args:
+            user_or_id (int): The user or user id
+
+        Returns:
+            User | None: The user, if found.
+        '''
+        user_id: int | None = user_or_id.id if isinstance(user_or_id, discord.User) or isinstance(user_or_id, discord.Member) else user_or_id
+        return self.users[user_id] if user_id and user_id in self.users else None
+    
+    def user(self, user: User) -> None:
+        '''
+        Add / update a db user to the cache.
+
+        Args:
+            user (Guild): The user to add to the cache.
+        '''
+        self.users[user.id] = user
 
     def get_osrs_items_by_name(self, name: str) -> list[OSRSItem]:
         '''

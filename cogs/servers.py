@@ -24,12 +24,10 @@ class Servers(Cog):
                 db_guild = Guild(id=guild.id, prefix='-')
                 session.add(db_guild)
                 await session.commit()
+                self.bot.cache.guild(db_guild)
         if banned_guild:
             await guild.leave()
             return
-        # Add guild to the cache
-        if db_guild:
-            self.bot.db_guild_cache[guild.id] = db_guild
 
     @Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
@@ -39,14 +37,14 @@ class Servers(Cog):
         Args:
             guild (discord.Guild): The guild that the bot was removed from.
         '''
-        async with self.bot.db.get_session() as session:
-            db_guild: Guild | None = (await session.execute(select(Guild).where(Guild.id == guild.id))).scalar_one_or_none()
-            if db_guild:
+        db_guild: Guild | None = self.bot.cache.get_guild(guild)
+        if db_guild:
+            async with self.bot.db.get_session() as session:
                 await purge_guild(session, db_guild)
                 await session.commit()
         # Remove guild from cache
-        if guild.id in self.bot.db_guild_cache:
-            del self.bot.db_guild_cache[guild.id]
+        if self.bot.cache.get_guild(guild):
+            del self.bot.cache.guilds[guild.id]
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Servers(bot))

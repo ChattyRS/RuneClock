@@ -6,7 +6,7 @@ from discord.ext.commands import Cog, Context, CommandError
 from sqlalchemy import select
 from src.message_queue import QueueMessage
 from src.bot import Bot
-from src.database import Mute, Guild
+from src.database import Mute, Guild, User
 from datetime import datetime, timedelta, UTC
 from src.converters import RoleConverter
 from src.database_utils import get_db_guild
@@ -69,6 +69,10 @@ class ModCommands(Cog):
             message (discord.Message): The discord message
         '''
         if message.author.bot or message.guild is None or not isinstance(message.channel, discord.TextChannel):
+            return
+
+        user: User | None = self.bot.cache.get_user(message.author)
+        if user and user.opt_out_message:
             return
         
         guild: Guild | None = self.bot.cache.get_guild(message.guild)

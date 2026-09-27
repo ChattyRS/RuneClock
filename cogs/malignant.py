@@ -7,7 +7,6 @@ from gspread_asyncio import AsyncioGspreadClient, AsyncioGspreadSpreadsheet, Asy
 from src.number_utils import is_float
 from src.checks import malignant_mods, malignant_only
 from src.message_queue import QueueMessage
-from src.database_utils import find_db_guild
 from src.database import Guild
 from src.bot import Bot
 from datetime import datetime, UTC, timedelta
@@ -615,8 +614,7 @@ class Malignant(Cog):
             return
         
         # Get the logging channel
-        async with self.bot.db.get_session() as session:
-            guild: Guild | None = await find_db_guild(session, malignant)
+        guild: Guild | None = self.bot.cache.get_guild(malignant)
         if not guild or not guild.log_channel_id:
             return
         channel: discord.TextChannel = get_guild_text_channel(malignant, guild.log_channel_id)

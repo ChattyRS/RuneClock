@@ -8,7 +8,7 @@ from src.bot import Bot
 import string
 import traceback
 from src.message_queue import QueueMessage
-from src.database import Guild, Uptime
+from src.database import Guild, Uptime, User
 from src.discord_utils import find_text_channel
 from src.database_utils import find_or_create_db_guild
 from src.startup_tasks import role_setup, check_guilds
@@ -129,6 +129,12 @@ class RuneClock(Bot):
 
         # For now, ignore messages that were not sent from guilds, because this might break certain commands
         if message.guild is None or not isinstance(message.channel, discord.TextChannel):
+            return
+
+        # Skip messages from users who explicitly opted out of the message content intent
+        # Note: this means they will NOT be able to use any text-based commands.
+        user: User | None = self.cache.get_user(message.author)
+        if user and user.opt_out_message:
             return
         
         # Get guild from cache, or fetch it from the database / create it if it is not cached yet

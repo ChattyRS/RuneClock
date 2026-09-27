@@ -5,7 +5,7 @@ from discord.ext.commands import Cog
 from sqlalchemy import delete
 from src.checks import is_admin
 from src.bot import Bot
-from src.database import StickyMessage
+from src.database import StickyMessage, User
 from src.database_utils import get_sticky_messages
 
 class Sticky(Cog):
@@ -24,6 +24,11 @@ class Sticky(Cog):
         # Only process sticky message in guild text channels
         if not message.guild or not isinstance(message.channel, discord.TextChannel):
             return
+        
+        # Note message content is not actually read here, so I think this is fine even if the user opted out.
+        # user: User | None = self.bot.cache.get_user(message.author)
+        # if user and user.opt_out_message:
+        #     return
         
         # Get sticky message for this channel, if any
         async with self.bot.db.get_session() as session:

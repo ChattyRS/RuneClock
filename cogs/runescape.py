@@ -150,6 +150,7 @@ class Runescape(Cog):
                 user = User(id=ctx.author.id, rsn=rsn)
                 session.add(user)
             await session.commit()
+            self.bot.cache.user(user)
         
         if rsn:
             await ctx.send(f'{ctx.author.mention} Your RSN has been set to **{rsn}**.')
@@ -176,6 +177,7 @@ class Runescape(Cog):
                 user = User(id=ctx.author.id, osrs_rsn=rsn)
                 session.add(user)
             await session.commit()
+            self.bot.cache.user(user)
         
         if rsn:
             await ctx.send(f'{ctx.author.mention} Your Old School RSN has been set to **{rsn}**.')
@@ -192,8 +194,7 @@ class Runescape(Cog):
         await ctx.channel.typing()
 
         if not username:
-            async with self.bot.db.get_session() as session:
-                user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+            user: User | None = self.bot.cache.get_user(ctx.author)
             if user:
                 username = user.rsn
             if not username:
@@ -678,8 +679,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.db.get_session() as session:
-                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            user: User | None = self.bot.cache.get_user(disc_user)
             name = user.osrs_rsn if user and user.osrs_rsn else disc_user.display_name
         if not name:
             name = username if isinstance(username, str) else None
@@ -765,20 +765,20 @@ class Runescape(Cog):
 
         user_1: User | None = None
         user_2: User | None = None
-        async with self.bot.db.get_session() as session:
-            if isinstance(name_1, discord.User):
-                user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
-            if isinstance(name_2, discord.User):
-                user_2 = (await session.execute(select(User).where(User.id == name_2.id))).scalar_one_or_none()
 
-            username_1: str = user_1.osrs_rsn if user_1 and user_1.osrs_rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
-            username_2: str | None = user_2.osrs_rsn if user_2 and user_2.osrs_rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
+        if isinstance(name_1, discord.User):
+            user_1 = self.bot.cache.get_user(name_1)
+        if isinstance(name_2, discord.User):
+            user_2 = self.bot.cache.get_user(name_2)
 
-            if not username_2:
-                user_2 = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
-                if user_2 and user_2.osrs_rsn:
-                    username_2 = username_1
-                    username_1 = user_2.osrs_rsn
+        username_1: str = user_1.osrs_rsn if user_1 and user_1.osrs_rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
+        username_2: str | None = user_2.osrs_rsn if user_2 and user_2.osrs_rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
+
+        if not username_2:
+            user_2 = self.bot.cache.get_user(ctx.author)
+            if user_2 and user_2.osrs_rsn:
+                username_2 = username_1
+                username_1 = user_2.osrs_rsn
         
         if not username_2:
             raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `set07rsn` command, or add a second username as argument.')
@@ -886,8 +886,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.db.get_session() as session:
-                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            user: User | None = self.bot.cache.get_user(disc_user)
             name = user.osrs_rsn if user and user.osrs_rsn else disc_user.display_name
         if not name:
             name = username if isinstance(username, str) else None
@@ -986,8 +985,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.db.get_session() as session:
-                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            user: User | None = self.bot.cache.get_user(disc_user)
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
             name = username if isinstance(username, str) else None
@@ -1085,20 +1083,20 @@ class Runescape(Cog):
 
         user_1: User | None = None
         user_2: User | None = None
-        async with self.bot.db.get_session() as session:
-            if isinstance(name_1, discord.User):
-                user_1 = (await session.execute(select(User).where(User.id == name_1.id))).scalar_one_or_none()
-            if isinstance(name_2, discord.User):
-                user_2 = (await session.execute(select(User).where(User.id == name_2.id))).scalar_one_or_none()
 
-            username_1: str = user_1.rsn if user_1 and user_1.rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
-            username_2: str | None = user_2.rsn if user_2 and user_2.rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
+        if isinstance(name_1, discord.User):
+            user_1 = self.bot.cache.get_user(name_1)
+        if isinstance(name_2, discord.User):
+            user_2 = self.bot.cache.get_user(name_2)
 
-            if not username_2:
-                user_2 = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
-                if user_2 and user_2.rsn:
-                    username_2 = username_1
-                    username_1 = user_2.rsn
+        username_1: str = user_1.rsn if user_1 and user_1.rsn else (name_1.display_name if isinstance(name_1, discord.User) else name_1)
+        username_2: str | None = user_2.rsn if user_2 and user_2.rsn else (name_2.display_name if isinstance(name_2, discord.User) else name_2)
+
+        if not username_2:
+            user_2 = self.bot.cache.get_user(ctx.author)
+            if user_2 and user_2.rsn:
+                username_2 = username_1
+                username_1 = user_2.rsn
         
         if not username_2:
             raise commands.CommandError(message=f'Required argument missing: `RSN_2`. You can set your Old School username using the `setrsn` command, or add a second username as argument.')
@@ -1221,8 +1219,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.db.get_session() as session:
-                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            user: User | None = self.bot.cache.get_user(disc_user)
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
             name = username if isinstance(username, str) else None
@@ -1521,8 +1518,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.db.get_session() as session:
-                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            user: User | None = self.bot.cache.get_user(disc_user)
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
             name = username if isinstance(username, str) else None
@@ -1606,8 +1602,7 @@ class Runescape(Cog):
         if not disc_user and not username:
             disc_user = ctx.author if isinstance(ctx.author, discord.User) else ctx.author._user
         if disc_user:
-            async with self.bot.db.get_session() as session:
-                user: User | None = (await session.execute(select(User).where(User.id == disc_user.id))).scalar_one_or_none()
+            user: User | None = self.bot.cache.get_user(disc_user)
             name = user.rsn if user and user.rsn else disc_user.display_name
         if not name:
             name = username if isinstance(username, str) else None

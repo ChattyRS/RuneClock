@@ -51,10 +51,9 @@ class Management(Cog):
         '''
         Function to send welcome messages
         '''
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, member.guild)
+        guild: Guild | None = self.bot.cache.get_guild(member.guild)
 
-        if not guild.welcome_message or not guild.welcome_channel_id:
+        if not guild or not guild.welcome_message or not guild.welcome_channel_id:
             return
         
         welcome_channel: discord.TextChannel | None = find_guild_text_channel(member.guild, guild.welcome_channel_id)
@@ -73,8 +72,11 @@ class Management(Cog):
         Give a command or command category as argument for more specific help.
         '''
         self.bot.increment_command_counter()
-        async with self.bot.db.get_session() as session:
-            guild: Guild = await get_db_guild(session, ctx.guild)
+        if not ctx.guild:
+            raise commands.CommandError(f'This command can only be used inside a guild.')
+        guild: Guild | None = self.bot.cache.get_guild(ctx.guild)
+        if not guild:
+            raise commands.CommandError(f'Guild with id {ctx.guild.id} was not found.')
 
         extension: str | None = None
 
@@ -215,6 +217,7 @@ class Management(Cog):
                     guild.welcome_channel_id = None
                     guild.welcome_message = None
                     await session.commit()
+                    self.bot.cache.guild(guild)
             if not guild.welcome_channel_id and not guild.welcome_message:
                 await ctx.send(f'Please mention the channel in which you would like to receive welcome messages.')
                 return
@@ -226,6 +229,7 @@ class Management(Cog):
             guild.welcome_channel_id = channel.id
             guild.welcome_message = msg
             await session.commit()
+            self.bot.cache.guild(guild)
 
         await ctx.send(f'The welcome channel for server **{ctx.guild.name}** has been changed to {channel.mention}.\n'
                        f'The welcome message has been set to \"{msg}\".')
@@ -262,6 +266,7 @@ class Management(Cog):
                 if guild.log_channel_id:
                     guild.log_channel_id = None
                     await session.commit()
+                    self.bot.cache.guild(guild)
             if not guild.log_channel_id:
                 await ctx.send(f'Please mention the channel in which you would like to receive logging messages.')
                 return
@@ -272,6 +277,7 @@ class Management(Cog):
             guild: Guild = await get_db_guild(session, ctx.guild)
             guild.log_channel_id = channel.id
             await session.commit()
+            self.bot.cache.guild(guild)
 
         await ctx.send(f'The logging channel for server **{ctx.guild.name}** has been changed to {channel.mention}.')
     
@@ -287,6 +293,7 @@ class Management(Cog):
             guild: Guild = await get_db_guild(session, ctx.guild)
             guild.log_bots = False if guild.log_bots else True
             await session.commit()
+            self.bot.cache.guild(guild)
         await ctx.send(f'Bot message deletion and edit logging {"enabled" if guild.log_bots else "disabled"}.')
 
     @commands.command()

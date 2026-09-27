@@ -6,6 +6,7 @@ from sqlalchemy import select
 from src.message_queue import QueueMessage
 from src.bot import Bot
 from src.database import User
+from src.database_utils import find_db_user
 from datetime import datetime, timedelta, UTC
 from src.date_utils import timedelta_to_string, string_to_timezone
 import pytz
@@ -148,9 +149,7 @@ class Timer(Cog):
         # US/Pacific = MST, US/Central = EST
         timezones: list[str] = ['US/Pacific', 'US/Central', 'US/Eastern', 'UTC', 'Europe/London', 'CET', 'Australia/ACT']
 
-        async with self.bot.db.get_session() as session:
-            user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
-
+        user: User | None = self.bot.cache.get_user(ctx.author)
         if user and user.timezone and not user.timezone in timezones:
             timezones.append(user.timezone)
 
@@ -192,12 +191,14 @@ class Timer(Cog):
             time_str = time.strftime('%H:%M')
 
         async with self.bot.db.get_session() as session:
-            user: User | None = (await session.execute(select(User).where(User.id == ctx.author.id))).scalar_one_or_none()
+            user: User | None = await find_db_user(session, ctx.author)
             if user:
                 user.timezone = timezone
             else:
-                session.add(User(id = ctx.author.id, timezone = timezone))
+                user = User(id = ctx.author.id, timezone = timezone)
+                session.add(user)
             await session.commit()
+            self.bot.cache.user(user)
         
         if timezone:
             await ctx.send(f'{ctx.author.mention} your timezone has been set to `{timezone}` ({time_str}).')

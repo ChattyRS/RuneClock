@@ -19,9 +19,7 @@ async def role_setup(bot: Bot) -> None:
     print(f'Initializing role management...')
     logging.info('Initializing role management...')
 
-    guilds: Sequence[Guild]
-    async with bot.db.get_session() as session:
-        guilds = (await session.execute(select(Guild).where(Guild.role_channel_id.isnot(None)))).scalars().all()
+    guilds: list[Guild] = [g for g in bot.cache.guilds.values() if g.role_channel_id]
 
     channels: list[discord.TextChannel] = []
     for db_guild in guilds:
@@ -78,11 +76,12 @@ async def check_guilds(bot: Bot) -> None:
     logging.info('Checking guilds...')
     print(f'Checking guilds...')
 
-    async with bot.db.get_session() as session:
-        db_guilds: Sequence[Guild] = (await session.execute(select(Guild).where(Guild.id.not_in([g.id for g in bot.guilds])))).scalars().all()
-        for db_guild in db_guilds:
-            await purge_guild(session, db_guild)
-        await session.commit()
+    db_guilds: list[Guild] = [g for g in bot.cache.guilds.values() if g.id not in [discord_guild.id for discord_guild in bot.guilds]]
+    if db_guilds:
+        async with bot.db.get_session() as session:
+            for db_guild in db_guilds:
+                await purge_guild(session, db_guild)
+            await session.commit()
 
     msg: str = f'{str(len(bot.guilds))} guilds checked'
     print(msg)
