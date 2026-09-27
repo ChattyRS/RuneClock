@@ -57,6 +57,13 @@ Note that (part of) your message content is *only* stored when the message in qu
 For example, when you create a custom notification as follows: `@RuneClock addnotification #your-notification-channel 22:00 0 Time for a raid!`,
 RuneClock stores the string `Time for a raid!` until 22:00 on the same day, or until you use the `removenotification` command to cancel it, or until you remove RuneClock from your Discord server.
 
+## Privileged intents
+
+RuneClock uses the privileged intents for "Presence" and "Message Content". This means that, by default, if you are in a server in which the RuneClock bot has sufficient permissions, your "presence" (i.e. online status) and the content of your messages may be tracked.
+Note we never store this data, and only use it where necessary to enable the bot's features to function as expected.
+
+If desired, you can explicitly opt out of your data being tracked using either or both of these privileged intents. You can do this at any time using the "opt_out" slash command. Should you change your mind, the "opt_in" command is available to reverse this.
+
 ## The way we use information
 
 We use information that you provide to us:
