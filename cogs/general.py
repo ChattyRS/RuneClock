@@ -575,7 +575,7 @@ class General(Cog):
 
     @opt_out.autocomplete('intent')
     @opt_in.autocomplete('intent')
-    async def action_autocomplete(
+    async def intent_autocomplete(
         self,
         interaction: discord.Interaction,
         current: str,
