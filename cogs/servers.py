@@ -43,8 +43,7 @@ class Servers(Cog):
                 await purge_guild(session, db_guild)
                 await session.commit()
         # Remove guild from cache
-        if self.bot.cache.get_guild(guild):
-            del self.bot.cache.guilds[guild.id]
+        self.bot.cache.purge_guild(guild.id)
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Servers(bot))

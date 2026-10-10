@@ -2,7 +2,7 @@ from typing import Sequence
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from src.bot import Bot
 from src.database import Guild, Notification, OnlineNotification, User
 from datetime import datetime, timedelta, UTC
@@ -428,16 +428,19 @@ class Notifications(Cog):
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already online.')
         elif type == 4 and str(member.status) == 'offline':
             raise commands.CommandError(message=f'Error: `{member.display_name}` is already offline.')
-        
+
+        online_notification: OnlineNotification | None = self.bot.cache.get_online_notification(ctx.guild.id, member.id, ctx.author.id)
         async with self.bot.db.get_session() as session:
-            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
-                .where(OnlineNotification.guild_id == ctx.guild.id, OnlineNotification.author_id == ctx.author.id, OnlineNotification.member_id == member.id))).scalar_one_or_none()
             if online_notification:
-                await session.delete(online_notification)
+                await session.execute(delete(OnlineNotification)
+                    .where(OnlineNotification.guild_id == ctx.guild.id, OnlineNotification.author_id == ctx.author.id, OnlineNotification.member_id == member.id))
                 await session.commit()
+                self.bot.cache.remove_online_notification(online_notification)
             else:
-                session.add(OnlineNotification(guild_id=ctx.guild.id, author_id=ctx.author.id, member_id=member.id, channel_id=ctx.message.channel.id, type=type))
+                new_notification = OnlineNotification(guild_id=ctx.guild.id, author_id=ctx.author.id, member_id=member.id, channel_id=ctx.message.channel.id, type=type)
+                session.add(new_notification)
                 await session.commit()
+                self.bot.cache.online_notification(new_notification)
         if online_notification:
             await ctx.send(f'You will no longer be notified of `{member.display_name}`\'s status.')
         else:
@@ -453,24 +456,35 @@ class Notifications(Cog):
         '''
         if before.status == after.status:
             return
+        
         db_user: User | None = self.bot.cache.get_user(after)
         if db_user and db_user.opt_out_presence:
             return
+
+        notifications: list[OnlineNotification] = self.bot.cache.get_online_notifications(after.guild.id, after.id)
+        if not notifications:
+            return
+
+        status: str = str(after.status)
+        triggered: list[OnlineNotification] = [n for n in notifications if 
+            (n.type in [1,2,3] and status == 'online') or (n.type in [2,3] and status == 'idle')
+            or (n.type == 2 and status == 'dnd') or (n.type == 4 and status == 'offline')]
+        if not triggered:
+            return
+        for n in triggered:
+            self.bot.cache.remove_online_notification(n)
         
         async with self.bot.db.get_session() as session:
-            online_notification: OnlineNotification | None = (await session.execute(select(OnlineNotification)
-                .where(OnlineNotification.guild_id == after.guild.id, OnlineNotification.member_id == after.id))).scalar_one_or_none()
-            
-            if online_notification:
-                await session.delete(online_notification)
-                await session.commit()
+            for n in triggered:
+                await session.execute(delete(OnlineNotification)
+                    .where(OnlineNotification.guild_id == n.guild_id, OnlineNotification.author_id == n.author_id, OnlineNotification.member_id == n.member_id))
+            await session.commit()
                 
-        if online_notification:
-            channel: discord.TextChannel | None = find_guild_text_channel(after.guild, online_notification.channel_id)
-            user: discord.Member | None = discord.utils.get(after.guild.members, id=online_notification.author_id)
-            if channel and user and ((online_notification.type in [1,2,3] and str(after.status) == 'online') or (online_notification.type in [2,3] and str(after.status) == 'idle') 
-                or (online_notification.type == 2 and str(after.status) == 'dnd') or (online_notification.type == 4 and str(after.status) == 'offline')):
-                on_or_offline: str = 'offline' if online_notification.type == 4 else 'online'
+        for n in triggered:
+            channel: discord.TextChannel | None = find_guild_text_channel(after.guild, n.channel_id)
+            user: discord.Member | None = discord.utils.get(after.guild.members, id=n.author_id)
+            if channel and user:
+                on_or_offline: str = 'offline' if n.type == 4 else 'online'
                 self.bot.queue_message(QueueMessage(channel, f'`{after.display_name}` is {on_or_offline}! {user.mention}'))
 
 async def setup(bot: Bot) -> None:

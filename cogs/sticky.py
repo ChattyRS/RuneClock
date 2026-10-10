@@ -1,12 +1,10 @@
-from typing import Sequence
 import discord
 from discord.ext import commands
 from discord.ext.commands import Cog
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from src.checks import is_admin
 from src.bot import Bot
-from src.database import StickyMessage, User
-from src.database_utils import get_sticky_messages
+from src.database import StickyMessage
 
 class Sticky(Cog):
     def __init__(self, bot: Bot) -> None:
@@ -31,9 +29,7 @@ class Sticky(Cog):
         #     return
         
         # Get sticky message for this channel, if any
-        async with self.bot.db.get_session() as session:
-            sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, message.guild.id, message.channel.id)
-        sticky_message: StickyMessage | None = sticky_messages[0] if sticky_messages else None
+        sticky_message: StickyMessage | None = self.bot.cache.get_sticky_message(message.channel.id)
 
         # If there is no sticky message, return
         if not sticky_message:
@@ -48,33 +44,24 @@ class Sticky(Cog):
         if sticky_message.message_id:
             try:
                 old_message = await message.channel.fetch_message(sticky_message.message_id)
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.NotFound):
                 pass
         
         # Then resend the message
-        new_message_id: int | None = None
         try:
             new_message: discord.Message = await message.channel.send(sticky_message.message)
-            new_message_id = new_message.id
         except discord.Forbidden:
             # If we lack permission to send messages in this channel, just remove the sticky message
-            async with self.bot.db.get_session() as session:
-                await session.execute(delete(StickyMessage).where(StickyMessage.guild_id == message.guild.id and StickyMessage.channel_id == message.channel.id))
-                await session.commit()
+            await self.delete_sticky_message(message.guild.id, message.channel.id)
             return
 
-        async with self.bot.db.get_session() as session:
-            sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, message.guild.id, message.channel.id)
-            sticky_message = sticky_messages[0] if sticky_messages else None
-            if sticky_message:
-                sticky_message.message_id = new_message_id
-                await session.commit()
+        await self.set_sticky_message_id(sticky_message, new_message.id)
 
         # Delete the old message, if any
         if old_message:
             try:
                 await old_message.delete()
-            except discord.Forbidden:
+            except (discord.Forbidden, discord.NotFound):
                 pass
 
     @Cog.listener()
@@ -89,36 +76,24 @@ class Sticky(Cog):
         # Only process sticky message in guild text channels
         if not message.guild or not isinstance(message.channel, discord.TextChannel):
             return
-        
-        # Get sticky message for this channel, if any
-        sticky_message: StickyMessage | None = None
-        
-        async with self.bot.db.get_session() as session:
-            sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, message.guild.id, message.channel.id)
-            sticky_message = sticky_messages[0] if sticky_messages else None
+
+        # Get sticky message for this channel from the cache
+        sticky_message: StickyMessage | None = self.bot.cache.get_sticky_message(message.channel.id)
 
         # If there is no sticky message or it does not correspond to the deleted message, return
         if not sticky_message or not sticky_message.message_id or sticky_message.message_id != message.id:
             return
         
         # Then resend the message
-        new_message_id: int | None = None
         try:
             new_message: discord.Message = await message.channel.send(sticky_message.message)
-            new_message_id = new_message.id
         except discord.Forbidden:
             # If we lack permission to send messages in this channel, just remove the sticky message
             async with self.bot.db.get_session() as session:
-                await session.execute(delete(StickyMessage).where(StickyMessage.guild_id == message.guild.id and StickyMessage.channel_id == message.channel.id))
-                await session.commit()
+                await self.delete_sticky_message(message.guild.id, message.channel.id)
                 return
 
-        async with self.bot.db.get_session() as session:
-            sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, message.guild.id, message.channel.id)
-            sticky_message = sticky_messages[0] if sticky_messages else None
-            if sticky_message:
-                sticky_message.message_id = new_message_id
-                await session.commit()
+        await self.set_sticky_message_id(sticky_message, new_message.id)
 
     @is_admin()
     @commands.hybrid_command()
@@ -147,20 +122,20 @@ class Sticky(Cog):
         message_id: int | None = message.id if message else None
         old_message_id: int | None = None
 
-        async with self.bot.db.get_session() as session:
-            sticky_messages: Sequence[StickyMessage] = await get_sticky_messages(session, ctx.guild.id, ctx.channel.id)
-            sticky_message = sticky_messages[0] if sticky_messages else None
-
+        sticky_message = self.bot.cache.get_sticky_message(ctx.channel.id)
+        if sticky_message and not sticky_text:
+            old_message_id = sticky_message.message_id
+            await self.delete_sticky_message(ctx.guild.id, ctx.channel.id)
+        elif sticky_message and sticky_text and message_id:
+            old_message_id = sticky_message.message_id
+            async with self.bot.db.get_session() as session:
+                await session.execute(update(StickyMessage)
+                    .where(StickyMessage.guild_id == ctx.guild.id, StickyMessage.channel_id == ctx.channel.id)
+                    .values(message=sticky_text, message_id=message_id))
+                await session.commit()
+            sticky_message.message = sticky_text
+            sticky_message.message_id = message_id
             
-            if sticky_message and not sticky_text:
-                old_message_id = sticky_message.message_id
-                await session.delete(sticky_message)
-                await session.commit()
-            elif sticky_message and sticky_text and message_id:
-                old_message_id = sticky_message.message_id
-                sticky_message.message = sticky_text
-                sticky_message.message_id = message_id
-                await session.commit()
         if not sticky_message and not sticky_text:
             raise commands.CommandError('There is no sticky message to be removed in this channel. If you are trying to create a new sticky message, please provide the text as argument.')
 
@@ -181,10 +156,32 @@ class Sticky(Cog):
             
         # Create new sticky message if one did not exist yet
         async with self.bot.db.get_session() as session:
-            session.add(StickyMessage(guild_id=ctx.guild.id, channel_id=ctx.channel.id, message=sticky_text, message_id=message_id))
+            new_sticky_message: StickyMessage = StickyMessage(guild_id=ctx.guild.id, channel_id=ctx.channel.id, message=sticky_text, message_id=message_id)
+            session.add(new_sticky_message)
             await session.commit()
+        self.bot.cache.sticky_message(new_sticky_message)
 
         await ctx.send('Sticky message added successfully.')
+
+    async def delete_sticky_message(self, guild_id: int, channel_id: int) -> None:
+        '''
+        Delete the sticky message for a channel from the cache and the database.
+        '''
+        self.bot.cache.remove_sticky_message(channel_id)
+        async with self.bot.db.get_session() as session:
+            await session.execute(delete(StickyMessage).where(StickyMessage.guild_id == guild_id, StickyMessage.channel_id == channel_id))
+            await session.commit()
+
+    async def set_sticky_message_id(self, sticky_message: StickyMessage, message_id: int | None) -> None:
+        '''
+        Update the message id of a sticky message in the cache and the database.
+        '''
+        sticky_message.message_id = message_id
+        async with self.bot.db.get_session() as session:
+            await session.execute(update(StickyMessage)
+                .where(StickyMessage.guild_id == sticky_message.guild_id, StickyMessage.channel_id == sticky_message.channel_id)
+                .values(message_id=message_id))
+            await session.commit()
 
 async def setup(bot: Bot) -> None:
     await bot.add_cog(Sticky(bot))

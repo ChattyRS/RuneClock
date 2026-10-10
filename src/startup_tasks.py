@@ -82,6 +82,8 @@ async def check_guilds(bot: Bot) -> None:
             for db_guild in db_guilds:
                 await purge_guild(session, db_guild)
             await session.commit()
+        for db_guild in db_guilds:
+            bot.cache.purge_guild(db_guild.id)
 
     msg: str = f'{str(len(bot.guilds))} guilds checked'
     print(msg)
