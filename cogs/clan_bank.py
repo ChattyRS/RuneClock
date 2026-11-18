@@ -54,16 +54,35 @@ class SelectRoleView(discord.ui.View):
         # Adds the dropdown to our view object.
         self.add_item(Dropdown(bot, options))
 
+def get_creator_id(embed: discord.Embed) -> int | None:
+    '''
+    Gets the ID of the user who created a transaction from the embed footer.
+    '''
+    if not embed.footer.text or not embed.footer.text.startswith('User ID: '):
+        return None
+    try:
+        return int(embed.footer.text.replace('User ID: ', ''))
+    except ValueError:
+        return None
+
+def get_embed_field(embed: discord.Embed, name: str) -> str | None:
+    '''
+    Gets the value of the first embed field with the given name.
+    '''
+    for field in embed.fields:
+        if field.name == name:
+            return field.value
+    return None
+
 class ConfirmView(discord.ui.View):
     def __init__(self, bot: Bot) -> None:
         super().__init__(timeout=None)
         self.bot: Bot = bot
-        self.value = None
-    
+
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.danger, custom_id='bank_tx_cancel_button')
     async def cancel(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         # Validate permissions
-        if not interaction.message or not interaction.message.embeds[0].footer.text or not interaction.user.id == int(interaction.message.embeds[0].footer.text.replace('User ID: ', '')):
+        if not interaction.message or not interaction.message.embeds or interaction.user.id != get_creator_id(interaction.message.embeds[0]):
             await interaction.response.send_message('Only the creator of a transaction can cancel it', ephemeral=True)
             return
         # Update message
@@ -71,13 +90,11 @@ class ConfirmView(discord.ui.View):
         embed.set_footer(text=f'❌ Cancelled by {interaction.user.display_name}')
         await interaction.response.edit_message(embed=embed, view=None)
         await interaction.followup.send('Transaction cancelled successfully.', ephemeral=True)
-        self.value = False
-        self.stop()
 
     @discord.ui.button(label='Confirm', style=discord.ButtonStyle.success, custom_id='bank_tx_confirm_button')
     async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         # Validate permissions
-        if not interaction.message or not interaction.message.embeds[0].footer.text or not interaction.user.id == int(interaction.message.embeds[0].footer.text.replace('User ID: ', '')):
+        if not interaction.message or not interaction.message.embeds or interaction.user.id != get_creator_id(interaction.message.embeds[0]):
             await interaction.response.send_message('Only the creator of a transaction can confirm it', ephemeral=True)
             return
         # Acknowledge the interaction right away so it doesn't time out after 3 seconds
@@ -92,35 +109,39 @@ class ConfirmView(discord.ui.View):
         embed.set_footer(text=f'✅ Confirmed by {interaction.user.display_name}')
         await interaction.edit_original_response(attachments=interaction.message.attachments, embed=embed, view=None)
         await interaction.followup.send('Transaction confirmed successfully.', ephemeral=True)
-        self.value = True
-        self.stop()
 
     async def confirm_handler(self, interaction: discord.Interaction) -> str:
         '''
         Parses data from an addition / subtraction embed and processes the transaction.
         '''
-        if not interaction.message or not interaction.message.embeds[0].footer.text or not interaction.guild or not interaction.message.embeds or not interaction.message.embeds[0].fields[0].value or not interaction.message.embeds[0].title:
-            return 'Error: interaction message or guild was not found or did not have a valid signature.'
-        user_id = int(interaction.message.embeds[0].footer.text.replace('User ID: ', ''))
-        member: discord.Member | None = interaction.guild.get_member(user_id)
-        if not member:
-            member = await interaction.guild.fetch_member(user_id)
+        if not interaction.message or not interaction.guild or not interaction.message.embeds:
+            return 'Error: interaction message or guild was not found.'
+        embed: discord.Embed = interaction.message.embeds[0]
+        creator_id: int | None = get_creator_id(embed)
+        amount_value: str | None = get_embed_field(embed, 'Amount')
+        if creator_id is None or not amount_value or not embed.title:
+            return 'Error: interaction message did not have a valid signature.'
 
-        if not member:
-            return 'Error: member not found'
-            
+        # The member the transaction is for. Defaults to the creator when there is no member field.
+        member_value: str | None = get_embed_field(embed, 'Member')
+        member_digits: str = ''.join(c for c in member_value if c.isdigit()) if member_value else ''
+        member_id: int = int(member_digits) if member_digits else creator_id
+
         # Parse message
-        amount: int = int(interaction.message.embeds[0].fields[0].value.replace(',', ''))
-        if 'subtraction' in interaction.message.embeds[0].title:
+        amount_str: str = amount_value.replace(',', '')
+        if not is_int(amount_str):
+            return f'Error: invalid amount: `{amount_value}`'
+        amount: int = int(amount_str)
+        if 'subtraction' in embed.title:
             amount = -amount
-        description: str | None = interaction.message.embeds[0].fields[1].value
+        description: str | None = get_embed_field(embed, 'Description')
 
         async with self.bot.db.get_session() as session:
-             session.add(ClanBankTransaction(amount=amount, description=description, guild_id=interaction.guild.id, member_id=user_id, time=datetime.now(UTC)))
-             await session.commit()
+            session.add(ClanBankTransaction(amount=amount, description=description, guild_id=interaction.guild.id, member_id=member_id, time=datetime.now(UTC)))
+            await session.commit()
 
         return 'success'
-    
+
     async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
         if interaction.response.is_done():
             await interaction.followup.send('Error', ephemeral=True)
@@ -129,13 +150,25 @@ class ConfirmView(discord.ui.View):
         print(error)
         traceback.print_tb(error.__traceback__)
 
-class AddTransactionModal(discord.ui.Modal, title='Clan bank addition'):
-    def __init__(self, bot: Bot) -> None:
-        super().__init__()
+class TransactionModal(discord.ui.Modal):
+    def __init__(self, bot: Bot, subtract: bool, is_admin: bool, user: discord.Member | discord.User) -> None:
+        self.kind: str = 'subtraction' if subtract else 'addition'
+        verb: str = 'subtract' if subtract else 'add'
+        super().__init__(title=f'Clan bank {self.kind}')
         self.bot: Bot = bot
+        self.subtract: bool = subtract
 
-    amount = discord.ui.TextInput(label='How much do you want to add?', placeholder="0", min_length=1, max_length=13, required=True, style=TextStyle.short)
-    description = discord.ui.TextInput(label='Description (optional)', placeholder='Describe the reason for your addition here...', max_length=1000, required=False, style=TextStyle.paragraph)
+        # Administrators and the bot owner can create transactions for other members
+        self.member_select: discord.ui.UserSelect | None = None
+        if is_admin:
+            self.member_select = discord.ui.UserSelect(min_values=1, max_values=1, required=True, default_values=[user])
+            self.add_item(discord.ui.Label(text='Member', description=f'The member to {verb} funds for', component=self.member_select))
+
+        self.amount = discord.ui.TextInput(placeholder='0', min_length=1, max_length=13, required=True, style=TextStyle.short)
+        self.add_item(discord.ui.Label(text=f'How much do you want to {verb}?', component=self.amount))
+
+        self.description = discord.ui.TextInput(placeholder=f'Describe the reason for your {self.kind} here...', max_length=1000, required=False, style=TextStyle.paragraph)
+        self.add_item(discord.ui.Label(text='Description (optional)', component=self.description))
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         # Validation
@@ -152,70 +185,33 @@ class AddTransactionModal(discord.ui.Modal, title='Clan bank addition'):
             await interaction.response.send_message(f'Error: amount too great: `{amount:,}`', ephemeral=True)
             return
 
+        member: discord.Member | discord.User = interaction.user
+        if self.member_select and self.member_select.values:
+            member = self.member_select.values[0]
+            if member.bot:
+                await interaction.response.send_message(f'Error: cannot create a transaction for a bot', ephemeral=True)
+                return
+
         # Get an image for the given amount of coins
-        coins_image: discord.File = get_coins_image(amount)
-            
+        coins_image: discord.File = get_coins_image(-amount if self.subtract else amount)
+
         # Create embed to show data
-        embed = discord.Embed(title=f'**Clan bank addition**', colour=0x00e400)
+        embed = discord.Embed(title=f'**Clan bank {self.kind}**', colour=0xff0000 if self.subtract else 0x00e400)
         embed.add_field(name='Amount', value=f'{amount:,}', inline=False)
         embed.add_field(name='Description', value=self.description.value if self.description.value else 'N/A', inline=False)
+        if member.id != interaction.user.id:
+            embed.add_field(name='Member', value=member.mention, inline=False)
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
         embed.set_thumbnail(url='attachment://coins.png')
-        
-        # Create a view to confirm / cancel
-        view = ConfirmView(self.bot)
 
-        await interaction.response.send_message(files=[coins_image], embed=embed, view=view)
-        await view.wait()
+        await interaction.response.send_message(files=[coins_image], embed=embed, view=ConfirmView(self.bot))
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
-        print(error)
-        traceback.print_tb(error.__traceback__)
-
-class SubtractTransactionModal(discord.ui.Modal, title='Clan bank subtraction'):
-    def __init__(self, bot: Bot) -> None:
-        super().__init__()
-        self.bot: Bot = bot
-
-    amount = discord.ui.TextInput(label='How much do you want to subtract?', placeholder="0", min_length=1, max_length=13, required=True, style=TextStyle.short)
-    description = discord.ui.TextInput(label='Description (optional)', placeholder='Describe the reason for your subtraction here...', max_length=1000, required=False, style=TextStyle.paragraph)
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        # Validation
-        amount: str | int = self.amount.value
-        amount = amount.upper().replace(',', '').replace('K', '000').replace('M', '000000').replace('B', '000000000')
-        if not is_int(amount):
-            await interaction.response.send_message(f'Error: invalid amount: `{amount}`', ephemeral=True)
-            return
-        amount = int(amount)
-        if amount == 0:
-            await interaction.response.send_message(f'Error: amount cannot be 0', ephemeral=True)
-            return
-        if amount > max_cash or amount < -max_cash:
-            await interaction.response.send_message(f'Error: amount too great: `{amount:,}`', ephemeral=True)
-            return
-
-        # Get an image for the given amount of coins
-        coins_image: discord.File = get_coins_image(-amount)
-            
-        # Create embed to show data
-        embed = discord.Embed(title=f'**Clan bank subtraction**', colour=0xff0000)
-        embed.add_field(name='Amount', value=f'{amount:,}', inline=False)
-        embed.add_field(name='Description', value=self.description.value if self.description.value else 'N/A', inline=False)
-        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
-        embed.set_footer(text=f'User ID: {interaction.user.id}')
-        embed.set_thumbnail(url='attachment://coins.png')
-        
-         # Create a view to confirm / cancel
-        view = ConfirmView(self.bot)
-
-        await interaction.response.send_message(files=[coins_image], embed=embed, view=view)
-        await view.wait()
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        if interaction.response.is_done():
+            await interaction.followup.send('Error', ephemeral=True)
+        else:
+            await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
@@ -316,13 +312,16 @@ class ClanBank(Cog):
         else:
             await interaction.followup.send(embed=embed)
 
+    def is_admin(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.bot.config['owner'] or (isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator)
+
     async def add(self, interaction: discord.Interaction) -> None:
         # Add to the clan bank
-        await interaction.response.send_modal(AddTransactionModal(self.bot))
+        await interaction.response.send_modal(TransactionModal(self.bot, False, self.is_admin(interaction), interaction.user))
 
     async def subtract(self, interaction: discord.Interaction) -> None:
         # Subtract from the clan bank
-        await interaction.response.send_modal(SubtractTransactionModal(self.bot))
+        await interaction.response.send_modal(TransactionModal(self.bot, True, self.is_admin(interaction), interaction.user))
 
     async def history(self, interaction: discord.Interaction) -> None:
         if not interaction.guild:
