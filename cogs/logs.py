@@ -28,9 +28,14 @@ class Logs(Cog):
             username: str = self.bot.config['pc_username']
             error_str: str = str(error).replace(username, 'user')
             error_str = discord.utils.escape_mentions(text=error_str)
-            msg: discord.Message = await ctx.send(error_str)
+            # For slash invocations of hybrid commands, reply ephemerally (ignored for text commands)
+            msg: discord.Message = await ctx.send(error_str, ephemeral=True)
             await asyncio.sleep(10)
-            await ctx.message.delete()
+            if not ctx.interaction:
+                try:
+                    await ctx.message.delete()
+                except:
+                    pass
             await msg.delete()
         except:
             pass

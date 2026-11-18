@@ -1,7 +1,21 @@
 from discord.ext.commands import Converter, Context, CommandError
-from discord import Role
+from discord import AppCommandOptionType, Interaction, Role, app_commands
 
-class RoleConverter(Converter):
+class RoleConverter(Converter[Role], app_commands.Transformer):
+    '''
+    Converts an argument to a role.
+    Text commands: matches a role mention, ID, exact name, case-insensitive name, or name substring.
+    Slash commands (hybrid): presents Discord's native role picker.
+    '''
+
+    @property
+    def type(self) -> AppCommandOptionType:
+        return AppCommandOptionType.role
+
+    async def transform(self, interaction: Interaction, value: Role) -> Role:
+        # Discord already resolves role options to a Role object
+        return value
+
     async def convert(self, ctx: Context, argument) -> Role:
         if not argument or not ctx.guild:
             raise CommandError(message=f'Required argument missing: `role`.')
@@ -13,7 +27,7 @@ class RoleConverter(Converter):
         case_insensitive_match: Role | None = None
         substring_match: Role | None = None
         for r in ctx.guild.roles:
-            if r.id == argument:
+            if str(r.id) == argument:
                 id_match = r
                 break
             if r.mention == argument:

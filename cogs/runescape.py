@@ -1328,18 +1328,15 @@ class Runescape(Cog):
         self.bot.increment_command_counter()
         await ctx.send(embed=self.vis_wax_embed)
     
-    @commands.command(aliases=['lvl'])
-    async def level(self, ctx: commands.Context, lvl: int | str = 0) -> None:
+    @commands.hybrid_command(aliases=['lvl'])
+    @app_commands.rename(lvl='level')
+    @app_commands.describe(lvl='The level (1-126)')
+    async def level(self, ctx: commands.Context, lvl: int) -> None:
         '''
         Calculate xp required for given level.
         '''
         self.bot.increment_command_counter()
 
-        if not lvl:
-            raise commands.CommandError(message=f'Required argument missing: `level`')
-        elif not is_int(lvl):
-            raise commands.CommandError(message=f'Invalid argument level: `{lvl}``. Level must be an integer.')
-        lvl = int(lvl)
         if lvl < 1 or lvl > 126:
             raise commands.CommandError(message=f'Invalid argument level: `{lvl}``. Level must be between 1 and 126.')
 
@@ -1348,19 +1345,15 @@ class Runescape(Cog):
 
         await ctx.send(f'XP required for level `{lvl}`: `{xp_str}`')
     
-    @commands.command(aliases=['xp', 'exp'])
-    async def experience(self, ctx: commands.Context, lvl_start_or_xp: int | str = 0, lvl_end: int | str = 0) -> None:
+    @commands.hybrid_command(aliases=['xp', 'exp'])
+    @app_commands.rename(lvl_start_or_xp='start', lvl_end='end_level')
+    @app_commands.describe(lvl_start_or_xp='Start level (1-126) or an amount of XP', lvl_end='Target level. Leave empty to get the level for the given XP')
+    async def experience(self, ctx: commands.Context, lvl_start_or_xp: int, lvl_end: int = 0) -> None:
         '''
         Calculate level from xp or xp difference between two levels.
         '''
         self.bot.increment_command_counter()
 
-        if not lvl_start_or_xp:
-            raise commands.CommandError(message=f'Required argument missing: `level`')
-        elif not is_int(lvl_start_or_xp) or not is_int(lvl_end):
-            raise commands.CommandError(message=f'Invalid argument: `level`. Level must be an integer.')
-        lvl_start_or_xp = int(lvl_start_or_xp)
-        lvl_end = int(lvl_end)
         if lvl_start_or_xp < 1 or lvl_start_or_xp > 200e6:
             raise commands.CommandError(message=f'Invalid argument: `level`. Levels must be between 1 and 126. XP must be between between 1 and 200M.')
         elif (lvl_start_or_xp <= 126 and lvl_start_or_xp >= lvl_end and lvl_end > 0) or (lvl_start_or_xp > 126 and xp_to_level(lvl_start_or_xp) >= lvl_end and lvl_end > 0):
@@ -1390,23 +1383,16 @@ class Runescape(Cog):
             else:
                 await ctx.send(f'To reach level `{lvl_end}` from level `{lvl_start_or_xp}`, you will need to gain `{xp_dif_str}` XP.')
     
-    @commands.command(aliases=['actions'])
-    async def xph(self, ctx: commands.Context, lvl_start: int | str = 0, lvl_end: int | str = 0, xp_rate: float | str = 0.0) -> None:
+    @commands.hybrid_command(aliases=['actions'])
+    @app_commands.rename(lvl_start='start', lvl_end='end')
+    @app_commands.describe(lvl_start='Start level (1-126) or XP', lvl_end='Target level (1-126) or XP', xp_rate='XP gained per hour or per action')
+    async def xph(self, ctx: commands.Context, lvl_start: int, lvl_end: int, xp_rate: float) -> None:
         '''
         Calculate hours/actions required to reach a level / xp at a certain xp rate.
         '''
         self.bot.increment_command_counter()
 
-        if not lvl_start or not lvl_end or not xp_rate:
-            raise commands.CommandError(message=f'Required argument missing.')
-        elif not is_int(lvl_start) or not is_int(lvl_end):
-            raise commands.CommandError(message=f'Invalid argument(s): LEVEL. Must be of type integer.')
-        elif not is_float(xp_rate):
-            raise commands.CommandError(message=f'Invalid argument XP_RATE: `{xp_rate}`. Must be of type float.')
-
-        lvl_start = int(lvl_start)
-        lvl_end = int(lvl_end)
-        xp_rate = round(float(xp_rate) * 2) / 2 # round to nearest half
+        xp_rate = round(xp_rate * 2) / 2 # round to nearest half
         if xp_rate == int(xp_rate):
             xp_rate = int(xp_rate)
 
@@ -1432,9 +1418,8 @@ class Runescape(Cog):
         hours_or_actions: int = math.ceil(xp_dif / xp_rate)
         hours_or_actions_str: str = f'{hours_or_actions:,}'
         xp_dif_str: str = f'{xp_dif:,}'
-        xp_rate = f'{xp_rate:,}'
 
-        await ctx.send(f'To reach {"level " if not end_xp else ""}`{lvl_end}`{" XP" if end_xp else ""} from {"level " if not start_xp else ""}`{lvl_start}`{" XP" if start_xp else ""}, you will need to gain `{xp_dif_str}` XP. This will take `{hours_or_actions_str}` hours/actions at an XP rate of `{xp_rate}` per hour/action.')
+        await ctx.send(f'To reach {"level " if not end_xp else ""}`{lvl_end}`{" XP" if end_xp else ""} from {"level " if not start_xp else ""}`{lvl_start}`{" XP" if start_xp else ""}, you will need to gain `{xp_dif_str}` XP. This will take `{hours_or_actions_str}` hours/actions at an XP rate of `{xp_rate:,}` per hour/action.')
 
     @commands.command()
     async def pvm(self, ctx: commands.Context) -> None:
@@ -1463,8 +1448,9 @@ class Runescape(Cog):
 
         await ctx.send(file=image, embed=embed)
     
-    @commands.command()
-    async def dry(self, ctx: commands.Context, droprate: float | int | str, attempts: int | str) -> None:
+    @commands.hybrid_command()
+    @app_commands.describe(droprate='Drop rate, e.g. 1/1000, 1000, or 0.001', attempts='Number of kills / attempts')
+    async def dry(self, ctx: commands.Context, droprate: str, attempts: int) -> None:
         '''
         Calculates the probability of going dry.
         Arguments: droprate, attempts
@@ -1476,33 +1462,27 @@ class Runescape(Cog):
         '''
         self.bot.increment_command_counter()
 
-        if not droprate:
-            raise commands.CommandError(message=f'Required argument missing: `droprate`')
-        if not attempts:
-            raise commands.CommandError(message=f'Required argument missing: `attempts`')
-        if not is_int(attempts):
-            raise commands.CommandError(message=f'Invalid argument: `{attempts}`. Must be an integer.')
-        attempts = int(attempts)
         if attempts <= 0:
             raise commands.CommandError(message=f'Invalid argument: `{attempts}`. Must be greater than 0.')
-        if '1/' in str(droprate):
-            droprate = str(droprate).replace('1/', '')
-        if is_int(droprate):
-            droprate = int(droprate)
-            if droprate <= 0:
+
+        droprate_str: str = droprate.strip().replace('1/', '')
+        p: float
+        if is_int(droprate_str):
+            denominator: int = int(droprate_str)
+            if denominator <= 0:
                 raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be greater than 0 if integer.')
-            droprate = 1/droprate
-        elif is_float(droprate):
-            droprate = float(droprate)
-            if droprate <= 0 or droprate > 1:
+            p = 1/denominator
+        elif is_float(droprate_str):
+            p = float(droprate_str)
+            if p <= 0 or p > 1:
                 raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be greater than 0 and less than or equal to 1 if float.')
         else:
             raise commands.CommandError(message=f'Invalid argument: `{droprate}`. Must be int, float, or string of the form `1/x` where x is a positive integer.')
 
-        result: float = (1-droprate)**attempts
+        result: float = (1-p)**attempts
         result *= 100
 
-        await ctx.send(f'```Drop rate: {droprate}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
+        await ctx.send(f'```Drop rate: {p}\nAttempts: {attempts}\nProbability of not getting the drop: {result}%```')
 
     @commands.command(aliases=['cb', 'rs3cb', 'rs3combat'])
     @commands.cooldown(1, 5, runescape_api_cooldown_key)

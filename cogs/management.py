@@ -356,7 +356,7 @@ class Management(Cog):
         
         await ctx.send(f'The command prefix for server **{ctx.guild.name}** has been set to `{prefix}`.')
 
-    @commands.command(aliases=['latency', 'delay'])
+    @commands.hybrid_command(aliases=['latency', 'delay'])
     async def ping(self, ctx: commands.Context) -> None:
         '''
         Pings the bot to check latency.
@@ -488,14 +488,14 @@ class Management(Cog):
             raise commands.CommandError(message=f'Could not find any active trackers for the repository: `{repo_name}`.')
         await ctx.send(f'No longer tracking repository: `{repo_name}`.')
 
-    @commands.command(aliases=['info'])
+    @commands.hybrid_command(aliases=['info'])
     @commands.cooldown(1, 5, commands.BucketType.user)
     async def status(self, ctx: commands.Context) -> None:
         '''
         Returns the bot's current status.
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
+        await ctx.typing()
 
         now: datetime = datetime.now(UTC).replace(microsecond=0)
         start_time: datetime = self.bot.start_time.replace(microsecond=0)
@@ -822,14 +822,14 @@ class Management(Cog):
             except discord.HTTPException as e:
                 raise commands.CommandError(message=f'Unexpected error: `{e}`')
     
-    @commands.command()
+    @commands.hybrid_command()
     @commands.cooldown(1, 10, commands.BucketType.channel)
     async def uptime(self, ctx: commands.Context) -> None:
         '''
         Uptime statistics
         '''
         self.bot.increment_command_counter()
-        await ctx.channel.typing()
+        await ctx.typing()
 
         now: datetime = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 

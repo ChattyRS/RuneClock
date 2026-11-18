@@ -358,9 +358,12 @@ class ModCommands(Cog):
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `delete_message`.')
 
-    @commands.command()
+    @commands.hybrid_command()
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_roles=True)
+    @app_commands.describe(role='The role to give or remove', member='The member to give the role to or remove it from')
     @is_admin()
-    async def role(self, ctx: Context, role: RoleConverter, *, member: discord.Member) -> None:
+    async def role(self, ctx: Context, role: app_commands.Transform[discord.Role, RoleConverter], *, member: discord.Member) -> None:
         '''
         Toggles the given role for the given user (Admin+).
         Arguments: role, member
@@ -375,6 +378,7 @@ class ModCommands(Cog):
         if isinstance(ctx.author, discord.Member) and role > ctx.author.top_role and member.id != self.bot.config['owner']:
             raise CommandError(message=f'You have insufficient permissions to assign or remove this role.')
 
+        await ctx.typing()
         if not role in member.roles:
             try:
                 await member.add_roles(role)
@@ -480,16 +484,26 @@ class ModCommands(Cog):
         except discord.Forbidden:
             raise CommandError(message=f'Missing permissions: `manage_nicknames`.')
     
-    @commands.command()
+    @commands.hybrid_command()
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_nicknames=True)
+    @app_commands.describe(member='The member whose nickname to change', nickname='The new nickname')
     @is_admin()
-    async def edit_nick(self, ctx: Context, member: discord.Member, *, nickname: str | None) -> None:
+    async def edit_nick(self, ctx: Context, member: discord.Member, *, nickname: str) -> None:
         '''
-        Edits the nickname of the given user.
+        Edits the nickname of the given user (Admin+).
+        Arguments: member, nickname
         '''
+        self.bot.increment_command_counter()
+
+        nickname = nickname.replace(member.mention, '').strip()
         if not nickname:
             raise CommandError(message=f'Required argument missing: `nickname`.')
+        if len(nickname) > 32:
+            raise CommandError(message=f'Invalid argument: `{nickname}`. Nicknames cannot exceed 32 characters.')
+
+        await ctx.typing()
         try:
-            nickname = nickname.replace(member.mention, '')
             await member.edit(nick=nickname)
             await ctx.send(f'`{member.name}`\'s nickname has been changed to `{nickname}`.')
         except discord.Forbidden:

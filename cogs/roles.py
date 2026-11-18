@@ -3,6 +3,7 @@ import discord
 from discord import Emoji, app_commands
 from discord.ext import commands
 from discord.ext.commands import Cog, CommandError
+from src.converters import RoleConverter
 from sqlalchemy import select
 from src.bot import Bot
 from src.database import Guild, Role
@@ -286,8 +287,10 @@ class Roles(Cog):
         except discord.Forbidden:
             raise commands.CommandError(message=f'Missing permissions: `delete_roles`.')
 
-    @commands.command()
-    async def members(self, ctx: commands.Context, *, role: discord.Role) -> None:
+    @commands.hybrid_command()
+    @app_commands.guild_only()
+    @app_commands.describe(role='The role to list members of')
+    async def members(self, ctx: commands.Context, *, role: app_commands.Transform[discord.Role, RoleConverter]) -> None:
         '''
         List members in a role.
         '''
@@ -296,7 +299,8 @@ class Roles(Cog):
         embed = discord.Embed(title=f'Members in {role.name} ({len(role.members)})', colour=0x00b2ff)
         await send_lines_over_multiple_embeds(ctx, [m.mention for m in role.members], embed)
 
-    @commands.command()
+    @commands.hybrid_command()
+    @app_commands.guild_only()
     async def roles(self, ctx: commands.Context) -> None:
         '''
         Get a list of roles and member counts.

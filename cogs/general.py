@@ -94,7 +94,8 @@ class General(Cog):
         
         await ctx.send(result)
 
-    @commands.command()
+    @commands.hybrid_command()
+    @app_commands.guild_only()
     async def serverinfo(self, ctx: commands.Context) -> None:
         '''
         Get info on a server
