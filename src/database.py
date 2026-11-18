@@ -175,6 +175,7 @@ class ClanBankTransaction(Base):
     time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
+    submitter_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 class CustomRoleReaction(Base):
     __tablename__: str = 'custom_role_reactions'

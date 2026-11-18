@@ -137,7 +137,7 @@ class ConfirmView(discord.ui.View):
         description: str | None = get_embed_field(embed, 'Description')
 
         async with self.bot.db.get_session() as session:
-            session.add(ClanBankTransaction(amount=amount, description=description, guild_id=interaction.guild.id, member_id=member_id, time=datetime.now(UTC)))
+            session.add(ClanBankTransaction(amount=amount, description=description, guild_id=interaction.guild.id, member_id=member_id, submitter_id=creator_id, time=datetime.now(UTC)))
             await session.commit()
 
         return 'success'
@@ -215,7 +215,78 @@ class TransactionModal(discord.ui.Modal):
         print(error)
         traceback.print_tb(error.__traceback__)
 
+class HistoryView(discord.ui.View):
+    '''
+    Shows the clan bank transaction history, split into pages that each fit in a single embed.
+    '''
+    # Embed descriptions can hold up to 4096 characters
+    max_page_length: int = 4096
+    # Blank line between transactions
+    separator: str = '\n\n'
+
+    def __init__(self, user_id: int, author_name: str, author_icon_url: str, entries: list[str]) -> None:
+        super().__init__(timeout=600)
+        self.user_id: int = user_id
+        self.author_name: str = author_name
+        self.author_icon_url: str = author_icon_url
+        self.message: discord.Message | None = None
+        self.page: int = 0
+        self.total: int = len(entries)
+
+        # Fit as many entries as possible on each page
+        self.pages: list[list[str]] = [[]]
+        length: int = 0
+        for entry in entries:
+            if self.pages[-1] and length + len(self.separator) + len(entry) > self.max_page_length:
+                self.pages.append([])
+                length = 0
+            length += len(entry) + (len(self.separator) if self.pages[-1] else 0)
+            self.pages[-1].append(entry)
+        self.update_buttons()
+
+    def get_embed(self) -> discord.Embed:
+        description: str = self.separator.join(self.pages[self.page]) if self.total else 'No transactions have been recorded yet.'
+        embed = discord.Embed(title='**Clan bank history**', description=description, colour=0x00b2ff)
+        embed.set_author(name=self.author_name, icon_url=self.author_icon_url)
+        if self.total:
+            embed.set_footer(text=f'Page {self.page + 1}/{len(self.pages)} · {self.total:,} transactions')
+        return embed
+
+    def update_buttons(self) -> None:
+        self.previous.disabled = self.page == 0
+        self.next.disabled = self.page >= len(self.pages) - 1
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message('Only the user who requested this history can change pages. Use `/bank history` to view it yourself.', ephemeral=True)
+            return False
+        return True
+
+    async def change_page(self, interaction: discord.Interaction, page: int) -> None:
+        self.page = max(0, min(page, len(self.pages) - 1))
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+
+    @discord.ui.button(label='Previous', emoji='◀️', style=discord.ButtonStyle.secondary)
+    async def previous(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        await self.change_page(interaction, self.page - 1)
+
+    @discord.ui.button(label='Next', emoji='▶️', style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        await self.change_page(interaction, self.page + 1)
+
+    async def on_timeout(self) -> None:
+        # Remove the buttons once they stop working
+        if self.message:
+            try:
+                await self.message.edit(view=None)
+            except discord.HTTPException:
+                pass
+
 class ClanBank(Cog):
+    # Longer descriptions are shortened in the history, so that a page always fits at least ~10 transactions
+    max_history_description_length: int = 250
+
     def __init__(self, bot: Bot) -> None:
         self.bot: Bot = bot
 
@@ -328,26 +399,36 @@ class ClanBank(Cog):
             await interaction.response.send_message(f'This command can only be used in a server', ephemeral=True)
             return
         
+        await interaction.response.defer()
+
         # View the history of clan bank transaction
         async with self.bot.db.get_session() as session:
-            tx: Sequence[ClanBankTransaction] = (await session.execute(select(ClanBankTransaction).where(ClanBankTransaction.guild_id == interaction.guild.id))).scalars().all()
-        
-        # Create embed
-        description: str = 'No transactions have been recorded yet.' if len(tx) == 0 else f'Latest {min(5, len(tx))} transactions:'
-        embed = discord.Embed(title=f'**Clan bank history**', description=description, colour=0x00b2ff)
-        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
-        
-        # Add fields for latest 5 transactions
-        for i, t in enumerate(sorted(tx, key=lambda x: x.time, reverse=True)):
-            member: discord.Member | None = interaction.guild.get_member(t.member_id)
-            if not member:
-                member = await interaction.guild.fetch_member(t.member_id)
-            name: str = member.display_name if member else f'Unknown member: {t.member_id}'
-            embed.add_field(name=name, value=f'`{"+" if t.amount > 0 else ""}{t.amount:,}` on {t.time.strftime("%Y-%m-%d")}', inline=False)
-            if i >= 4:
-                break
-        
-        await interaction.response.send_message(embed=embed)
+            tx: Sequence[ClanBankTransaction] = (await session.execute(select(ClanBankTransaction).where(ClanBankTransaction.guild_id == interaction.guild.id).order_by(ClanBankTransaction.time.desc()))).scalars().all()
+
+        guild: discord.Guild = interaction.guild
+        def name(user_id: int) -> str:
+            member: discord.Member | None = guild.get_member(user_id)
+            return discord.utils.escape_markdown(member.display_name) if member else f'Unknown member ({user_id})'
+
+        # One entry per transaction, newest first
+        entries: list[str] = []
+        for t in tx:
+            entry: str = f'**{name(t.member_id)}** · `{"+" if t.amount > 0 else ""}{t.amount:,}` · `{t.time.strftime("%Y-%m-%d")}`'
+            if t.description and t.description != 'N/A':
+                # Keep the description on a single quoted line and shorten long ones so each page fits enough entries
+                description: str = ' '.join(t.description.split())
+                if len(description) > self.max_history_description_length:
+                    description = description[:self.max_history_description_length - 1].rstrip() + '…'
+                entry += f'\n> {discord.utils.escape_markdown(description)}'
+            if t.submitter_id != t.member_id:
+                entry += f'\n-# Submitted by {name(t.submitter_id)}'
+            entries.append(entry)
+
+        view = HistoryView(interaction.user.id, interaction.user.display_name, interaction.user.display_avatar.url, entries)
+        if len(view.pages) > 1:
+            view.message = await interaction.followup.send(embed=view.get_embed(), view=view, wait=True)
+        else:
+            await interaction.followup.send(embed=view.get_embed())
     
     async def set_bank_role(self, interaction: discord.Interaction) -> None:
         # Set the role required to manage the clan bank.
