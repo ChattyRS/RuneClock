@@ -69,8 +69,8 @@ class ConfirmView(discord.ui.View):
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
         embed.set_footer(text=f'❌ Cancelled by {interaction.user.display_name}')
-        await interaction.message.edit(embed=embed, view=None)
-        await interaction.response.send_message('Transaction cancelled successfully.', ephemeral=True)
+        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.followup.send('Transaction cancelled successfully.', ephemeral=True)
         self.value = False
         self.stop()
 
@@ -80,16 +80,18 @@ class ConfirmView(discord.ui.View):
         if not interaction.message or not interaction.message.embeds[0].footer.text or not interaction.user.id == int(interaction.message.embeds[0].footer.text.replace('User ID: ', '')):
             await interaction.response.send_message('Only the creator of a transaction can confirm it', ephemeral=True)
             return
+        # Acknowledge the interaction right away so it doesn't time out after 3 seconds
+        await interaction.response.defer()
         # Handle confirm
         status: str = await self.confirm_handler(interaction)
         if status != 'success':
-            await interaction.response.send_message(status, ephemeral=True)
+            await interaction.followup.send(status, ephemeral=True)
             return
         # Update message
         embed: discord.Embed = interaction.message.embeds[0]
         embed.set_footer(text=f'✅ Confirmed by {interaction.user.display_name}')
-        await interaction.message.edit(attachments=interaction.message.attachments, embed=embed, view=None)
-        await interaction.response.send_message('Transaction confirmed successfully.', ephemeral=True)
+        await interaction.edit_original_response(attachments=interaction.message.attachments, embed=embed, view=None)
+        await interaction.followup.send('Transaction confirmed successfully.', ephemeral=True)
         self.value = True
         self.stop()
 
@@ -120,7 +122,10 @@ class ConfirmView(discord.ui.View):
         return 'success'
     
     async def on_error(self, interaction: discord.Interaction, error: Exception, _: discord.ui.Item[Any]) -> None:
-        await interaction.response.send_message('Error', ephemeral=True)
+        if interaction.response.is_done():
+            await interaction.followup.send('Error', ephemeral=True)
+        else:
+            await interaction.response.send_message('Error', ephemeral=True)
         print(error)
         traceback.print_tb(error.__traceback__)
 
