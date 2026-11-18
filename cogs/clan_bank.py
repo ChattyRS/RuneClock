@@ -110,7 +110,7 @@ class ConfirmView(discord.ui.View):
             return 'Error: member not found'
             
         # Parse message
-        amount: int = int(interaction.message.embeds[0].fields[0].value)
+        amount: int = int(interaction.message.embeds[0].fields[0].value.replace(',', ''))
         if 'subtraction' in interaction.message.embeds[0].title:
             amount = -amount
         description: str | None = interaction.message.embeds[0].fields[1].value
@@ -134,13 +134,13 @@ class AddTransactionModal(discord.ui.Modal, title='Clan bank addition'):
         super().__init__()
         self.bot: Bot = bot
 
-    amount = discord.ui.TextInput(label='How much do you want to add?', placeholder="0", min_length=1, max_length=10, required=True, style=TextStyle.short)
+    amount = discord.ui.TextInput(label='How much do you want to add?', placeholder="0", min_length=1, max_length=13, required=True, style=TextStyle.short)
     description = discord.ui.TextInput(label='Description (optional)', placeholder='Describe the reason for your addition here...', max_length=1000, required=False, style=TextStyle.paragraph)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         # Validation
         amount: str | int = self.amount.value
-        amount = amount.upper().replace('K', '000').replace('M', '000000').replace('B', '000000000')
+        amount = amount.upper().replace(',', '').replace('K', '000').replace('M', '000000').replace('B', '000000000')
         if not is_int(amount):
             await interaction.response.send_message(f'Error: invalid amount: `{amount}`', ephemeral=True)
             return
@@ -149,7 +149,7 @@ class AddTransactionModal(discord.ui.Modal, title='Clan bank addition'):
             await interaction.response.send_message(f'Error: amount cannot be 0', ephemeral=True)
             return
         if amount > max_cash or amount < -max_cash:
-            await interaction.response.send_message(f'Error: amount too great: `{amount}`', ephemeral=True)
+            await interaction.response.send_message(f'Error: amount too great: `{amount:,}`', ephemeral=True)
             return
 
         # Get an image for the given amount of coins
@@ -157,7 +157,7 @@ class AddTransactionModal(discord.ui.Modal, title='Clan bank addition'):
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Clan bank addition**', colour=0x00e400)
-        embed.add_field(name='Amount', value=str(amount), inline=False)
+        embed.add_field(name='Amount', value=f'{amount:,}', inline=False)
         embed.add_field(name='Description', value=self.description.value if self.description.value else 'N/A', inline=False)
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
@@ -179,13 +179,13 @@ class SubtractTransactionModal(discord.ui.Modal, title='Clan bank subtraction'):
         super().__init__()
         self.bot: Bot = bot
 
-    amount = discord.ui.TextInput(label='How much do you want to subtract?', placeholder="0", min_length=1, max_length=10, required=True, style=TextStyle.short)
+    amount = discord.ui.TextInput(label='How much do you want to subtract?', placeholder="0", min_length=1, max_length=13, required=True, style=TextStyle.short)
     description = discord.ui.TextInput(label='Description (optional)', placeholder='Describe the reason for your subtraction here...', max_length=1000, required=False, style=TextStyle.paragraph)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         # Validation
         amount: str | int = self.amount.value
-        amount = amount.upper().replace('K', '000').replace('M', '000000').replace('B', '000000000')
+        amount = amount.upper().replace(',', '').replace('K', '000').replace('M', '000000').replace('B', '000000000')
         if not is_int(amount):
             await interaction.response.send_message(f'Error: invalid amount: `{amount}`', ephemeral=True)
             return
@@ -194,7 +194,7 @@ class SubtractTransactionModal(discord.ui.Modal, title='Clan bank subtraction'):
             await interaction.response.send_message(f'Error: amount cannot be 0', ephemeral=True)
             return
         if amount > max_cash or amount < -max_cash:
-            await interaction.response.send_message(f'Error: amount too great: `{amount}`', ephemeral=True)
+            await interaction.response.send_message(f'Error: amount too great: `{amount:,}`', ephemeral=True)
             return
 
         # Get an image for the given amount of coins
@@ -202,7 +202,7 @@ class SubtractTransactionModal(discord.ui.Modal, title='Clan bank subtraction'):
             
         # Create embed to show data
         embed = discord.Embed(title=f'**Clan bank subtraction**', colour=0xff0000)
-        embed.add_field(name='Amount', value=str(amount), inline=False)
+        embed.add_field(name='Amount', value=f'{amount:,}', inline=False)
         embed.add_field(name='Description', value=self.description.value if self.description.value else 'N/A', inline=False)
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         embed.set_footer(text=f'User ID: {interaction.user.id}')
