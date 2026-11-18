@@ -341,6 +341,7 @@ class RoleReactions(Cog):
                     pass
 
     @app_commands.command(name='reactions')
+    @app_commands.guild_only()
     async def reactions(self, interaction: discord.Interaction, action: str) -> None:
         '''
         Manage role reactions

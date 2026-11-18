@@ -383,6 +383,7 @@ class Clan(Cog):
         self.bot.add_view(RandomMetricView(self.bot))
 
     @app_commands.command(name='wom')
+    @app_commands.guild_only()
     async def wom(self, interaction: discord.Interaction, action: str) -> None:
         '''
         Manage the clan WOM group

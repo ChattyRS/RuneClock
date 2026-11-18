@@ -1,6 +1,7 @@
 import re
 from typing import Any, List, Sequence
 import discord
+from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Cog, Context, CommandError
 from sqlalchemy import select
@@ -441,6 +442,7 @@ class ModCommands(Cog):
             raise CommandError(message=f'Missing permissions: `edit_role`.')
 
     @commands.hybrid_command(aliases=['nick', 'setnick', 'changenick'])
+    @app_commands.guild_only()
     async def nickname(self, ctx: Context, *, username: str | None) -> None:
         '''
         Changes the user's nickname.

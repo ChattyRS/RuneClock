@@ -310,6 +310,7 @@ class Roles(Cog):
         await send_lines_over_multiple_embeds(ctx, [f'{role.mention} ({len(role.members)})' for role in ctx.guild.roles], embed)
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def mention(self, interaction: discord.Interaction, role: str) -> None:
         '''
         Mention all online or idle users with the given role.

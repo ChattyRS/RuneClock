@@ -295,6 +295,7 @@ class ClanBank(Cog):
         self.bot.add_view(ConfirmView(self.bot))
 
     @app_commands.command(name='bank')
+    @app_commands.guild_only()
     async def bank(self, interaction: discord.Interaction, action: str) -> None:
         '''
         Manage the clan bank

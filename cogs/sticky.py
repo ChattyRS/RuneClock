@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Cog
 from sqlalchemy import delete, update
@@ -97,6 +98,7 @@ class Sticky(Cog):
 
     @is_admin()
     @commands.hybrid_command()
+    @app_commands.guild_only()
     async def sticky(self, ctx: commands.Context, *, sticky_text: str | None = None) -> None:
         '''
         Adds, updates, or removes a sticky message.
