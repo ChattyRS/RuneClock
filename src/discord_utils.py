@@ -1,8 +1,9 @@
 from discord import Embed, Guild, Permissions, Role, TextChannel, Thread
 from discord.abc import GuildChannel, PrivateChannel
-from discord.ext.commands import Command, CommandError, Context, AutoShardedBot as Bot
+from discord.ext.commands import Command, CommandError, Context, MissingRequiredArgument, run_converters, AutoShardedBot as Bot
+from discord.ext.commands.view import StringView
 from typing import Any
-from inspect import Signature, signature, Parameter
+from inspect import Parameter
 
 max_message_length: int = 2000
 max_embed_description_length: int = 4096
@@ -265,43 +266,67 @@ def perm_string(p: Permissions) -> str:
 
     return s
 
-def get_command_arguments(cmd: Command, command_arguments: str) -> tuple[tuple[Any, ...], dict[str, Any]]:
+async def get_command_arguments(ctx: Context, cmd: Command, command_arguments: str) -> tuple[tuple[Any, ...], dict[str, Any]]:
     '''
-    Maps command arguments to command callback function parameters
+    Maps command arguments to command callback function parameters,
+    converting each argument using discord.py's converters based on the parameter annotations
+    (e.g. a `discord.Member` parameter accepts a mention, ID, or name).
+    Arguments are split the same way discord.py does for regular invocations, so quoted arguments are supported.
 
     Args:
-        cmd (Any): The command
-        command_arguments (list[str]): The provided command arguments
+        ctx (Context): The context the command is invoked from, used by converters
+        cmd (Command): The command
+        command_arguments (str): The provided command arguments
 
     Returns:
-        dict[str, Any]: Dictionary mapping the function argument name to the corresponding value.
+        tuple[tuple[Any, ...], dict[str, Any]]: Positional arguments (for *args) and a dictionary mapping parameter names to converted values.
     '''
-    sig: Signature = signature(cmd.callback)
-    parameters: list[Parameter] = list(sig.parameters.values())
-
-    arguments: list[str] = command_arguments.split()
+    view: StringView = StringView(command_arguments.strip())
     positional_args: tuple[Any, ...] = ()
     named_args: dict[str, Any] = {}
 
-    for param in parameters:
-        # self and ctx are supplied explicitly, we can skip them here
-        if param.name in ('self', 'ctx'):
-            continue
+    # clean_params excludes self and ctx, which are supplied explicitly
+    for name, param in cmd.clean_params.items():
+        view.skip_ws()
 
         if param.kind == Parameter.KEYWORD_ONLY:
             # e.g.: `*, param_name: str = ''`
             # Everything remaining belongs to this parameter.
-            named_args[param.name] = command_arguments
+            rest: str = view.read_rest().strip()
+            if rest:
+                named_args[name] = await run_converters(ctx, param.converter, rest, param)
+            elif param.required:
+                raise MissingRequiredArgument(param)
+            else:
+                named_args[name] = await param.get_default(ctx)
             break
 
         elif param.kind == Parameter.VAR_POSITIONAL:
             # e.g.: `*param_name`
-            # Everything remaining becomes the value of this *args parameter.
-            positional_args = tuple(arguments)
+            # Every remaining word is converted and passed as part of *args.
+            values: list[Any] = []
+            while not view.eof:
+                view.skip_ws()
+                word: str | None = view.get_quoted_word()
+                if word is None:
+                    break
+                values.append(await run_converters(ctx, param.converter, word, param))
+            positional_args = tuple(values)
             break
 
-        elif arguments:
+        else:
             # Normal positional parameter
-            named_args[param.name] = arguments.pop(0)
+            if view.eof:
+                if param.required:
+                    raise MissingRequiredArgument(param)
+                named_args[name] = await param.get_default(ctx)
+                continue
+            argument: str | None = view.get_quoted_word()
+            if argument is None:
+                if param.required:
+                    raise MissingRequiredArgument(param)
+                named_args[name] = await param.get_default(ctx)
+                continue
+            named_args[name] = await run_converters(ctx, param.converter, argument, param)
 
     return (positional_args, named_args)

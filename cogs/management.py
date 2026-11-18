@@ -1156,7 +1156,7 @@ class Management(Cog):
         ctx.invoked_with = command
 
         if await cmd.can_run(ctx):
-            (positional_args, named_args) = get_command_arguments(cmd, command_arguments)
+            (positional_args, named_args) = await get_command_arguments(ctx, cmd, command_arguments)
             await cmd.callback(self, ctx, *positional_args, **named_args) # type: ignore
     
     @commands.command(hidden=True)

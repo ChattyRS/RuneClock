@@ -266,8 +266,8 @@ class CustomCommands(Cog):
             if cmd == custom_command:
                 raise CommandError(message=f'Invalid custom command syntax: `{alias}`.')
 
-            (positional_args, named_args) = get_command_arguments(cmd, command_arguments)
             try:
+                (positional_args, named_args) = await get_command_arguments(ctx, cmd, command_arguments)
                 for check in cmd.checks:
                     if not await check(ctx): # type: ignore MaybeCoro can be awaited
                         raise CommandError(message='Error: `Insufficient permissions`.')
