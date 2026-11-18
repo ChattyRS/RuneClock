@@ -306,7 +306,8 @@ class ClanBank(Cog):
         user_amounts: dict[int, int] = {}
         for user_id in set([t.member_id for t in tx]):
             user_amounts[user_id] = sum([t.amount for t in tx if t.member_id == user_id])
-        for user_id, user_amount in sorted(user_amounts.items(), key=lambda item: item[1]):
+        non_zero_amounts: list[tuple[int, int]] = [item for item in user_amounts.items() if item[1] != 0]
+        for user_id, user_amount in sorted(non_zero_amounts, key=lambda item: item[1], reverse=True)[:25]:
             member: discord.Member | None = interaction.guild.get_member(user_id)
             name: str = member.display_name if member else f'Unknown member: {user_id}'
             embed.add_field(name=name, value=f'Amount: `{user_amount:,}`', inline=False)
