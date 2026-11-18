@@ -99,6 +99,7 @@ class Sticky(Cog):
     @is_admin()
     @commands.hybrid_command()
     @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
     async def sticky(self, ctx: commands.Context, *, sticky_text: str | None = None) -> None:
         '''
         Adds, updates, or removes a sticky message.
